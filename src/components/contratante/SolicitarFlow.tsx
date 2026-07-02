@@ -1,0 +1,607 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/Button";
+import { Textarea, Input, Label } from "@/components/ui/Field";
+import { RouteMap } from "@/components/map/RouteMap";
+import {
+  brl,
+  estimatePrice,
+  haversineKm,
+  platformFee,
+  providerNet,
+} from "@/lib/pricing";
+import { createEscrowCharge, releaseEscrow, type PaymentMethod } from "@/lib/gateway";
+import type { ServiceCategory } from "@/lib/types";
+
+type Provider = {
+  id: string;
+  full_name: string;
+  rating: number | null;
+  jobs_done: number | null;
+  base_price: number | null;
+  lat: number | null;
+  lng: number | null;
+  category_id: string | null;
+  bio: string | null;
+};
+type ClientInfo = {
+  id: string;
+  name: string;
+  lat: number | null;
+  lng: number | null;
+  city: string | null;
+};
+type ProposalRow = {
+  id: string;
+  price: number;
+  eta_minutes: number | null;
+  provider: {
+    id: string;
+    full_name: string;
+    rating: number | null;
+    jobs_done: number | null;
+    bio: string | null;
+    lat: number | null;
+    lng: number | null;
+  };
+};
+
+type Step =
+  | "categoria"
+  | "detalhes"
+  | "precificando"
+  | "propostas"
+  | "pagamento"
+  | "acompanhamento"
+  | "avaliacao";
+
+const DEFAULT_LOC = { lat: -23.5505, lng: -46.6333 }; // São Paulo
+
+export function SolicitarFlow({
+  categories,
+  providers,
+  preselectSlug,
+  client,
+}: {
+  categories: ServiceCategory[];
+  providers: Provider[];
+  preselectSlug: string | null;
+  client: ClientInfo;
+}) {
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+
+  const preCat = preselectSlug
+    ? categories.find((c) => c.slug === preselectSlug) ?? null
+    : null;
+
+  const [step, setStep] = useState<Step>(preCat ? "detalhes" : "categoria");
+  const [category, setCategory] = useState<ServiceCategory | null>(preCat);
+  const [description, setDescription] = useState("");
+  const [urgent, setUrgent] = useState(false);
+  const [address, setAddress] = useState("");
+  const [loc, setLoc] = useState<{ lat: number; lng: number }>(
+    client.lat && client.lng ? { lat: client.lat, lng: client.lng } : DEFAULT_LOC,
+  );
+  const [geoMsg, setGeoMsg] = useState("");
+
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [estimated, setEstimated] = useState(0);
+  const [proposals, setProposals] = useState<ProposalRow[]>([]);
+  const [chosen, setChosen] = useState<ProposalRow | null>(null);
+  const [method, setMethod] = useState<PaymentMethod>("pix");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  // tracking
+  const [progress, setProgress] = useState(0);
+  const [arrived, setArrived] = useState(false);
+  const [rating, setRating] = useState(0);
+
+  function useMyLocation() {
+    setGeoMsg("Localizando...");
+    navigator.geolocation?.getCurrentPosition(
+      (p) => {
+        setLoc({ lat: p.coords.latitude, lng: p.coords.longitude });
+        setGeoMsg("Localização capturada ✓");
+      },
+      () => setGeoMsg("Não foi possível — usando local padrão"),
+    );
+  }
+
+  const distanceToNearest = useMemo(() => {
+    const cands = providers.filter(
+      (p) => p.lat && p.lng && (!category || p.category_id === category.id),
+    );
+    if (cands.length === 0) return 3;
+    return Math.min(
+      ...cands.map((p) => haversineKm(loc, { lat: p.lat!, lng: p.lng! })),
+    );
+  }, [providers, category, loc]);
+
+  // ── Passo: precificar + criar pedido + disparar ──
+  async function startPricing() {
+    if (!category) return;
+    if (!description.trim()) {
+      setError("Descreva o que você precisa.");
+      return;
+    }
+    setError("");
+    setStep("precificando");
+
+    const price = estimatePrice(category.base_price, urgent, distanceToNearest);
+
+    // animação de "calculando"
+    await new Promise((r) => setTimeout(r, 1600));
+    setEstimated(price);
+
+    // cria o pedido
+    const { data: req, error: reqErr } = await supabase
+      .from("service_requests")
+      .insert({
+        client_id: client.id,
+        category_id: category.id,
+        description,
+        urgent,
+        address,
+        lat: loc.lat,
+        lng: loc.lng,
+        estimated_price: price,
+        status: "buscando",
+      })
+      .select("id")
+      .single();
+
+    if (reqErr || !req) {
+      setError("Erro ao criar pedido: " + (reqErr?.message ?? ""));
+      setStep("detalhes");
+      return;
+    }
+    setRequestId(req.id);
+
+    // dispara para prestadores próximos (função no banco)
+    await supabase.rpc("dispatch_request", { p_request_id: req.id });
+
+    // busca as propostas geradas
+    const { data: props } = await supabase
+      .from("proposals")
+      .select(
+        "id, price, eta_minutes, provider:profiles!proposals_provider_id_fkey(id, full_name, rating, jobs_done, bio, lat, lng)",
+      )
+      .eq("request_id", req.id)
+      .order("price", { ascending: true });
+
+    const normalized: ProposalRow[] = (props ?? []).map((p: any) => ({
+      ...p,
+      provider: Array.isArray(p.provider) ? p.provider[0] : p.provider,
+    }));
+    setProposals(normalized);
+    setStep("propostas");
+  }
+
+  // ── Passo: escolher proposta ──
+  async function chooseProposal(p: ProposalRow) {
+    setBusy(true);
+    setChosen(p);
+    await supabase
+      .from("service_requests")
+      .update({
+        provider_id: p.provider.id,
+        estimated_price: p.price,
+        final_price: p.price,
+        status: "aceito",
+      })
+      .eq("id", requestId!);
+    await supabase
+      .from("proposals")
+      .update({ status: "recusada" })
+      .eq("request_id", requestId!)
+      .neq("id", p.id);
+    await supabase.from("proposals").update({ status: "aceita" }).eq("id", p.id);
+    setBusy(false);
+    setStep("pagamento");
+  }
+
+  // ── Passo: pagamento (escrow) ──
+  async function pay() {
+    if (!chosen) return;
+    setBusy(true);
+    setError("");
+    try {
+      await createEscrowCharge({ amount: chosen.price, method });
+      await supabase.from("payments").insert({
+        request_id: requestId!,
+        amount: chosen.price,
+        fee: platformFee(chosen.price),
+        method,
+        status: "retido",
+      });
+      await supabase
+        .from("service_requests")
+        .update({ status: "a_caminho" })
+        .eq("id", requestId!);
+      setStep("acompanhamento");
+    } catch (e: any) {
+      setError("Falha no pagamento: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // anima o prestador chegando
+  const started = useRef(false);
+  useEffect(() => {
+    if (step !== "acompanhamento" || started.current) return;
+    started.current = true;
+    const t = setInterval(() => {
+      setProgress((v) => {
+        if (v >= 1) {
+          clearInterval(t);
+          setArrived(true);
+          supabase
+            .from("service_requests")
+            .update({ status: "em_andamento" })
+            .eq("id", requestId!)
+            .then(() => {});
+          return 1;
+        }
+        return Math.min(1, v + 0.02);
+      });
+    }, 160);
+    return () => clearInterval(t);
+  }, [step, requestId, supabase]);
+
+  async function finish() {
+    setBusy(true);
+    await releaseEscrow("escrow");
+    await supabase
+      .from("payments")
+      .update({ status: "liberado", released_at: new Date().toISOString() })
+      .eq("request_id", requestId!);
+    await supabase
+      .from("service_requests")
+      .update({ status: "concluido" })
+      .eq("id", requestId!);
+    setBusy(false);
+    setStep("avaliacao");
+  }
+
+  async function submitRating() {
+    if (requestId && rating > 0) {
+      await supabase.from("service_requests").update({ rating }).eq("id", requestId);
+    }
+    router.push("/app/contratante/historico");
+    router.refresh();
+  }
+
+  const providerLoc =
+    chosen?.provider.lat && chosen?.provider.lng
+      ? { lat: chosen.provider.lat, lng: chosen.provider.lng }
+      : { lat: loc.lat + 0.02, lng: loc.lng + 0.02 };
+
+  /* ───────────────────────── UI ───────────────────────── */
+  return (
+    <div className="max-w-xl mx-auto">
+      <Stepper step={step} />
+
+      {step === "categoria" && (
+        <Card title="O que você precisa?" subtitle="Escolha a categoria do serviço">
+          <div className="grid grid-cols-2 gap-3">
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  setCategory(c);
+                  setStep("detalhes");
+                }}
+                className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-4 hover:border-primary hover:bg-primary/5 transition text-left"
+              >
+                <span className="text-2xl">{c.icon}</span>
+                <span>
+                  <span className="block font-medium text-ink text-sm">{c.name}</span>
+                  <span className="block text-xs text-gray-light">{brl(c.base_price)}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {step === "detalhes" && category && (
+        <Card title={`${category.icon} ${category.name}`} subtitle="Conte os detalhes do serviço">
+          <div className="space-y-4">
+            <div>
+              <Label>Descreva o que precisa</Label>
+              <Textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Ex.: Tomada da cozinha parou de funcionar e preciso resolver hoje."
+              />
+            </div>
+            <button
+              onClick={() => setUrgent((v) => !v)}
+              className={`flex w-full items-center justify-between rounded-xl border p-4 transition ${
+                urgent ? "border-danger bg-danger/5" : "border-black/10 bg-white"
+              }`}
+            >
+              <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                🚨 É urgente? <span className="text-gray-light font-normal">(prioridade + taxa)</span>
+              </span>
+              <span
+                className={`h-6 w-11 rounded-full p-0.5 transition ${urgent ? "bg-danger" : "bg-black/15"}`}
+              >
+                <span
+                  className={`block h-5 w-5 rounded-full bg-white transition ${urgent ? "translate-x-5" : ""}`}
+                />
+              </span>
+            </button>
+            <div>
+              <Label>Endereço</Label>
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder={`Rua, número — ${client.city ?? "sua cidade"}`}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-white border border-black/10 px-4 py-3">
+              <span className="text-sm text-gray">
+                {geoMsg || "Local do serviço no mapa"}
+              </span>
+              <Button variant="outline" size="sm" type="button" onClick={useMyLocation}>
+                📍 Minha localização
+              </Button>
+            </div>
+            <RouteMap destination={loc} height={200} showRoute={false} />
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>
+              <Button fullWidth onClick={startPricing}>Ver preço estimado</Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {step === "precificando" && (
+        <Card title="Calculando o melhor preço" subtitle="Analisando distância, urgência e demanda">
+          <div className="flex flex-col items-center py-10">
+            <div className="relative flex items-center justify-center">
+              <span className="absolute h-24 w-24 rounded-full bg-primary/30 animate-ping" />
+              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-3xl">
+                {category?.icon}
+              </span>
+            </div>
+            <p className="text-gray mt-8 animate-pulse">Buscando profissionais próximos...</p>
+          </div>
+        </Card>
+      )}
+
+      {step === "propostas" && (
+        <Card
+          title="Profissionais disponíveis"
+          subtitle={`Preço estimado: ${brl(estimated)} · ${proposals.length} proposta(s)`}
+        >
+          {proposals.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray">
+                Nenhum profissional disponível nesta categoria no momento.
+              </p>
+              <p className="text-sm text-gray-light mt-1">
+                (Cadastre/aprove um prestador desta categoria para ver propostas.)
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {proposals.map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-xl border border-black/10 p-4 hover:border-primary transition"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-canvas font-semibold text-ink">
+                        {p.provider.full_name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-ink">{p.provider.full_name}</p>
+                        <p className="text-xs text-gray-light">
+                          ⭐ {(p.provider.rating ?? 5).toFixed(1)} · {p.provider.jobs_done ?? 0} serviços
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-ink">{brl(p.price)}</p>
+                      <p className="text-xs text-gray-light">chega em ~{p.eta_minutes} min</p>
+                    </div>
+                  </div>
+                  <Button
+                    fullWidth
+                    size="sm"
+                    className="mt-3"
+                    loading={busy && chosen?.id === p.id}
+                    onClick={() => chooseProposal(p)}
+                  >
+                    Escolher e continuar
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {step === "pagamento" && chosen && (
+        <Card title="Pagamento protegido" subtitle="O valor fica retido até você aprovar o serviço">
+          <div className="rounded-xl bg-canvas p-4 mb-4">
+            <Row label="Profissional" value={chosen.provider.full_name} />
+            <Row label="Serviço" value={`${category?.icon} ${category?.name}`} />
+            <Row label="Valor do serviço" value={brl(chosen.price)} />
+            <Row label="Taxa Fixly (15%)" value={brl(platformFee(chosen.price))} muted />
+            <div className="border-t border-black/10 my-2" />
+            <Row label="Total a pagar" value={brl(chosen.price)} bold />
+          </div>
+
+          <Label>Forma de pagamento</Label>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {(["pix", "cartao"] as PaymentMethod[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMethod(m)}
+                className={`rounded-xl border p-3 text-sm font-medium transition ${
+                  method === m ? "border-primary bg-primary/10 text-ink" : "border-black/10 text-gray"
+                }`}
+              >
+                {m === "pix" ? "⚡ Pix" : "💳 Cartão"}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-3 text-sm mb-4">
+            🔒 Pagamento protegido: o profissional só recebe após você confirmar a conclusão.
+          </div>
+
+          {error && <p className="text-sm text-danger mb-3">{error}</p>}
+          <Button fullWidth size="lg" loading={busy} onClick={pay}>
+            Pagar {brl(chosen.price)} e contratar
+          </Button>
+        </Card>
+      )}
+
+      {step === "acompanhamento" && chosen && (
+        <Card
+          title={arrived ? "Serviço em andamento" : "A caminho"}
+          subtitle={
+            arrived
+              ? `${chosen.provider.full_name} chegou e está executando o serviço`
+              : `${chosen.provider.full_name} está indo até você`
+          }
+        >
+          <RouteMap destination={loc} origin={providerLoc} progress={progress} height={280} />
+          <div className="flex items-center gap-3 rounded-xl bg-canvas p-4 mt-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-lg">
+              {arrived ? "🔧" : "🚗"}
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-ink text-sm">
+                {arrived ? "Trabalho em execução" : `${Math.round((1 - progress) * (chosen.eta_minutes ?? 20))} min para chegar`}
+              </p>
+              <div className="mt-1.5 h-1.5 rounded-full bg-black/10 overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${Math.round(progress * 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+          {arrived && (
+            <Button fullWidth size="lg" className="mt-4" loading={busy} onClick={finish}>
+              ✓ Aprovar serviço e liberar pagamento
+            </Button>
+          )}
+        </Card>
+      )}
+
+      {step === "avaliacao" && (
+        <Card title="Como foi o serviço?" subtitle="Sua avaliação ajuda a manter a qualidade">
+          <div className="flex justify-center gap-2 py-6">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                onClick={() => setRating(n)}
+                className={`text-4xl transition ${n <= rating ? "" : "grayscale opacity-40"}`}
+              >
+                ⭐
+              </button>
+            ))}
+          </div>
+          <div className="rounded-xl bg-success/5 text-success text-sm px-4 py-3 mb-4 text-center">
+            ✅ Pagamento liberado ao profissional. Serviço concluído!
+          </div>
+          <Button fullWidth size="lg" onClick={submitRating}>
+            Finalizar
+          </Button>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ── auxiliares de UI ── */
+function Card({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-black/5 p-6 animate-fade-up">
+      <h2 className="text-lg font-bold text-ink">{title}</h2>
+      {subtitle && <p className="text-gray text-sm mt-0.5 mb-5">{subtitle}</p>}
+      {!subtitle && <div className="mb-4" />}
+      {children}
+    </div>
+  );
+}
+
+function Row({
+  label,
+  value,
+  bold,
+  muted,
+}: {
+  label: string;
+  value: string;
+  bold?: boolean;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex justify-between py-1 text-sm">
+      <span className={muted ? "text-gray-light" : "text-gray"}>{label}</span>
+      <span className={`${bold ? "font-bold text-ink text-base" : muted ? "text-gray-light" : "text-ink font-medium"}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+const STEPS: { key: Step; label: string }[] = [
+  { key: "detalhes", label: "Detalhes" },
+  { key: "propostas", label: "Propostas" },
+  { key: "pagamento", label: "Pagamento" },
+  { key: "acompanhamento", label: "Acompanhar" },
+];
+
+function Stepper({ step }: { step: Step }) {
+  const order = ["categoria", "detalhes", "precificando", "propostas", "pagamento", "acompanhamento", "avaliacao"];
+  const curIdx = order.indexOf(step);
+  return (
+    <div className="flex items-center justify-between mb-5 px-1">
+      {STEPS.map((s, i) => {
+        const active = curIdx >= order.indexOf(s.key);
+        return (
+          <div key={s.key} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center">
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                  active ? "bg-primary text-ink" : "bg-black/10 text-gray-light"
+                }`}
+              >
+                {i + 1}
+              </div>
+              <span className={`text-[10px] mt-1 ${active ? "text-ink" : "text-gray-light"}`}>{s.label}</span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-1 mb-4 ${active ? "bg-primary" : "bg-black/10"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

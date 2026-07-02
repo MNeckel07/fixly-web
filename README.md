@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fixly — Sistema Web
 
-## Getting Started
+Plataforma web do Fixly com **três frentes numa mesma aplicação**: Contratante,
+Prestador e Administrador. Uma única tela de login permite escolher o perfil.
 
-First, run the development server:
+## Stack
+- **Next.js 16** (App Router, Server Actions) + TypeScript
+- **Tailwind CSS v4**
+- **Supabase** — Postgres, Auth, Storage (documentos privados), RLS
+- **Leaflet + OpenStreetMap** — mapa e rota (sem chave/custo)
+- **Resend** — e-mail de aprovação de cadastro
+- Deploy alvo: **Render**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Arquitetura de segurança
+- **RLS** em todas as tabelas: cada usuário só acessa os próprios dados.
+- Documentos em **bucket privado** (`documentos`) — acesso só por URL assinada.
+- Ações administrativas rodam no servidor com verificação `is_admin()`.
+- O `service_role`/secret key **nunca** vai ao navegador (só a publishable).
+- Recomendação de produção: separar o painel `/admin` em um deploy/subdomínio
+  próprio (`admin.fixly.com.br`), com MFA e allowlist de IP.
+
+## Setup (passo a passo)
+
+### 1. Aplicar o schema no Supabase
+No painel do Supabase → **SQL Editor**, rode em ordem:
+1. `supabase/migrations/0001_init.sql`
+2. `supabase/migrations/0002_dispatch.sql`
+
+### 2. Desativar confirmação de e-mail (protótipo)
+Supabase → **Authentication → Sign In / Providers → Email** →
+desligue **"Confirm email"**. Assim o gate de acesso passa a ser a **aprovação
+do admin** (status do perfil), e não um link de e-mail.
+
+### 3. Variáveis de ambiente (`.env.local`)
+```
+NEXT_PUBLIC_SUPABASE_URL=...             # já preenchido
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... # já preenchido
+SUPABASE_SECRET_KEY=sb_secret_...        # necessária para o seed
+RESEND_API_KEY=re_...                    # opcional (sem ela, e-mail vira preview no console)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 4. Criar usuários de teste (3 frentes)
+```bash
+npm run seed
+```
+Cria contas aprovadas de Admin, Contratante e Prestadores + 1 prestador
+**pendente** para testar a aprovação.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 5. Rodar
+```bash
+npm run dev       # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Contas de teste (após o seed)
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Administrador | `matheus@dvn.com.br` | `1234` |
+| Contratante | `contratante@fixly.com.br` | `fixly1234` |
+| Prestador | `prestador@fixly.com.br` | `fixly1234` |
 
-## Learn More
+## Fluxos implementados
+- **Cadastro** (contratante e prestador) com **upload de documentos** → análise.
+- **Admin**: fila de aprovação, visualização de documentos, aprovar/reprovar
+  com **e-mail** automático.
+- **Contratante**: precificação rápida → disparo para vários prestadores →
+  escolha de proposta → **pagamento protegido (escrow)** → acompanhamento no
+  **mapa com rota** → avaliação.
+- **Prestador**: ficar online, aceitar pedidos, **rota até o cliente**,
+  concluir serviço, **ganhos**.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Gateway de pagamento
+`src/lib/gateway.ts` é uma **abstração mock**. Para produção, trocar o corpo das
+funções pela integração real (recomendado **Iugu** ou **Pagar.me** — suportam
+split/marketplace e retenção no Brasil) sem alterar o resto do app.

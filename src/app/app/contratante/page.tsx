@@ -1,0 +1,100 @@
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
+import { Badge } from "@/components/ui/Badge";
+import { brl } from "@/lib/pricing";
+import type { ServiceCategory } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+
+export default async function ContratanteHome() {
+  const supabase = await createClient();
+  const { userId, profile } = await getProfile();
+
+  const { data: cats } = await supabase
+    .from("service_categories")
+    .select("*")
+    .order("name");
+  const categories = (cats as ServiceCategory[]) ?? [];
+
+  const { data: active } = await supabase
+    .from("service_requests")
+    .select("id, description, status, estimated_price, category:service_categories(name, icon)")
+    .eq("client_id", userId!)
+    .not("status", "in", "(concluido,cancelado)")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const activeCat = active
+    ? Array.isArray(active.category)
+      ? active.category[0]
+      : active.category
+    : null;
+
+  return (
+    <div className="space-y-8">
+      {/* Hero */}
+      <section className="rounded-3xl bg-ink text-white p-7 relative overflow-hidden">
+        <div className="absolute -top-16 -right-10 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+        <p className="text-white/60">Olá, {profile?.full_name.split(" ")[0]} 👋</p>
+        <h1 className="text-2xl font-bold mt-1 max-w-sm relative">
+          Qual serviço você precisa resolver hoje?
+        </h1>
+        <Link
+          href="/app/contratante/solicitar"
+          className="inline-flex items-center gap-2 mt-5 bg-primary text-ink font-semibold rounded-xl px-5 h-12 hover:bg-primary-dark transition relative"
+        >
+          ➕ Solicitar serviço
+        </Link>
+      </section>
+
+      {/* Serviço ativo */}
+      {active && (
+        <Link
+          href={`/app/contratante/solicitar?req=${active.id}`}
+          className="flex items-center justify-between rounded-2xl border border-primary/40 bg-primary/5 p-5 hover:bg-primary/10 transition"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-2xl">
+              {activeCat?.icon ?? "🧰"}
+            </div>
+            <div>
+              <p className="font-semibold text-ink">{activeCat?.name ?? "Serviço"} em andamento</p>
+              <p className="text-sm text-gray">{active.description}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <Badge status={active.status} />
+            {active.estimated_price && (
+              <p className="text-sm text-ink font-semibold mt-1">{brl(active.estimated_price)}</p>
+            )}
+          </div>
+        </Link>
+      )}
+
+      {/* Categorias */}
+      <section>
+        <h2 className="font-semibold text-ink mb-4">Categorias de serviço</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {categories.map((c) => (
+            <Link
+              key={c.id}
+              href={`/app/contratante/solicitar?cat=${c.slug}`}
+              className="flex flex-col items-center gap-2 rounded-2xl border border-black/5 bg-white p-5 hover:shadow-[0_8px_28px_-12px_rgba(31,35,41,0.25)] hover:-translate-y-0.5 transition-all"
+            >
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded-xl text-2xl"
+                style={{ backgroundColor: `${c.color}1A` }}
+              >
+                {c.icon}
+              </div>
+              <span className="text-sm font-medium text-ink text-center">{c.name}</span>
+              <span className="text-xs text-gray-light">a partir de {brl(c.base_price)}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
