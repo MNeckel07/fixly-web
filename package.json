@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db:apply": "node --env-file=.env.local scripts/apply-schema.mjs",
     "seed": "node --env-file=.env.local scripts/seed.mjs"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "pg": "^8.22.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
