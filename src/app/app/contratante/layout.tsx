@@ -1,13 +1,12 @@
-import { Home, Plus, Clock, MessageSquare, User } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { UserNav, type NavItem } from "@/components/shell/UserNav";
 
 const ITEMS: NavItem[] = [
-  { href: "/app/contratante", label: "Início", icon: Home },
-  { href: "/app/contratante/solicitar", label: "Solicitar", icon: Plus },
-  { href: "/app/contratante/historico", label: "Histórico", icon: Clock },
-  { href: "/app/contratante/mensagens", label: "Mensagens", icon: MessageSquare },
-  { href: "/app/contratante/perfil", label: "Perfil", icon: User },
+  { href: "/app/contratante", label: "Início", icon: "home" },
+  { href: "/app/contratante/solicitar", label: "Solicitar", icon: "plus" },
+  { href: "/app/contratante/historico", label: "Histórico", icon: "clock" },
+  { href: "/app/contratante/mensagens", label: "Mensagens", icon: "message" },
+  { href: "/app/contratante/perfil", label: "Perfil", icon: "user" },
 ];
 
 export default async function ContratanteLayout({

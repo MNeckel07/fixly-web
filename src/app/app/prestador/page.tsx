@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { PedidosBoard } from "@/components/prestador/PedidosBoard";
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function PrestadorHome() {
   const supabase = await createClient();
   const { profile } = await getProfile();
+  if (!profile) redirect("/login");
 
   // pedidos abertos na categoria do prestador
   const { data: open } = await supabase

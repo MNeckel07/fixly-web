@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { TrabalhoView } from "@/components/prestador/TrabalhoView";
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function TrabalhoPage() {
   const supabase = await createClient();
   const { profile } = await getProfile();
+  if (!profile) redirect("/login");
 
   const { data: job } = await supabase
     .from("service_requests")

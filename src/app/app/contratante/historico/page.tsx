@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Star, ClipboardList, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function HistoricoPage() {
   const supabase = await createClient();
   const { userId } = await getProfile();
+  if (!userId) redirect("/login");
 
   const { data } = await supabase
     .from("service_requests")

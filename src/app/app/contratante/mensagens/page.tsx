@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth";
 import { Messenger } from "@/components/chat/Messenger";
 
@@ -10,5 +11,6 @@ export default async function MensagensContratante({
 }) {
   const { c } = await searchParams;
   const { userId } = await getProfile();
-  return <Messenger currentUserId={userId!} initialConversationId={c} />;
+  if (!userId) redirect("/login");
+  return <Messenger currentUserId={userId} initialConversationId={c} />;
 }

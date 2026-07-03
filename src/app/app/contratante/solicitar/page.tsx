@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { SolicitarFlow } from "@/components/contratante/SolicitarFlow";
@@ -13,6 +14,7 @@ export default async function SolicitarPage({
   const { cat } = await searchParams;
   const supabase = await createClient();
   const { profile } = await getProfile();
+  if (!profile) redirect("/login");
 
   const { data: cats } = await supabase
     .from("service_categories")

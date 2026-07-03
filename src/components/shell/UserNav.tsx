@@ -2,11 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { LucideIcon } from "lucide-react";
+import { Home, Plus, Clock, MessageSquare, User, Inbox, Wrench, Wallet, type LucideIcon } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 
-export type NavItem = { href: string; label: string; icon: LucideIcon };
+const ICONS: Record<string, LucideIcon> = {
+  home: Home,
+  plus: Plus,
+  clock: Clock,
+  message: MessageSquare,
+  user: User,
+  inbox: Inbox,
+  wrench: Wrench,
+  wallet: Wallet,
+};
+
+export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };
 
 export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
   const path = usePathname();
@@ -21,7 +32,7 @@ export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
           <Logo size={24} variant="dark" />
           <nav className="hidden md:flex items-center gap-1">
             {items.map((it) => {
-              const Icon = it.icon;
+              const Icon = ICONS[it.icon];
               return (
                 <Link
                   key={it.href}
@@ -48,7 +59,7 @@ export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
       {/* Bottom tab bar (mobile) */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-white border-t border-black/5 flex">
         {items.map((it) => {
-          const Icon = it.icon;
+          const Icon = ICONS[it.icon];
           return (
             <Link
               key={it.href}

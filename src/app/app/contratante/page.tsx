@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function ContratanteHome() {
   const supabase = await createClient();
   const { userId, profile } = await getProfile();
+  if (!profile) redirect("/login");
 
   const { data: cats } = await supabase
     .from("service_categories")
