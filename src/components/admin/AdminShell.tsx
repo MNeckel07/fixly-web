@@ -11,6 +11,7 @@ import {
   Wrench,
   FileText,
   MessageSquare,
+  LifeBuoy,
   PanelLeftClose,
   PanelLeft,
   type LucideIcon,
@@ -24,7 +25,8 @@ const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/usuarios", label: "Cadastros", icon: Users },
   { href: "/admin/vendas", label: "Vendas", icon: TrendingUp },
   { href: "/admin/servicos", label: "Serviços", icon: Wrench },
-  { href: "/admin/mensagens", label: "Mensagens", icon: MessageSquare },
+  { href: "/admin/suporte", label: "Suporte", icon: LifeBuoy },
+  { href: "/admin/mensagens", label: "Atendimento", icon: MessageSquare },
   { href: "/admin/documentos", label: "Documentos", icon: FileText },
 ];
 

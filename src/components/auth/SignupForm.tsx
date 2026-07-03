@@ -3,11 +3,13 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Wrench, Home, FileText } from "lucide-react";
+import { ArrowLeft, Wrench, Home, FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea, Select } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
+import { CategoryIcon } from "@/components/ui/icons";
+import { LocationPicker } from "@/components/map/LocationPicker";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
 import { TERMS, TERMS_VERSION, termsPlainText } from "@/lib/terms";
 import type { ServiceCategory } from "@/lib/types";
@@ -39,7 +41,7 @@ export function SignupForm({
     setF((p) => ({ ...p, [k]: e.target.value }));
 
   // prestador
-  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
+  const [categoryIds, setCategoryIds] = useState<string[]>(categories[0] ? [categories[0].id] : []);
   const [basePrice, setBasePrice] = useState(categories[0]?.base_price?.toString() ?? "");
   const [radius, setRadius] = useState("10");
   const [bio, setBio] = useState("");
@@ -47,11 +49,17 @@ export function SignupForm({
   const setB = (k: keyof typeof bank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setBank((p) => ({ ...p, [k]: e.target.value }));
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [geoMsg, setGeoMsg] = useState("");
 
   const files = useRef<Record<string, File | null>>({});
 
-  const selectedCat = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
+  function toggleCategory(id: string, price: number) {
+    setCategoryIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      if (!prev.includes(id) && !basePrice) setBasePrice(String(price));
+      return next;
+    });
+  }
+  const primaryCat = useMemo(() => categories.find((c) => c.id === categoryIds[0]), [categories, categoryIds]);
 
   async function lookupCep(cep: string) {
     const clean = cep.replace(/\D/g, "");
@@ -64,21 +72,14 @@ export function SignupForm({
     } catch { /* ignora */ }
   }
 
-  function useMyLocation() {
-    setGeoMsg("Localizando...");
-    navigator.geolocation?.getCurrentPosition(
-      (p) => { setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }); setGeoMsg("Localização capturada"); },
-      () => { setCoords({ lat: -23.5505, lng: -46.6333 }); setGeoMsg("Não foi possível — usando local padrão"); },
-    );
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     for (const d of docTypes) {
       if (d.required && !files.current[d.slug]) return setError(`Envie o documento obrigatório: ${d.label}`);
     }
-    if (role === "prestador" && !coords) return setError("Informe sua localização de atendimento.");
+    if (role === "prestador" && categoryIds.length === 0) return setError("Selecione ao menos um tipo de serviço que você presta.");
+    if (role === "prestador" && !coords) return setError("Informe sua localização de atendimento (GPS ou CEP).");
     if (!acceptTerms) return setError("É necessário ler e aceitar os Termos de Uso.");
 
     setLoading(true);
@@ -107,7 +108,7 @@ export function SignupForm({
       complement: f.complement, neighborhood: f.neighborhood, city: f.city, state: f.state,
       terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION,
       ...(role === "prestador" && {
-        category_id: categoryId, base_price: Number(basePrice) || null,
+        category_id: categoryIds[0], base_price: Number(basePrice) || null,
         service_radius_km: Number(radius) || 10, bio,
         bank_name: bank.bank_name, bank_agency: bank.bank_agency, bank_account: bank.bank_account,
         bank_account_type: bank.bank_account_type, pix_key: bank.pix_key,
@@ -115,6 +116,13 @@ export function SignupForm({
       }),
     });
     if (profErr) { setError("Erro ao salvar perfil: " + profErr.message); return setLoading(false); }
+
+    // categorias (tipos de serviço) do prestador
+    if (role === "prestador" && categoryIds.length > 0) {
+      await supabase.from("provider_categories").insert(
+        categoryIds.map((category_id) => ({ provider_id: userId, category_id })),
+      );
+    }
 
     // documentos
     for (const d of docTypes) {
@@ -199,26 +207,36 @@ export function SignupForm({
         {role === "prestador" && (
           <>
             <Section title="Dados profissionais">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Categoria principal">
-                  <Select value={categoryId} onChange={(e) => { setCategoryId(e.target.value); const c = categories.find((x) => x.id === e.target.value); if (c) setBasePrice(String(c.base_price)); }}>
-                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Preço-base da visita (R$)"><Input type="number" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} /></Field>
-              </div>
-              <Field label={`Raio de atendimento: ${radius} km`}>
+              <Field label="Tipos de serviço que você presta (selecione um ou mais)">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {categories.map((c) => {
+                    const active = categoryIds.includes(c.id);
+                    return (
+                      <button
+                        type="button"
+                        key={c.id}
+                        onClick={() => toggleCategory(c.id, c.base_price)}
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition ${
+                          active ? "border-primary bg-primary/10 text-ink font-medium" : "border-black/10 text-gray hover:bg-black/[0.02]"
+                        }`}
+                      >
+                        <CategoryIcon slug={c.slug} className="h-4 w-4" />
+                        {c.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+              <Field label="Preço-base da visita (R$)"><Input type="number" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} /></Field>
+              <Field label={`Raio de atendimento: ${radius} km (pedidos fora do raio não chegam para você)`}>
                 <input type="range" min={1} max={50} value={radius} onChange={(e) => setRadius(e.target.value)} className="w-full accent-[#FFC107]" />
               </Field>
               <Field label="Sobre você (experiência, especialidades)">
-                <Textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder={`Ex.: ${selectedCat?.name ?? "Profissional"} com anos de experiência...`} />
+                <Textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder={`Ex.: ${primaryCat?.name ?? "Profissional"} com anos de experiência...`} />
               </Field>
-              <div className="flex items-center justify-between rounded-xl bg-canvas px-4 py-3">
-                <span className="text-sm text-gray">{geoMsg || "Localização de atendimento (para pedidos próximos)"}</span>
-                <Button type="button" variant="outline" size="sm" onClick={useMyLocation}>
-                  <MapPin className="h-4 w-4" /> Usar localização
-                </Button>
-              </div>
+              <Field label="Sua região de atendimento (base para pedidos próximos)">
+                <LocationPicker value={coords} onChange={setCoords} height={180} />
+              </Field>
             </Section>
 
             <Section title="Dados bancários (para receber)">
