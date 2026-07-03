@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Car, MapPin, Check, Wrench, MessageSquare, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { RouteMap } from "@/components/map/RouteMap";
+import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet } from "@/lib/pricing";
 
 type Job = {
@@ -18,7 +20,7 @@ type Job = {
   estimated_price: number | null;
   final_price: number | null;
   urgent: boolean;
-  category: { name: string; icon: string } | null;
+  category: { name: string; slug: string } | null;
   client: { full_name: string; phone: string | null; city: string | null } | null;
 };
 
@@ -59,11 +61,11 @@ export function TrabalhoView({
   if (!job) {
     return (
       <div className="max-w-lg mx-auto bg-white rounded-2xl border border-black/5 p-10 text-center">
-        <div className="text-4xl mb-2">🔧</div>
+        <Wrench className="h-9 w-9 text-gray-light mx-auto mb-2" strokeWidth={1.5} />
         <p className="text-ink font-medium">Nenhum trabalho em andamento</p>
         <p className="text-sm text-gray-light mt-1">Aceite um pedido para começar.</p>
-        <Link href="/app/prestador" className="text-primary-dark font-semibold text-sm mt-3 inline-block">
-          Ver pedidos disponíveis →
+        <Link href="/app/prestador" className="inline-flex items-center gap-1 text-primary-dark font-semibold text-sm mt-3">
+          Ver pedidos disponíveis <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
     );
@@ -81,6 +83,13 @@ export function TrabalhoView({
     } else {
       setStatus(newStatus as Job["status"]);
     }
+  }
+
+  async function openChat() {
+    if (!job) return;
+    const supabase = createClient();
+    const { data } = await supabase.rpc("start_service_chat", { p_request_id: job.id });
+    if (data) router.push(`/app/prestador/mensagens?c=${data}`);
   }
 
   async function conclude() {
@@ -114,13 +123,13 @@ export function TrabalhoView({
       <div className="bg-white rounded-2xl border border-black/5 p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-2xl">
-              {job.category?.icon ?? "🧰"}
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-ink">
+              <CategoryIcon slug={job.category?.slug} className="h-6 w-6" />
             </div>
             <div>
               <p className="font-semibold text-ink">{job.category?.name ?? "Serviço"}</p>
               <p className="text-sm text-gray-light">
-                {job.client?.full_name} · 📍 {job.address || job.client?.city || "—"}
+                {job.client?.full_name} · {job.address || job.client?.city || "—"}
               </p>
             </div>
           </div>
@@ -133,18 +142,25 @@ export function TrabalhoView({
       </div>
 
       <RouteMap
-        destination={dest}
+        target={dest}
+        targetKind="home"
         origin={status === "aceito" ? null : origin}
         progress={progress}
-        height={280}
+        moverKind="wrench"
+        requestGps
         showRoute={status !== "aceito"}
+        height={280}
       />
+
+      <Button variant="outline" fullWidth onClick={openChat}>
+        <MessageSquare className="h-4 w-4" /> Conversar com o cliente
+      </Button>
 
       {/* Ações por etapa */}
       <div className="bg-white rounded-2xl border border-black/5 p-5">
         {status === "aceito" && (
           <Button fullWidth size="lg" loading={busy} onClick={() => update("a_caminho")}>
-            🚗 Iniciar rota até o cliente
+            <Car className="h-5 w-5" /> Iniciar rota (estou a caminho)
           </Button>
         )}
         {status === "a_caminho" && !arrived && (
@@ -160,12 +176,12 @@ export function TrabalhoView({
         )}
         {status === "a_caminho" && arrived && (
           <Button fullWidth size="lg" loading={busy} onClick={() => update("em_andamento")}>
-            📍 Cheguei — iniciar serviço
+            <MapPin className="h-5 w-5" /> Cheguei — iniciar serviço
           </Button>
         )}
         {status === "em_andamento" && (
           <Button fullWidth size="lg" loading={busy} onClick={conclude}>
-            ✓ Concluir serviço
+            <Check className="h-5 w-5" /> Concluir serviço
           </Button>
         )}
       </div>

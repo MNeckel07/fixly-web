@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/admin/StatCard";
 import { Badge } from "@/components/ui/Badge";
+import { CategoryIcon } from "@/components/ui/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export default async function ServicosPage() {
   const { data } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, estimated_price, urgent, created_at, category:service_categories(name, icon), client:profiles!service_requests_client_id_fkey(full_name)",
+      "id, description, status, estimated_price, urgent, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name)",
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -36,8 +37,9 @@ export default async function ServicosPage() {
               return (
                 <tr key={r.id} className="hover:bg-black/[0.015]">
                   <td className="px-5 py-3">
-                    <span className="font-medium text-ink">
-                      {cat?.icon} {cat?.name ?? "Serviço"}
+                    <span className="inline-flex items-center gap-2 font-medium text-ink">
+                      <CategoryIcon slug={cat?.slug} className="h-4 w-4 text-gray" />
+                      {cat?.name ?? "Serviço"}
                     </span>
                     {r.urgent && (
                       <span className="ml-2 text-xs font-semibold text-danger">urgente</span>

@@ -1,5 +1,7 @@
+import { Briefcase, Banknote } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet, platformFee } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +12,7 @@ export default async function GanhosPage() {
 
   const { data } = await supabase
     .from("service_requests")
-    .select("id, final_price, estimated_price, created_at, category:service_categories(name, icon)")
+    .select("id, final_price, estimated_price, created_at, category:service_categories(name, slug)")
     .eq("provider_id", profile!.id)
     .eq("status", "concluido")
     .order("created_at", { ascending: false });
@@ -34,8 +36,8 @@ export default async function GanhosPage() {
         <p className="text-ink/70 text-sm">Ganho líquido total</p>
         <p className="text-4xl font-bold mt-1">{brl(net)}</p>
         <div className="flex gap-6 mt-4 text-sm">
-          <span>💼 {jobs.length} serviços</span>
-          <span>💵 bruto {brl(gross)}</span>
+          <span className="inline-flex items-center gap-1.5"><Briefcase className="h-4 w-4" /> {jobs.length} serviços</span>
+          <span className="inline-flex items-center gap-1.5"><Banknote className="h-4 w-4" /> bruto {brl(gross)}</span>
         </div>
       </div>
 
@@ -73,7 +75,9 @@ export default async function GanhosPage() {
               return (
                 <li key={j.id} className="flex items-center justify-between px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{cat?.icon ?? "🧰"}</span>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-canvas text-ink">
+                      <CategoryIcon slug={cat?.slug} className="h-5 w-5" />
+                    </span>
                     <div>
                       <p className="font-medium text-ink">{cat?.name ?? "Serviço"}</p>
                       <p className="text-xs text-gray-light">

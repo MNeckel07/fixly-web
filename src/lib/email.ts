@@ -21,11 +21,11 @@ export function approvalEmailHtml(name: string, role: Role) {
     </div>
     <div style="background:#FFFFFF;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px -8px rgba(31,35,41,.12)">
       <div style="background:linear-gradient(135deg,#FFC107,#E6A800);padding:40px 32px;text-align:center">
-        <div style="width:72px;height:72px;line-height:72px;margin:0 auto 16px;background:rgba(255,255,255,.25);border-radius:50%;font-size:36px">✓</div>
+        <div style="width:72px;height:72px;margin:0 auto 16px;background:rgba(255,255,255,.25);border-radius:50%;display:flex;align-items:center;justify-content:center"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#1F2329" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
         <h1 style="margin:0;color:#1F2329;font-size:24px">Cadastro aprovado!</h1>
       </div>
       <div style="padding:32px">
-        <p style="font-size:16px;line-height:1.6;margin:0 0 16px">Olá, <b>${firstName}</b>! 🎉</p>
+        <p style="font-size:16px;line-height:1.6;margin:0 0 16px">Olá, <b>${firstName}</b>!</p>
         <p style="font-size:16px;line-height:1.6;color:#4A4A4A;margin:0 0 16px">
           Ótimas notícias: seu cadastro como <b>${ROLE_LABELS[role]}</b> foi
           <b style="color:#16A34A">aprovado</b> pela nossa equipe. Sua conta já está ativa
@@ -36,7 +36,7 @@ export function approvalEmailHtml(name: string, role: Role) {
         </div>
         <div style="background:#FAFAFA;border-radius:12px;padding:16px 20px;margin-top:8px">
           <p style="margin:0;font-size:14px;color:#5B616B">
-            💡 ${role === "prestador"
+            ${role === "prestador"
               ? "Deixe seu perfil online para começar a receber propostas de serviço na sua região."
               : "Já pode solicitar seu primeiro serviço com preço estimado na hora."}
           </p>
@@ -88,7 +88,7 @@ export async function sendEmail(opts: {
 
   if (!key) {
     console.log(
-      `\n📧 [PREVIEW — RESEND_API_KEY não configurada]\n  Para: ${opts.to}\n  Assunto: ${opts.subject}\n  (HTML gerado com sucesso — configure RESEND_API_KEY para enviar de verdade)\n`,
+      `\n[E-MAIL PREVIEW — RESEND_API_KEY não configurada]\n  Para: ${opts.to}\n  Assunto: ${opts.subject}\n  (HTML gerado com sucesso — configure RESEND_API_KEY para enviar de verdade)\n`,
     );
     return { previewed: true };
   }

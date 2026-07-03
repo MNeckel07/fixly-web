@@ -1,3 +1,4 @@
+import { Star } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABELS } from "@/lib/brand";
@@ -26,7 +27,14 @@ export function ProfileCard({ profile }: { profile: Profile }) {
           <Line label="Cidade" value={profile.city ?? "—"} />
           {profile.role === "prestador" && (
             <>
-              <Line label="Avaliação" value={`⭐ ${(profile.rating ?? 5).toFixed(1)}`} />
+              <Line
+                label="Avaliação"
+                value={
+                  <span className="inline-flex items-center gap-1">
+                    <Star className="h-4 w-4 fill-primary text-primary" /> {(profile.rating ?? 5).toFixed(1)}
+                  </span>
+                }
+              />
               <Line label="Serviços concluídos" value={String(profile.jobs_done ?? 0)} />
               <Line label="Raio de atendimento" value={`${profile.service_radius_km ?? 10} km`} />
             </>
@@ -42,7 +50,7 @@ export function ProfileCard({ profile }: { profile: Profile }) {
   );
 }
 
-function Line({ label, value }: { label: string; value: string }) {
+function Line({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex justify-between">
       <dt className="text-gray-light">{label}</dt>

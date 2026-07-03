@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, Lock, Star, Car, Wrench, MessageSquare, CheckCircle2, MapPin, Zap, CreditCard } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Textarea, Input, Label } from "@/components/ui/Field";
 import { RouteMap } from "@/components/map/RouteMap";
+import { CategoryIcon } from "@/components/ui/icons";
 import {
   brl,
   estimatePrice,
@@ -106,7 +108,7 @@ export function SolicitarFlow({
     navigator.geolocation?.getCurrentPosition(
       (p) => {
         setLoc({ lat: p.coords.latitude, lng: p.coords.longitude });
-        setGeoMsg("Localização capturada ✓");
+        setGeoMsg("Localização capturada");
       },
       () => setGeoMsg("Não foi possível — usando local padrão"),
     );
@@ -269,6 +271,12 @@ export function SolicitarFlow({
     setStep("avaliacao");
   }
 
+  async function openServiceChat() {
+    if (!requestId) return;
+    const { data } = await supabase.rpc("start_service_chat", { p_request_id: requestId });
+    if (data) router.push(`/app/contratante/mensagens?c=${data}`);
+  }
+
   async function submitRating() {
     if (requestId && rating > 0) {
       await supabase.from("service_requests").update({ rating }).eq("id", requestId);
@@ -299,7 +307,9 @@ export function SolicitarFlow({
                 }}
                 className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-4 hover:border-primary hover:bg-primary/5 transition text-left"
               >
-                <span className="text-2xl">{c.icon}</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-canvas text-ink">
+                  <CategoryIcon slug={c.slug} className="h-5 w-5" />
+                </span>
                 <span>
                   <span className="block font-medium text-ink text-sm">{c.name}</span>
                   <span className="block text-xs text-gray-light">{brl(c.base_price)}</span>
@@ -311,7 +321,7 @@ export function SolicitarFlow({
       )}
 
       {step === "detalhes" && category && (
-        <Card title={`${category.icon} ${category.name}`} subtitle="Conte os detalhes do serviço">
+        <Card title={category.name} subtitle="Conte os detalhes do serviço">
           <div className="space-y-4">
             <div>
               <Label>Descreva o que precisa</Label>
@@ -329,7 +339,8 @@ export function SolicitarFlow({
               }`}
             >
               <span className="flex items-center gap-2 text-sm font-medium text-ink">
-                🚨 É urgente? <span className="text-gray-light font-normal">(prioridade + taxa)</span>
+                <AlertTriangle className={`h-4 w-4 ${urgent ? "text-danger" : "text-gray-light"}`} />
+                É urgente? <span className="text-gray-light font-normal">(prioridade + taxa)</span>
               </span>
               <span
                 className={`h-6 w-11 rounded-full p-0.5 transition ${urgent ? "bg-danger" : "bg-black/15"}`}
@@ -352,10 +363,10 @@ export function SolicitarFlow({
                 {geoMsg || "Local do serviço no mapa"}
               </span>
               <Button variant="outline" size="sm" type="button" onClick={useMyLocation}>
-                📍 Minha localização
+                <MapPin className="h-4 w-4" /> Minha localização
               </Button>
             </div>
-            <RouteMap destination={loc} height={200} showRoute={false} />
+            <RouteMap target={loc} targetKind="home" requestGps showRoute={false} height={200} />
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>
@@ -370,8 +381,8 @@ export function SolicitarFlow({
           <div className="flex flex-col items-center py-10">
             <div className="relative flex items-center justify-center">
               <span className="absolute h-24 w-24 rounded-full bg-primary/30 animate-ping" />
-              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-3xl">
-                {category?.icon}
+              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-ink">
+                <CategoryIcon slug={category?.slug} className="h-9 w-9" />
               </span>
             </div>
             <p className="text-gray mt-8 animate-pulse">Buscando profissionais próximos...</p>
@@ -407,8 +418,9 @@ export function SolicitarFlow({
                       </div>
                       <div>
                         <p className="font-semibold text-ink">{p.provider.full_name}</p>
-                        <p className="text-xs text-gray-light">
-                          ⭐ {(p.provider.rating ?? 5).toFixed(1)} · {p.provider.jobs_done ?? 0} serviços
+                        <p className="flex items-center gap-1 text-xs text-gray-light">
+                          <Star className="h-3 w-3 fill-primary text-primary" />
+                          {(p.provider.rating ?? 5).toFixed(1)} · {p.provider.jobs_done ?? 0} serviços
                         </p>
                       </div>
                     </div>
@@ -437,7 +449,7 @@ export function SolicitarFlow({
         <Card title="Pagamento protegido" subtitle="O valor fica retido até você aprovar o serviço">
           <div className="rounded-xl bg-canvas p-4 mb-4">
             <Row label="Profissional" value={chosen.provider.full_name} />
-            <Row label="Serviço" value={`${category?.icon} ${category?.name}`} />
+            <Row label="Serviço" value={category?.name ?? "Serviço"} />
             <Row label="Valor do serviço" value={brl(chosen.price)} />
             <Row label="Taxa Fixly (15%)" value={brl(platformFee(chosen.price))} muted />
             <div className="border-t border-black/10 my-2" />
@@ -450,17 +462,19 @@ export function SolicitarFlow({
               <button
                 key={m}
                 onClick={() => setMethod(m)}
-                className={`rounded-xl border p-3 text-sm font-medium transition ${
+                className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition ${
                   method === m ? "border-primary bg-primary/10 text-ink" : "border-black/10 text-gray"
                 }`}
               >
-                {m === "pix" ? "⚡ Pix" : "💳 Cartão"}
+                {m === "pix" ? <Zap className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
+                {m === "pix" ? "Pix" : "Cartão"}
               </button>
             ))}
           </div>
 
           <div className="flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-3 text-sm mb-4">
-            🔒 Pagamento protegido: o profissional só recebe após você confirmar a conclusão.
+            <Lock className="h-4 w-4 shrink-0" />
+            Pagamento protegido: o profissional só recebe após você confirmar a conclusão.
           </div>
 
           {error && <p className="text-sm text-danger mb-3">{error}</p>}
@@ -479,10 +493,19 @@ export function SolicitarFlow({
               : `${chosen.provider.full_name} está indo até você`
           }
         >
-          <RouteMap destination={loc} origin={providerLoc} progress={progress} height={280} />
+          <RouteMap
+            target={loc}
+            targetKind="home"
+            origin={providerLoc}
+            progress={progress}
+            moverKind="wrench"
+            requestGps
+            showRoute
+            height={280}
+          />
           <div className="flex items-center gap-3 rounded-xl bg-canvas p-4 mt-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-lg">
-              {arrived ? "🔧" : "🚗"}
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 text-primary-dark">
+              {arrived ? <Wrench className="h-5 w-5" /> : <Car className="h-5 w-5" />}
             </div>
             <div className="flex-1">
               <p className="font-medium text-ink text-sm">
@@ -496,9 +519,12 @@ export function SolicitarFlow({
               </div>
             </div>
           </div>
+          <Button variant="outline" fullWidth className="mt-3" onClick={openServiceChat}>
+            <MessageSquare className="h-4 w-4" /> Conversar com o profissional
+          </Button>
           {arrived && (
-            <Button fullWidth size="lg" className="mt-4" loading={busy} onClick={finish}>
-              ✓ Aprovar serviço e liberar pagamento
+            <Button fullWidth size="lg" className="mt-3" loading={busy} onClick={finish}>
+              <CheckCircle2 className="h-5 w-5" /> Aprovar serviço e liberar pagamento
             </Button>
           )}
         </Card>
@@ -508,17 +534,14 @@ export function SolicitarFlow({
         <Card title="Como foi o serviço?" subtitle="Sua avaliação ajuda a manter a qualidade">
           <div className="flex justify-center gap-2 py-6">
             {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                onClick={() => setRating(n)}
-                className={`text-4xl transition ${n <= rating ? "" : "grayscale opacity-40"}`}
-              >
-                ⭐
+              <button key={n} onClick={() => setRating(n)} className="transition">
+                <Star className={`h-9 w-9 ${n <= rating ? "fill-primary text-primary" : "text-black/15"}`} />
               </button>
             ))}
           </div>
-          <div className="rounded-xl bg-success/5 text-success text-sm px-4 py-3 mb-4 text-center">
-            ✅ Pagamento liberado ao profissional. Serviço concluído!
+          <div className="flex items-center justify-center gap-2 rounded-xl bg-success/5 text-success text-sm px-4 py-3 mb-4">
+            <CheckCircle2 className="h-4 w-4" />
+            Pagamento liberado ao profissional. Serviço concluído!
           </div>
           <Button fullWidth size="lg" onClick={submitRating}>
             Finalizar

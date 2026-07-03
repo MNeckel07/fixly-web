@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Inbox, User, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet } from "@/lib/pricing";
 
 type Req = {
@@ -14,7 +16,7 @@ type Req = {
   estimated_price: number | null;
   lat: number | null;
   lng: number | null;
-  category: { name: string; icon: string } | null;
+  category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
   myProposal: { price: number; eta: number | null } | null;
 };
@@ -74,7 +76,7 @@ export function PedidosBoard({
           </button>
         </div>
         <div className="grid grid-cols-3 gap-3 mt-5 relative">
-          <Stat label="Avaliação" value={`⭐ ${rating.toFixed(1)}`} />
+          <Stat label="Avaliação" value={rating.toFixed(1)} />
           <Stat label="Serviços" value={String(jobsDone)} />
           <Stat label="Preço-base" value={brl(basePrice)} />
         </div>
@@ -94,7 +96,7 @@ export function PedidosBoard({
           </div>
         ) : requests.length === 0 ? (
           <div className="bg-white rounded-2xl border border-black/5 p-10 text-center">
-            <div className="text-4xl mb-2">📭</div>
+            <Inbox className="h-9 w-9 text-gray-light mx-auto mb-2" strokeWidth={1.5} />
             <p className="text-ink font-medium">Nenhum pedido no momento</p>
             <p className="text-sm text-gray-light mt-1">
               Novos pedidos da sua categoria aparecem aqui em tempo real.
@@ -108,8 +110,8 @@ export function PedidosBoard({
                 <div key={r.id} className="bg-white rounded-2xl border border-black/5 p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-2xl">
-                        {r.category?.icon ?? "🧰"}
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-ink">
+                        <CategoryIcon slug={r.category?.slug} className="h-6 w-6" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -121,8 +123,9 @@ export function PedidosBoard({
                           )}
                         </div>
                         <p className="text-sm text-gray mt-0.5">{r.description}</p>
-                        <p className="text-xs text-gray-light mt-1">
-                          👤 {r.client?.full_name ?? "Cliente"} · 📍 {r.address || r.client?.city || "—"}
+                        <p className="flex items-center gap-1 text-xs text-gray-light mt-1">
+                          <User className="h-3.5 w-3.5" /> {r.client?.full_name ?? "Cliente"}
+                          <MapPin className="h-3.5 w-3.5 ml-1" /> {r.address || r.client?.city || "—"}
                         </p>
                       </div>
                     </div>

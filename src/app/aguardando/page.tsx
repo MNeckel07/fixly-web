@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Clock3, XCircle } from "lucide-react";
 import { getProfile } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { ROLE_HOME, ROLE_LABELS } from "@/lib/brand";
@@ -20,11 +21,11 @@ export default async function AguardandoPage() {
         </div>
 
         <div
-          className={`mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full text-4xl ${
-            rejected ? "bg-danger/10" : "bg-warning/10"
+          className={`mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full ${
+            rejected ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
           }`}
         >
-          {rejected ? "✕" : "⏳"}
+          {rejected ? <XCircle className="h-9 w-9" strokeWidth={1.5} /> : <Clock3 className="h-9 w-9" strokeWidth={1.5} />}
         </div>
 
         <h1 className="text-2xl font-bold text-ink">

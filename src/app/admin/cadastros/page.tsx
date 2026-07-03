@@ -1,3 +1,4 @@
+import { CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/admin/StatCard";
 import { ApprovalCard } from "@/components/admin/ApprovalCard";
@@ -26,7 +27,7 @@ export default async function CadastrosPage() {
 
       {list.length === 0 ? (
         <div className="bg-white rounded-2xl border border-black/5 p-12 text-center">
-          <div className="text-4xl mb-3">✅</div>
+          <CheckCircle2 className="h-10 w-10 text-success mx-auto mb-3" strokeWidth={1.5} />
           <p className="text-ink font-medium">Nenhum cadastro pendente</p>
           <p className="text-gray text-sm mt-1">
             Novas solicitações aparecerão aqui automaticamente.

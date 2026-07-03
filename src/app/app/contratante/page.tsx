@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { Badge } from "@/components/ui/Badge";
+import { CategoryIcon } from "@/components/ui/icons";
 import { brl } from "@/lib/pricing";
 import type { ServiceCategory } from "@/lib/types";
 
@@ -19,7 +21,7 @@ export default async function ContratanteHome() {
 
   const { data: active } = await supabase
     .from("service_requests")
-    .select("id, description, status, estimated_price, category:service_categories(name, icon)")
+    .select("id, description, status, estimated_price, category:service_categories(name, slug)")
     .eq("client_id", userId!)
     .not("status", "in", "(concluido,cancelado)")
     .order("created_at", { ascending: false })
@@ -37,7 +39,7 @@ export default async function ContratanteHome() {
       {/* Hero */}
       <section className="rounded-3xl bg-ink text-white p-7 relative overflow-hidden">
         <div className="absolute -top-16 -right-10 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-        <p className="text-white/60">Olá, {profile?.full_name.split(" ")[0]} 👋</p>
+        <p className="text-white/60">Olá, {profile?.full_name.split(" ")[0]}</p>
         <h1 className="text-2xl font-bold mt-1 max-w-sm relative">
           Qual serviço você precisa resolver hoje?
         </h1>
@@ -45,7 +47,7 @@ export default async function ContratanteHome() {
           href="/app/contratante/solicitar"
           className="inline-flex items-center gap-2 mt-5 bg-primary text-ink font-semibold rounded-xl px-5 h-12 hover:bg-primary-dark transition relative"
         >
-          ➕ Solicitar serviço
+          <Plus className="h-5 w-5" /> Solicitar serviço
         </Link>
       </section>
 
@@ -56,8 +58,8 @@ export default async function ContratanteHome() {
           className="flex items-center justify-between rounded-2xl border border-primary/40 bg-primary/5 p-5 hover:bg-primary/10 transition"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-2xl">
-              {activeCat?.icon ?? "🧰"}
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-ink">
+              <CategoryIcon slug={activeCat?.slug} className="h-6 w-6" />
             </div>
             <div>
               <p className="font-semibold text-ink">{activeCat?.name ?? "Serviço"} em andamento</p>
@@ -84,10 +86,10 @@ export default async function ContratanteHome() {
               className="flex flex-col items-center gap-2 rounded-2xl border border-black/5 bg-white p-5 hover:shadow-[0_8px_28px_-12px_rgba(31,35,41,0.25)] hover:-translate-y-0.5 transition-all"
             >
               <div
-                className="flex h-12 w-12 items-center justify-center rounded-xl text-2xl"
+                className="flex h-12 w-12 items-center justify-center rounded-xl text-ink"
                 style={{ backgroundColor: `${c.color}1A` }}
               >
-                {c.icon}
+                <CategoryIcon slug={c.slug} className="h-6 w-6" />
               </div>
               <span className="text-sm font-medium text-ink text-center">{c.name}</span>
               <span className="text-xs text-gray-light">a partir de {brl(c.base_price)}</span>

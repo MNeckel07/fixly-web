@@ -1,17 +1,24 @@
 import Link from "next/link";
+import { Home, Wrench, Check, ArrowRight, type LucideIcon } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 
-const OPTIONS = [
+const OPTIONS: {
+  role: string;
+  icon: LucideIcon;
+  title: string;
+  desc: string;
+  bullets: string[];
+}[] = [
   {
     role: "contratante",
-    icon: "🏠",
+    icon: Home,
     title: "Sou Contratante",
     desc: "Quero encontrar profissionais para resolver serviços na minha casa ou empresa.",
     bullets: ["Preço estimado na hora", "Pagamento protegido", "Avaliações reais"],
   },
   {
     role: "prestador",
-    icon: "🔧",
+    icon: Wrench,
     title: "Sou Prestador",
     desc: "Quero receber pedidos de serviço na minha região e aumentar minha renda.",
     bullets: ["Receba propostas próximas", "Você define seus preços", "Receba com segurança"],
@@ -39,8 +46,8 @@ export default function CadastroPage() {
               href={`/cadastro/${o.role}`}
               className="group rounded-2xl border border-black/10 bg-white p-7 hover:border-primary hover:shadow-[0_12px_40px_-12px_rgba(31,35,41,0.22)] transition-all"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-3xl">
-                {o.icon}
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary-dark">
+                <o.icon className="h-7 w-7" strokeWidth={1.75} />
               </div>
               <h2 className="text-xl font-bold text-ink mt-5">{o.title}</h2>
               <p className="text-gray mt-2 text-[15px] leading-relaxed">
@@ -49,13 +56,13 @@ export default function CadastroPage() {
               <ul className="mt-4 space-y-1.5">
                 {o.bullets.map((b) => (
                   <li key={b} className="flex items-center gap-2 text-sm text-ink">
-                    <span className="text-success">✓</span>
+                    <Check className="h-4 w-4 text-success shrink-0" />
                     {b}
                   </li>
                 ))}
               </ul>
               <span className="mt-6 inline-flex items-center gap-1 font-semibold text-primary-dark group-hover:gap-2 transition-all">
-                Começar cadastro →
+                Começar cadastro <ArrowRight className="h-4 w-4" />
               </span>
             </Link>
           ))}

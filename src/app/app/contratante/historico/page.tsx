@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Star, ClipboardList, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { Badge } from "@/components/ui/Badge";
+import { CategoryIcon } from "@/components/ui/icons";
 import { brl } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +14,7 @@ export default async function HistoricoPage() {
 
   const { data } = await supabase
     .from("service_requests")
-    .select("id, description, status, estimated_price, final_price, rating, created_at, category:service_categories(name, icon)")
+    .select("id, description, status, estimated_price, final_price, rating, created_at, category:service_categories(name, slug)")
     .eq("client_id", userId!)
     .order("created_at", { ascending: false });
 
@@ -25,10 +27,10 @@ export default async function HistoricoPage() {
 
       {reqs.length === 0 ? (
         <div className="bg-white rounded-2xl border border-black/5 p-10 text-center">
-          <div className="text-4xl mb-2">🧰</div>
+          <ClipboardList className="h-9 w-9 text-gray-light mx-auto mb-2" strokeWidth={1.5} />
           <p className="text-ink font-medium">Nenhum serviço ainda</p>
-          <Link href="/app/contratante/solicitar" className="text-primary-dark font-semibold text-sm mt-2 inline-block">
-            Solicitar meu primeiro serviço →
+          <Link href="/app/contratante/solicitar" className="inline-flex items-center gap-1 text-primary-dark font-semibold text-sm mt-2">
+            Solicitar meu primeiro serviço <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       ) : (
@@ -38,15 +40,19 @@ export default async function HistoricoPage() {
             return (
               <div key={r.id} className="bg-white rounded-2xl border border-black/5 p-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-2xl">
-                    {cat?.icon ?? "🧰"}
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-ink">
+                    <CategoryIcon slug={cat?.slug} className="h-6 w-6" />
                   </div>
                   <div>
                     <p className="font-semibold text-ink">{cat?.name ?? "Serviço"}</p>
                     <p className="text-sm text-gray-light truncate max-w-[200px]">{r.description}</p>
-                    <p className="text-xs text-gray-light mt-0.5">
+                    <p className="flex items-center gap-1 text-xs text-gray-light mt-0.5">
                       {new Date(r.created_at).toLocaleDateString("pt-BR")}
-                      {r.rating ? ` · ${"⭐".repeat(r.rating)}` : ""}
+                      {r.rating ? (
+                        <span className="inline-flex items-center gap-0.5">
+                          · <Star className="h-3 w-3 fill-primary text-primary" /> {r.rating}
+                        </span>
+                      ) : null}
                     </p>
                   </div>
                 </div>

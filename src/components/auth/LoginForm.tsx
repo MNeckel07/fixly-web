@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Home, Wrench, ShieldCheck, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { ROLE_HOME, ROLE_LABELS, type Role } from "@/lib/brand";
 
-const ROLES: { role: Role; icon: string; hint: string }[] = [
-  { role: "contratante", icon: "🏠", hint: "Preciso de um serviço" },
-  { role: "prestador", icon: "🔧", hint: "Quero prestar serviços" },
-  { role: "admin", icon: "🛡️", hint: "Equipe Fixly" },
+const ROLES: { role: Role; icon: LucideIcon; hint: string }[] = [
+  { role: "contratante", icon: Home, hint: "Preciso de um serviço" },
+  { role: "prestador", icon: Wrench, hint: "Quero prestar serviços" },
+  { role: "admin", icon: ShieldCheck, hint: "Equipe Fixly" },
 ];
 
 export function LoginForm() {
@@ -79,18 +80,19 @@ export function LoginForm() {
       <div className="grid grid-cols-3 gap-2 mb-6">
         {ROLES.map((r) => {
           const active = role === r.role;
+          const Icon = r.icon;
           return (
             <button
               key={r.role}
               type="button"
               onClick={() => setRole(r.role)}
-              className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-3 transition ${
+              className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 transition ${
                 active
                   ? "border-primary bg-primary/10 ring-2 ring-primary/25"
                   : "border-black/10 bg-white hover:bg-black/[0.02]"
               }`}
             >
-              <span className="text-2xl">{r.icon}</span>
+              <Icon className={`h-6 w-6 ${active ? "text-primary-dark" : "text-gray"}`} strokeWidth={1.75} />
               <span className="text-[13px] font-semibold text-ink">
                 {ROLE_LABELS[r.role]}
               </span>

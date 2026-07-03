@@ -48,7 +48,7 @@ export async function approveProfile(formData: FormData) {
 
   await sendEmail({
     to: profile.email,
-    subject: "🎉 Seu cadastro no Fixly foi aprovado!",
+    subject: "Seu cadastro no Fixly foi aprovado!",
     html: approvalEmailHtml(profile.full_name, profile.role as Role),
   });
 
