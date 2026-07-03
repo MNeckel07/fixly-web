@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { RouteMap } from "@/components/map/RouteMap";
 import { ConversationThread } from "@/components/chat/ConversationThread";
+import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { approveService } from "@/app/app/contratante/pay.actions";
 import { brl } from "@/lib/pricing";
 
@@ -52,10 +53,14 @@ export function ServiceDetail({
 
   async function approve() {
     setBusy(true);
-    await approveService(service.id);
-    setBusy(false);
-    router.refresh();
+    try {
+      await approveService(service.id);
+    } finally {
+      setBusy(false);
+      router.refresh();
+    }
   }
+  const canApprove = ["a_caminho", "em_andamento"].includes(service.status);
 
   async function rate(n: number) {
     setRating(n);
@@ -103,6 +108,7 @@ export function ServiceDetail({
         <div>
           <Button variant="outline" fullWidth onClick={() => setShowChat((v) => !v)}>
             <MessageSquare className="h-4 w-4" /> {showChat ? "Ocultar conversa" : "Conversar com o profissional"}
+            {!showChat && <UnreadBadge conversationId={conversationId} currentUserId={currentUserId} className="ml-1" />}
           </Button>
           {showChat && (
             <div className="mt-3">
@@ -113,15 +119,15 @@ export function ServiceDetail({
       )}
 
       {/* Aprovar */}
-      {service.status === "em_andamento" && (
-        <Button fullWidth size="lg" loading={busy} onClick={approve}>
-          <CheckCircle2 className="h-5 w-5" /> Aprovar serviço e liberar pagamento
-        </Button>
-      )}
-      {inProgress && service.status !== "em_andamento" && (
+      {inProgress && (
         <div className="flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-3 text-sm">
           <Lock className="h-4 w-4 shrink-0" /> Pagamento protegido — o profissional só recebe após sua aprovação.
         </div>
+      )}
+      {canApprove && (
+        <Button fullWidth size="lg" loading={busy} onClick={approve}>
+          <CheckCircle2 className="h-5 w-5" /> Aprovar serviço e liberar pagamento
+        </Button>
       )}
 
       {/* Extrato (só ao final) */}

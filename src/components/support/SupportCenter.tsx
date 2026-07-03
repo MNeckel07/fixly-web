@@ -11,6 +11,7 @@ import { ConversationThread } from "@/components/chat/ConversationThread";
 
 export type Ticket = {
   id: string;
+  number: number;
   category: string;
   priority: string;
   subject: string;
@@ -81,7 +82,10 @@ export function SupportCenter({ currentUserId, tickets }: { currentUserId: strin
         <div className="bg-white rounded-2xl border border-black/5 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-semibold text-ink">{selected.subject}</p>
+              <p className="font-semibold text-ink">
+                <span className="text-gray-light font-mono mr-2">#{selected.number}</span>
+                {selected.subject}
+              </p>
               <p className="text-xs text-gray-light">{selected.category}</p>
             </div>
             <span className="text-xs font-semibold text-gray bg-black/[0.05] px-2.5 py-1 rounded-full">
@@ -163,7 +167,10 @@ export function SupportCenter({ currentUserId, tickets }: { currentUserId: strin
               <li key={t.id}>
                 <button onClick={() => setSelected(t)} className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-black/[0.015]">
                   <div>
-                    <p className="font-medium text-ink">{t.subject}</p>
+                    <p className="font-medium text-ink">
+                      <span className="text-gray-light font-mono mr-2">#{t.number}</span>
+                      {t.subject}
+                    </p>
                     <p className="text-xs text-gray-light">{t.category} · {new Date(t.created_at).toLocaleDateString("pt-BR")}</p>
                   </div>
                   <span className="text-xs font-semibold text-gray bg-black/[0.05] px-2.5 py-1 rounded-full">

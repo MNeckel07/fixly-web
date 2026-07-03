@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { RouteMap } from "@/components/map/RouteMap";
 import { ConversationThread } from "@/components/chat/ConversationThread";
+import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet } from "@/lib/pricing";
 
@@ -90,15 +91,15 @@ export function TrabalhoView({
     }
   }
 
-  async function toggleChat() {
+  // prefetch da conversa (para o badge de não lidas)
+  useEffect(() => {
     if (!job) return;
-    if (showChat) return setShowChat(false);
-    if (!convId) {
-      const supabase = createClient();
-      const { data } = await supabase.rpc("start_service_chat", { p_request_id: job.id });
-      setConvId((data as string) ?? null);
-    }
-    setShowChat(true);
+    const supabase = createClient();
+    supabase.rpc("start_service_chat", { p_request_id: job.id }).then(({ data }) => setConvId((data as string) ?? null));
+  }, [job]);
+
+  function toggleChat() {
+    setShowChat((v) => !v);
   }
 
   async function conclude() {
@@ -163,6 +164,7 @@ export function TrabalhoView({
 
       <Button variant="outline" fullWidth onClick={toggleChat}>
         <MessageSquare className="h-4 w-4" /> {showChat ? "Ocultar conversa" : "Conversar com o cliente"}
+        {convId && !showChat && <UnreadBadge conversationId={convId} currentUserId={currentUserId} className="ml-1" />}
       </Button>
       {showChat && convId && (
         <ConversationThread conversationId={convId} currentUserId={currentUserId} height={360} />

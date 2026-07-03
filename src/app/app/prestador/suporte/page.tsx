@@ -11,7 +11,7 @@ export default async function SuportePrestador() {
   if (!userId) redirect("/login");
   const { data } = await supabase
     .from("tickets")
-    .select("id, category, priority, subject, status, created_at, conversation_id")
+    .select("id, number, category, priority, subject, status, created_at, conversation_id")
     .eq("opener_id", userId)
     .order("created_at", { ascending: false });
   return <SupportCenter currentUserId={userId} tickets={(data as any) ?? []} />;

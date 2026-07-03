@@ -11,7 +11,7 @@ export default async function AdminSuportePage() {
   const { data } = await supabase
     .from("tickets")
     .select(
-      "id, category, priority, subject, description, status, created_at, conversation_id, opener:profiles!tickets_opener_id_fkey(full_name, role)",
+      "id, number, category, priority, subject, description, status, created_at, conversation_id, opener:profiles!tickets_opener_id_fkey(full_name, role)",
     )
     .order("created_at", { ascending: false });
 

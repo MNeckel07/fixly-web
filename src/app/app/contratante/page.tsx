@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
+import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { brl } from "@/lib/pricing";
 import type { ServiceCategory } from "@/lib/types";
 
@@ -23,7 +24,7 @@ export default async function ContratanteHome() {
 
   const { data: active } = await supabase
     .from("service_requests")
-    .select("id, description, status, estimated_price, category:service_categories(name, slug)")
+    .select("id, description, status, estimated_price, provider_id, category:service_categories(name, slug)")
     .eq("client_id", userId!)
     .not("status", "in", "(concluido,cancelado)")
     .order("created_at", { ascending: false })
@@ -35,6 +36,12 @@ export default async function ContratanteHome() {
       ? active.category[0]
       : active.category
     : null;
+
+  let activeConvId: string | null = null;
+  if (active?.provider_id) {
+    const { data } = await supabase.rpc("start_service_chat", { p_request_id: active.id });
+    activeConvId = (data as string) ?? null;
+  }
 
   return (
     <div className="space-y-8">
@@ -57,8 +64,13 @@ export default async function ContratanteHome() {
       {active && (
         <Link
           href={`/app/contratante/servico/${active.id}`}
-          className="flex items-center justify-between rounded-2xl border border-primary/40 bg-primary/5 p-5 hover:bg-primary/10 transition"
+          className="relative flex items-center justify-between rounded-2xl border border-primary/40 bg-primary/5 p-5 hover:bg-primary/10 transition"
         >
+          {activeConvId && (
+            <span className="absolute -top-2 -right-2">
+              <UnreadBadge conversationId={activeConvId} currentUserId={userId!} />
+            </span>
+          )}
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-ink">
               <CategoryIcon slug={activeCat?.slug} className="h-6 w-6" />

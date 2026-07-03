@@ -214,12 +214,14 @@ export function SolicitarFlow({
     setBusy(true);
     setError("");
     const res = await processPayment(requestId, chosen.price, method);
-    setBusy(false);
     if (!res.ok) {
+      setBusy(false);
       setError("Falha no pagamento: " + (res.error ?? ""));
       return;
     }
-    setStep("acompanhamento");
+    // vai para a página persistente do serviço (acompanhamento, chat, extrato)
+    router.push(`/app/contratante/servico/${requestId}`);
+    router.refresh();
   }
 
   // anima o prestador chegando

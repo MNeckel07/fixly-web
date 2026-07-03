@@ -8,6 +8,7 @@ import { ROLE_LABELS, type Role } from "@/lib/brand";
 
 type Ticket = {
   id: string;
+  number: number;
   category: string;
   priority: string;
   subject: string;
@@ -55,7 +56,10 @@ export function AdminTickets({ tickets, currentUserId }: { tickets: Ticket[]; cu
         <div className="bg-white rounded-2xl border border-black/5 p-5">
           <div className="flex items-start justify-between">
             <div>
-              <p className="font-semibold text-ink">{selected.subject}</p>
+              <p className="font-semibold text-ink">
+                <span className="text-gray-light font-mono mr-2">#{selected.number}</span>
+                {selected.subject}
+              </p>
               <p className="text-sm text-gray-light">
                 {selected.category} · {selected.opener?.full_name} ({selected.opener && ROLE_LABELS[selected.opener.role]})
               </p>
@@ -91,6 +95,7 @@ export function AdminTickets({ tickets, currentUserId }: { tickets: Ticket[]; cu
               <button onClick={() => open(t)} className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-black/[0.015]">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
+                    <span className="text-gray-light font-mono text-sm">#{t.number}</span>
                     <p className="font-medium text-ink truncate">{t.subject}</p>
                     {t.priority === "alta" && <span className="text-[10px] font-bold text-danger">ALTA</span>}
                   </div>
