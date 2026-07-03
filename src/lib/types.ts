@@ -42,6 +42,24 @@ export interface Profile {
   reviewed_at: string | null;
   reject_reason: string | null;
   created_at: string;
+  // v2
+  active: boolean;
+  birth_date: string | null;
+  rg: string | null;
+  gender: string | null;
+  address: string | null;
+  address_number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  state: string | null;
+  zip_code: string | null;
+  bank_name: string | null;
+  bank_agency: string | null;
+  bank_account: string | null;
+  bank_account_type: string | null;
+  pix_key: string | null;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
 }
 
 export interface ServiceRequest {

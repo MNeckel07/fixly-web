@@ -32,6 +32,7 @@ export async function requireRole(role: Role): Promise<Profile> {
   if (!userId) redirect("/login");
   if (!profile) redirect("/cadastro");
   if (profile.role !== role) redirect("/login?erro=papel");
+  if (profile.active === false) redirect("/login?erro=inativo");
   if (profile.status !== "aprovado") redirect("/aguardando");
   return profile;
 }
