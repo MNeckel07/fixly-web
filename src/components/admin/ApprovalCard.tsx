@@ -26,10 +26,19 @@ type ProfileLite = {
 };
 
 const DOC_LABELS: Record<string, string> = {
+  rg_cnh: "RG ou CNH",
+  cpf_doc: "CPF",
+  comprovante_residencia: "Comprovante de residência",
+  foto_3x4: "Foto 3x4",
+  selfie_documento: "Selfie com documento",
+  carteira_trabalho: "Carteira de Trabalho",
+  comprovante_qualificacao: "Certificado / qualificação",
+  antecedentes: "Antecedentes criminais",
+  comprovante_bancario: "Comprovante bancário",
+  termos_aceite: "Termo de aceite",
+  // legados
   identidade: "Identidade (RG/CNH)",
   comprovante_endereco: "Comprovante de endereço",
-  selfie: "Selfie com documento",
-  certificado: "Certificado",
 };
 
 export function ApprovalCard({ profile }: { profile: ProfileLite }) {

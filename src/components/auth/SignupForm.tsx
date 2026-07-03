@@ -3,352 +3,326 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, MapPin, Wrench, Home, FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea, Select } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
+import { TERMS, TERMS_VERSION, termsPlainText } from "@/lib/terms";
 import type { ServiceCategory } from "@/lib/types";
 
-type DocDef = { kind: string; label: string; required: boolean };
-
-const DOCS: Record<Role, DocDef[]> = {
-  contratante: [
-    { kind: "identidade", label: "RG ou CNH (frente e verso)", required: true },
-    { kind: "comprovante_endereco", label: "Comprovante de endereço", required: true },
-  ],
-  prestador: [
-    { kind: "identidade", label: "RG ou CNH (frente e verso)", required: true },
-    { kind: "comprovante_endereco", label: "Comprovante de endereço", required: true },
-    { kind: "selfie", label: "Selfie segurando o documento", required: true },
-    { kind: "certificado", label: "Certificado/qualificação (opcional)", required: false },
-  ],
-  admin: [],
-};
+type DocType = { slug: string; label: string; required: boolean };
 
 export function SignupForm({
   role,
   categories,
+  docTypes,
 }: {
-  role: Role;
+  role: Exclude<Role, "admin">;
   categories: ServiceCategory[];
+  docTypes: DocType[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showTerms, setShowTerms] = useState(false);
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
-  // dados
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [cpf, setCpf] = useState("");
-  const [city, setCity] = useState("");
-  const [password, setPassword] = useState("");
+  // dados pessoais
+  const [f, setF] = useState({
+    full_name: "", email: "", phone: "", cpf: "", rg: "", birth_date: "", gender: "",
+    zip_code: "", address: "", address_number: "", complement: "", neighborhood: "",
+    city: "", state: "", password: "",
+  });
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setF((p) => ({ ...p, [k]: e.target.value }));
 
   // prestador
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
-  const [basePrice, setBasePrice] = useState<string>(
-    categories[0]?.base_price?.toString() ?? "",
-  );
+  const [basePrice, setBasePrice] = useState(categories[0]?.base_price?.toString() ?? "");
   const [radius, setRadius] = useState("10");
   const [bio, setBio] = useState("");
+  const [bank, setBank] = useState({ bank_name: "", bank_agency: "", bank_account: "", bank_account_type: "corrente", pix_key: "" });
+  const setB = (k: keyof typeof bank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setBank((p) => ({ ...p, [k]: e.target.value }));
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [geoStatus, setGeoStatus] = useState("");
+  const [geoMsg, setGeoMsg] = useState("");
 
-  const docDefs = DOCS[role];
   const files = useRef<Record<string, File | null>>({});
 
-  const selectedCat = useMemo(
-    () => categories.find((c) => c.id === categoryId),
-    [categories, categoryId],
-  );
+  const selectedCat = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
+
+  async function lookupCep(cep: string) {
+    const clean = cep.replace(/\D/g, "");
+    if (clean.length !== 8) return;
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+      const d = await r.json();
+      if (!d.erro)
+        setF((p) => ({ ...p, address: d.logradouro || p.address, neighborhood: d.bairro || p.neighborhood, city: d.localidade || p.city, state: d.uf || p.state }));
+    } catch { /* ignora */ }
+  }
 
   function useMyLocation() {
-    setGeoStatus("Localizando...");
-    if (!navigator.geolocation) {
-      setCoords({ lat: -23.5505, lng: -46.6333 });
-      setGeoStatus("Localização padrão (São Paulo)");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setGeoStatus("Localização capturada ✓");
-      },
-      () => {
-        setCoords({ lat: -23.5505, lng: -46.6333 });
-        setGeoStatus("Não foi possível — usando São Paulo");
-      },
+    setGeoMsg("Localizando...");
+    navigator.geolocation?.getCurrentPosition(
+      (p) => { setCoords({ lat: p.coords.latitude, lng: p.coords.longitude }); setGeoMsg("Localização capturada"); },
+      () => { setCoords({ lat: -23.5505, lng: -46.6333 }); setGeoMsg("Não foi possível — usando local padrão"); },
     );
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-
-    // valida documentos obrigatórios
-    for (const d of docDefs) {
-      if (d.required && !files.current[d.kind]) {
-        setError(`Envie o documento: ${d.label}`);
-        return;
-      }
+    for (const d of docTypes) {
+      if (d.required && !files.current[d.slug]) return setError(`Envie o documento obrigatório: ${d.label}`);
     }
-    if (role === "prestador" && !coords) {
-      setError("Informe sua localização de atendimento.");
-      return;
-    }
+    if (role === "prestador" && !coords) return setError("Informe sua localização de atendimento.");
+    if (!acceptTerms) return setError("É necessário ler e aceitar os Termos de Uso.");
 
     setLoading(true);
     const supabase = createClient();
 
-    // 1) cria a conta
     const { data: signUp, error: signErr } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
+      email: f.email, password: f.password, options: { data: { full_name: f.full_name } },
     });
     if (signErr) {
-      setError(
-        signErr.message.includes("registered")
-          ? "Este e-mail já está cadastrado. Faça login."
-          : signErr.message,
-      );
-      setLoading(false);
-      return;
+      setError(signErr.message.includes("registered") ? "Este e-mail já está cadastrado." : signErr.message);
+      return setLoading(false);
     }
-
-    // 2) garante sessão (confirmação de e-mail deve estar desativada no Supabase)
     let userId = signUp.user?.id ?? null;
     if (!signUp.session) {
-      const { data: si } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data: si } = await supabase.auth.signInWithPassword({ email: f.email, password: f.password });
       userId = si.user?.id ?? userId;
-      if (!si.session) {
-        setError(
-          "Conta criada, mas é preciso confirmar o e-mail. (No protótipo, desative 'Confirm email' no Supabase para entrar direto.)",
-        );
-        setLoading(false);
-        return;
-      }
+      if (!si.session) { setError("Conta criada, mas confirme o e-mail (ou desative 'Confirm email' no Supabase)."); return setLoading(false); }
     }
-    if (!userId) {
-      setError("Não foi possível criar a conta. Tente novamente.");
-      setLoading(false);
-      return;
-    }
+    if (!userId) { setError("Não foi possível criar a conta."); return setLoading(false); }
 
-    // 3) cria o perfil (status pendente → aguardando aprovação do admin)
     const { error: profErr } = await supabase.from("profiles").upsert({
-      id: userId,
-      role,
-      status: "pendente",
-      full_name: fullName,
-      email,
-      phone,
-      cpf,
-      city,
+      id: userId, role, status: "pendente",
+      full_name: f.full_name, email: f.email, phone: f.phone, cpf: f.cpf, rg: f.rg,
+      birth_date: f.birth_date || null, gender: f.gender || null,
+      zip_code: f.zip_code, address: f.address, address_number: f.address_number,
+      complement: f.complement, neighborhood: f.neighborhood, city: f.city, state: f.state,
+      terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION,
       ...(role === "prestador" && {
-        category_id: categoryId,
-        base_price: Number(basePrice) || null,
-        service_radius_km: Number(radius) || 10,
-        bio,
-        lat: coords?.lat,
-        lng: coords?.lng,
+        category_id: categoryId, base_price: Number(basePrice) || null,
+        service_radius_km: Number(radius) || 10, bio,
+        bank_name: bank.bank_name, bank_agency: bank.bank_agency, bank_account: bank.bank_account,
+        bank_account_type: bank.bank_account_type, pix_key: bank.pix_key,
+        lat: coords?.lat, lng: coords?.lng,
       }),
     });
-    if (profErr) {
-      setError("Erro ao salvar perfil: " + profErr.message);
-      setLoading(false);
-      return;
-    }
+    if (profErr) { setError("Erro ao salvar perfil: " + profErr.message); return setLoading(false); }
 
-    // 4) upload dos documentos no bucket privado + registro
-    for (const d of docDefs) {
-      const file = files.current[d.kind];
+    // documentos
+    for (const d of docTypes) {
+      const file = files.current[d.slug];
       if (!file) continue;
       const ext = file.name.split(".").pop() ?? "bin";
-      const path = `${userId}/${d.kind}-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("documentos")
-        .upload(path, file, { upsert: true });
-      if (upErr) {
-        setError("Erro ao enviar documento: " + upErr.message);
-        setLoading(false);
-        return;
-      }
-      await supabase.from("documents").insert({
-        profile_id: userId,
-        kind: d.kind,
-        file_path: path,
-      });
+      const path = `${userId}/${d.slug}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("documentos").upload(path, file, { upsert: true });
+      if (upErr) { setError("Erro ao enviar documento: " + upErr.message); return setLoading(false); }
+      await supabase.from("documents").insert({ profile_id: userId, kind: d.slug, file_path: path });
     }
+
+    // gera e anexa o termo aceito na pasta de documentos
+    const termsBlob = new Blob([termsPlainText(role)], { type: "text/plain" });
+    const termsPath = `${userId}/termos_aceite-${Date.now()}.txt`;
+    await supabase.storage.from("documentos").upload(termsPath, termsBlob, { upsert: true });
+    await supabase.from("documents").insert({ profile_id: userId, kind: "termos_aceite", file_path: termsPath });
 
     router.push("/aguardando");
     router.refresh();
   }
+
+  const t = TERMS[role];
 
   return (
     <div className="flex flex-1 min-h-screen flex-col items-center bg-canvas px-6 py-10">
       <form onSubmit={handleSubmit} className="w-full max-w-xl">
         <div className="flex items-center justify-between mb-8">
           <Logo size={26} variant="dark" />
-          <Link href="/cadastro" className="text-sm text-gray hover:text-ink">
-            ← Trocar perfil
+          <Link href="/cadastro" className="inline-flex items-center gap-1 text-sm text-gray hover:text-ink">
+            <ArrowLeft className="h-4 w-4" /> Trocar perfil
           </Link>
         </div>
 
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary-dark">
-          {role === "prestador" ? "🔧" : "🏠"} Cadastro de {ROLE_LABELS[role]}
+          {role === "prestador" ? <Wrench className="h-4 w-4" /> : <Home className="h-4 w-4" />}
+          Cadastro de {ROLE_LABELS[role]}
         </div>
         <h1 className="text-2xl font-bold text-ink mt-3">Crie sua conta</h1>
-        <p className="text-gray mt-1">
-          Seus documentos são enviados com segurança e analisados pela nossa
-          equipe.
-        </p>
+        <p className="text-gray mt-1">Preencha seus dados com atenção — eles passam por análise da nossa equipe.</p>
 
         {/* Dados pessoais */}
-        <section className="mt-8 bg-white rounded-2xl border border-black/5 p-6 space-y-4">
-          <h2 className="font-semibold text-ink">Dados pessoais</h2>
-          <div>
-            <Label>Nome completo</Label>
-            <Input required value={fullName} onChange={(e) => setFullName(e.target.value)} />
-          </div>
+        <Section title="Dados pessoais">
+          <Field label="Nome completo"><Input required value={f.full_name} onChange={set("full_name")} /></Field>
           <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label>E-mail</Label>
-              <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div>
-              <Label>Telefone/WhatsApp</Label>
-              <Input required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(00) 00000-0000" />
-            </div>
+            <Field label="E-mail"><Input type="email" required value={f.email} onChange={set("email")} /></Field>
+            <Field label="Telefone / WhatsApp"><Input required value={f.phone} onChange={set("phone")} placeholder="(00) 00000-0000" /></Field>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label>CPF</Label>
-              <Input required value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" />
-            </div>
-            <div>
-              <Label>Cidade</Label>
-              <Input required value={city} onChange={(e) => setCity(e.target.value)} placeholder="Sua cidade" />
-            </div>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Field label="CPF"><Input required value={f.cpf} onChange={set("cpf")} placeholder="000.000.000-00" /></Field>
+            <Field label="RG"><Input value={f.rg} onChange={set("rg")} /></Field>
+            <Field label="Nascimento"><Input type="date" value={f.birth_date} onChange={set("birth_date")} /></Field>
           </div>
-          <div>
-            <Label>Senha</Label>
-            <Input type="password" required minLength={4} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="mínimo 4 caracteres" />
-          </div>
-        </section>
+          <Field label="Gênero (opcional)">
+            <Select value={f.gender} onChange={set("gender")}>
+              <option value="">Prefiro não informar</option>
+              <option value="feminino">Feminino</option>
+              <option value="masculino">Masculino</option>
+              <option value="outro">Outro</option>
+            </Select>
+          </Field>
+        </Section>
 
-        {/* Dados profissionais (prestador) */}
+        {/* Endereço */}
+        <Section title="Endereço">
+          <div className="grid sm:grid-cols-[140px_1fr] gap-4">
+            <Field label="CEP"><Input value={f.zip_code} onChange={set("zip_code")} onBlur={(e) => lookupCep(e.target.value)} placeholder="00000-000" /></Field>
+            <Field label="Rua / Logradouro"><Input value={f.address} onChange={set("address")} /></Field>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Field label="Número"><Input value={f.address_number} onChange={set("address_number")} /></Field>
+            <Field label="Complemento"><Input value={f.complement} onChange={set("complement")} /></Field>
+            <Field label="Bairro"><Input value={f.neighborhood} onChange={set("neighborhood")} /></Field>
+          </div>
+          <div className="grid sm:grid-cols-[1fr_100px] gap-4">
+            <Field label="Cidade"><Input required value={f.city} onChange={set("city")} /></Field>
+            <Field label="UF"><Input value={f.state} onChange={set("state")} maxLength={2} /></Field>
+          </div>
+        </Section>
+
+        {/* Profissional (prestador) */}
         {role === "prestador" && (
-          <section className="mt-5 bg-white rounded-2xl border border-black/5 p-6 space-y-4">
-            <h2 className="font-semibold text-ink">Dados profissionais</h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <Label>Categoria principal</Label>
-                <Select
-                  value={categoryId}
-                  onChange={(e) => {
-                    setCategoryId(e.target.value);
-                    const c = categories.find((x) => x.id === e.target.value);
-                    if (c) setBasePrice(String(c.base_price));
-                  }}
-                >
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.icon} {c.name}
-                    </option>
-                  ))}
-                </Select>
+          <>
+            <Section title="Dados profissionais">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Categoria principal">
+                  <Select value={categoryId} onChange={(e) => { setCategoryId(e.target.value); const c = categories.find((x) => x.id === e.target.value); if (c) setBasePrice(String(c.base_price)); }}>
+                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Preço-base da visita (R$)"><Input type="number" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} /></Field>
               </div>
-              <div>
-                <Label>Preço-base da visita (R$)</Label>
-                <Input
-                  type="number"
-                  value={basePrice}
-                  onChange={(e) => setBasePrice(e.target.value)}
-                />
+              <Field label={`Raio de atendimento: ${radius} km`}>
+                <input type="range" min={1} max={50} value={radius} onChange={(e) => setRadius(e.target.value)} className="w-full accent-[#FFC107]" />
+              </Field>
+              <Field label="Sobre você (experiência, especialidades)">
+                <Textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder={`Ex.: ${selectedCat?.name ?? "Profissional"} com anos de experiência...`} />
+              </Field>
+              <div className="flex items-center justify-between rounded-xl bg-canvas px-4 py-3">
+                <span className="text-sm text-gray">{geoMsg || "Localização de atendimento (para pedidos próximos)"}</span>
+                <Button type="button" variant="outline" size="sm" onClick={useMyLocation}>
+                  <MapPin className="h-4 w-4" /> Usar localização
+                </Button>
               </div>
-            </div>
-            <div>
-              <Label>Raio de atendimento: {radius} km</Label>
-              <input
-                type="range"
-                min={1}
-                max={50}
-                value={radius}
-                onChange={(e) => setRadius(e.target.value)}
-                className="w-full accent-[#FFC107]"
-              />
-            </div>
-            <div>
-              <Label>Sobre você (experiência, especialidades)</Label>
-              <Textarea
-                rows={3}
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder={`Ex.: ${selectedCat?.name ?? "Profissional"} com 8 anos de experiência...`}
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-xl bg-canvas px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-ink">
-                  Localização de atendimento
-                </p>
-                <p className="text-xs text-gray-light">
-                  {geoStatus || "Usada para receber pedidos próximos"}
-                </p>
+            </Section>
+
+            <Section title="Dados bancários (para receber)">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Banco"><Input value={bank.bank_name} onChange={setB("bank_name")} placeholder="Ex.: Nubank" /></Field>
+                <Field label="Tipo de conta">
+                  <Select value={bank.bank_account_type} onChange={setB("bank_account_type")}>
+                    <option value="corrente">Conta corrente</option>
+                    <option value="poupanca">Conta poupança</option>
+                  </Select>
+                </Field>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={useMyLocation}>
-                📍 Usar minha localização
-              </Button>
-            </div>
-          </section>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Field label="Agência"><Input value={bank.bank_agency} onChange={setB("bank_agency")} /></Field>
+                <Field label="Conta (com dígito)"><Input value={bank.bank_account} onChange={setB("bank_account")} /></Field>
+              </div>
+              <Field label="Chave PIX (opcional)"><Input value={bank.pix_key} onChange={setB("pix_key")} placeholder="CPF, e-mail, telefone ou aleatória" /></Field>
+            </Section>
+          </>
         )}
 
         {/* Documentos */}
-        <section className="mt-5 bg-white rounded-2xl border border-black/5 p-6 space-y-4">
-          <h2 className="font-semibold text-ink">Documentos</h2>
-          <p className="text-sm text-gray -mt-2">
-            Aceitamos JPG, PNG ou PDF. Ficam privados e visíveis só para a
-            equipe de análise.
-          </p>
-          {docDefs.map((d) => (
-            <div key={d.kind}>
-              <Label>
-                {d.label}
-                {d.required && <span className="text-danger"> *</span>}
-              </Label>
+        <Section title="Documentos">
+          <p className="text-sm text-gray -mt-2">JPG, PNG ou PDF. Ficam privados, visíveis só para a equipe de análise.</p>
+          {docTypes.map((d) => (
+            <Field key={d.slug} label={<>{d.label}{d.required && <span className="text-danger"> *</span>}</>}>
               <input
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) => {
-                  files.current[d.kind] = e.target.files?.[0] ?? null;
-                }}
+                type="file" accept="image/*,application/pdf"
+                onChange={(e) => { files.current[d.slug] = e.target.files?.[0] ?? null; }}
                 className="block w-full text-sm text-gray file:mr-4 file:rounded-lg file:border-0 file:bg-primary/15 file:px-4 file:py-2.5 file:text-sm file:font-semibold file:text-primary-dark hover:file:bg-primary/25 cursor-pointer"
               />
-            </div>
+            </Field>
           ))}
-        </section>
+        </Section>
 
-        {error && (
-          <p className="mt-5 text-sm text-danger bg-danger/5 rounded-lg px-4 py-3">
-            {error}
-          </p>
-        )}
+        {/* Senha */}
+        <Section title="Acesso">
+          <Field label="Senha"><Input type="password" required minLength={4} value={f.password} onChange={set("password")} placeholder="mínimo 4 caracteres" /></Field>
+        </Section>
 
-        <div className="mt-6 flex flex-col gap-3 pb-10">
-          <Button type="submit" size="lg" fullWidth loading={loading}>
-            Enviar cadastro para análise
-          </Button>
-          <p className="text-center text-xs text-gray-light">
-            Ao continuar, você concorda com os Termos de Uso e a Política de
-            Privacidade do Fixly.
-          </p>
+        {/* Termos */}
+        <div className="mt-5 rounded-2xl border border-black/10 bg-white p-5">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} className="mt-1 h-4 w-4 accent-[#FFC107]" />
+            <span className="text-sm text-ink">
+              Li e aceito os{" "}
+              <button type="button" onClick={() => setShowTerms(true)} className="text-primary-dark font-semibold underline">
+                Termos de Uso do {ROLE_LABELS[role]}
+              </button>{" "}
+              e a Política de Privacidade do Fixly.
+            </span>
+          </label>
+        </div>
+
+        {error && <p className="mt-5 text-sm text-danger bg-danger/5 rounded-lg px-4 py-3">{error}</p>}
+
+        <div className="mt-6 pb-10">
+          <Button type="submit" size="lg" fullWidth loading={loading}>Enviar cadastro para análise</Button>
         </div>
       </form>
+
+      {/* Modal de termos */}
+      {showTerms && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-ink/50 backdrop-blur-sm" onClick={() => setShowTerms(false)} />
+          <div className="relative w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center gap-2 px-6 py-4 border-b border-black/5">
+              <FileText className="h-5 w-5 text-primary-dark" />
+              <h3 className="font-bold text-ink">{t.title}</h3>
+              <span className="ml-auto text-xs text-gray-light">v{TERMS_VERSION}</span>
+            </div>
+            <div className="overflow-y-auto px-6 py-4 space-y-4">
+              {t.sections.map((s) => (
+                <div key={s.h}>
+                  <h4 className="font-semibold text-ink text-sm">{s.h}</h4>
+                  <p className="text-sm text-gray leading-relaxed mt-1">{s.p}</p>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-4 border-t border-black/5 flex gap-2">
+              <Button variant="outline" fullWidth onClick={() => setShowTerms(false)}>Fechar</Button>
+              <Button fullWidth onClick={() => { setAcceptTerms(true); setShowTerms(false); }}>Li e aceito</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-5 bg-white rounded-2xl border border-black/5 p-6 space-y-4">
+      <h2 className="font-semibold text-ink">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      {children}
     </div>
   );
 }
