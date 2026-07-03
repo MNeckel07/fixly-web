@@ -35,6 +35,40 @@ export function platformFee(amount: number): number {
   return Math.round(amount * PLATFORM_FEE_RATE * 100) / 100;
 }
 
+export type PayMethod = "pix" | "cartao" | "apple_pay" | "google_pay";
+
+/** Tarifas do gateway (Mercado Pago) por meio de pagamento. */
+export const GATEWAY_FEE_RATES: Record<PayMethod, number> = {
+  pix: 0.0099, // ~0,99%
+  cartao: 0.0379, // ~3,79% (crédito à vista)
+  apple_pay: 0.0379,
+  google_pay: 0.0379,
+};
+
+export function gatewayFee(amount: number, method: PayMethod): number {
+  return Math.round(amount * GATEWAY_FEE_RATES[method] * 100) / 100;
+}
+
+export interface PaymentBreakdown {
+  amount: number; // valor pago pelo contratante
+  platformFee: number; // comissão Fixly (15%)
+  gatewayFee: number; // tarifa do meio de pagamento
+  providerNet: number; // líquido ao prestador
+}
+
+/** Composição do pagamento: quanto o prestador recebe após comissão e tarifas. */
+export function paymentBreakdown(amount: number, method: PayMethod): PaymentBreakdown {
+  const pf = platformFee(amount);
+  const gf = gatewayFee(amount, method);
+  return {
+    amount,
+    platformFee: pf,
+    gatewayFee: gf,
+    providerNet: Math.round((amount - pf - gf) * 100) / 100,
+  };
+}
+
+/** Líquido aproximado (sem tarifa de gateway) — usado em telas de resumo. */
 export function providerNet(amount: number): number {
   return Math.round((amount - platformFee(amount)) * 100) / 100;
 }

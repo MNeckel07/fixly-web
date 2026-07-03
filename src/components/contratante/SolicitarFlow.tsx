@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Lock, Star, Car, Wrench, MessageSquare, CheckCircle2, MapPin, Zap, CreditCard } from "lucide-react";
+import { AlertTriangle, Lock, Star, Car, Wrench, MessageSquare, CheckCircle2, MapPin, Zap, CreditCard, Smartphone, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Textarea, Input, Label } from "@/components/ui/Field";
@@ -12,10 +12,10 @@ import {
   brl,
   estimatePrice,
   haversineKm,
-  platformFee,
-  providerNet,
+  paymentBreakdown,
+  type PayMethod,
 } from "@/lib/pricing";
-import { createEscrowCharge, releaseEscrow, type PaymentMethod } from "@/lib/gateway";
+import { processPayment, approveService } from "@/app/app/contratante/pay.actions";
 import type { ServiceCategory } from "@/lib/types";
 
 type Provider = {
@@ -94,7 +94,7 @@ export function SolicitarFlow({
   const [estimated, setEstimated] = useState(0);
   const [proposals, setProposals] = useState<ProposalRow[]>([]);
   const [chosen, setChosen] = useState<ProposalRow | null>(null);
-  const [method, setMethod] = useState<PaymentMethod>("pix");
+  const [method, setMethod] = useState<PayMethod>("pix");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -209,28 +209,16 @@ export function SolicitarFlow({
 
   // ── Passo: pagamento (escrow) ──
   async function pay() {
-    if (!chosen) return;
+    if (!chosen || !requestId) return;
     setBusy(true);
     setError("");
-    try {
-      await createEscrowCharge({ amount: chosen.price, method });
-      await supabase.from("payments").insert({
-        request_id: requestId!,
-        amount: chosen.price,
-        fee: platformFee(chosen.price),
-        method,
-        status: "retido",
-      });
-      await supabase
-        .from("service_requests")
-        .update({ status: "a_caminho" })
-        .eq("id", requestId!);
-      setStep("acompanhamento");
-    } catch (e: any) {
-      setError("Falha no pagamento: " + e.message);
-    } finally {
-      setBusy(false);
+    const res = await processPayment(requestId, chosen.price, method);
+    setBusy(false);
+    if (!res.ok) {
+      setError("Falha no pagamento: " + (res.error ?? ""));
+      return;
     }
+    setStep("acompanhamento");
   }
 
   // anima o prestador chegando
@@ -257,16 +245,9 @@ export function SolicitarFlow({
   }, [step, requestId, supabase]);
 
   async function finish() {
+    if (!requestId) return;
     setBusy(true);
-    await releaseEscrow("escrow");
-    await supabase
-      .from("payments")
-      .update({ status: "liberado", released_at: new Date().toISOString() })
-      .eq("request_id", requestId!);
-    await supabase
-      .from("service_requests")
-      .update({ status: "concluido" })
-      .eq("id", requestId!);
+    await approveService(requestId);
     setBusy(false);
     setStep("avaliacao");
   }
@@ -289,6 +270,15 @@ export function SolicitarFlow({
     chosen?.provider.lat && chosen?.provider.lng
       ? { lat: chosen.provider.lat, lng: chosen.provider.lng }
       : { lat: loc.lat + 0.02, lng: loc.lng + 0.02 };
+
+  const bd = chosen ? paymentBreakdown(chosen.price, method) : null;
+
+  const METHODS: { key: PayMethod; label: string; Icon: typeof Zap }[] = [
+    { key: "pix", label: "Pix", Icon: Zap },
+    { key: "cartao", label: "Cartão", Icon: CreditCard },
+    { key: "apple_pay", label: "Apple Pay", Icon: Smartphone },
+    { key: "google_pay", label: "Google Pay", Icon: Wallet },
+  ];
 
   /* ───────────────────────── UI ───────────────────────── */
   return (
@@ -447,29 +437,32 @@ export function SolicitarFlow({
 
       {step === "pagamento" && chosen && (
         <Card title="Pagamento protegido" subtitle="O valor fica retido até você aprovar o serviço">
+          <Label>Forma de pagamento</Label>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {METHODS.map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                onClick={() => setMethod(key)}
+                className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition ${
+                  method === key ? "border-primary bg-primary/10 text-ink" : "border-black/10 text-gray"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="rounded-xl bg-canvas p-4 mb-4">
             <Row label="Profissional" value={chosen.provider.full_name} />
             <Row label="Serviço" value={category?.name ?? "Serviço"} />
+            <div className="border-t border-black/10 my-2" />
             <Row label="Valor do serviço" value={brl(chosen.price)} />
-            <Row label="Taxa Fixly (15%)" value={brl(platformFee(chosen.price))} muted />
+            <Row label="Comissão Fixly (15%)" value={`- ${brl(bd!.platformFee)}`} muted />
+            <Row label="Tarifa do pagamento" value={`- ${brl(bd!.gatewayFee)}`} muted />
+            <Row label="Prestador recebe" value={brl(bd!.providerNet)} />
             <div className="border-t border-black/10 my-2" />
             <Row label="Total a pagar" value={brl(chosen.price)} bold />
-          </div>
-
-          <Label>Forma de pagamento</Label>
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {(["pix", "cartao"] as PaymentMethod[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMethod(m)}
-                className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition ${
-                  method === m ? "border-primary bg-primary/10 text-ink" : "border-black/10 text-gray"
-                }`}
-              >
-                {m === "pix" ? <Zap className="h-4 w-4" /> : <CreditCard className="h-4 w-4" />}
-                {m === "pix" ? "Pix" : "Cartão"}
-              </button>
-            ))}
           </div>
 
           <div className="flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-3 text-sm mb-4">
