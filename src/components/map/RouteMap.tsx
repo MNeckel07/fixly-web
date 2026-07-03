@@ -48,6 +48,7 @@ export function RouteMap({
   const moverRef = useRef<Marker | null>(null);
   const lineRef = useRef<Polyline | null>(null);
   const selfRef = useRef<CircleMarker | Marker | null>(null);
+  const targetRef = useRef<Marker | null>(null);
   const [self, setSelf] = useState<Point | null>(null);
   const [denied, setDenied] = useState(false);
 
@@ -64,7 +65,7 @@ export function RouteMap({
       );
       mapRef.current = map;
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
-      L.marker([target.lat, target.lng], {
+      targetRef.current = L.marker([target.lat, target.lng], {
         icon: L.divIcon({ html: pinSvg(targetKind, "#1F2329"), className: "", iconSize: [32, 32] }),
       }).addTo(map);
     })();
@@ -91,6 +92,14 @@ export function RouteMap({
     return () => navigator.geolocation.clearWatch(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestGps]);
+
+  // recentra e move o alfinete do alvo quando 'target' muda
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !targetRef.current) return;
+    targetRef.current.setLatLng([target.lat, target.lng]);
+    if (!showRoute) map.setView([target.lat, target.lng], map.getZoom() || 15);
+  }, [target.lat, target.lng, showRoute]);
 
   // marcador GPS do usuário
   useEffect(() => {

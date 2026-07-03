@@ -56,7 +56,7 @@ export default async function ContratanteHome() {
       {/* Serviço ativo */}
       {active && (
         <Link
-          href={`/app/contratante/solicitar?req=${active.id}`}
+          href={`/app/contratante/servico/${active.id}`}
           className="flex items-center justify-between rounded-2xl border border-primary/40 bg-primary/5 p-5 hover:bg-primary/10 transition"
         >
           <div className="flex items-center gap-3">

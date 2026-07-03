@@ -32,6 +32,7 @@ export default async function TrabalhoPage() {
   return (
     <TrabalhoView
       job={normalized as any}
+      currentUserId={profile!.id}
       providerLoc={
         profile!.lat && profile!.lng
           ? { lat: profile!.lat, lng: profile!.lng }

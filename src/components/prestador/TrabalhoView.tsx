@@ -7,6 +7,7 @@ import { Car, MapPin, Check, Wrench, MessageSquare, ArrowRight } from "lucide-re
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { RouteMap } from "@/components/map/RouteMap";
+import { ConversationThread } from "@/components/chat/ConversationThread";
 import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet } from "@/lib/pricing";
 
@@ -26,15 +27,19 @@ type Job = {
 
 export function TrabalhoView({
   job,
+  currentUserId,
   providerLoc,
 }: {
   job: Job | null;
+  currentUserId: string;
   providerLoc: { lat: number; lng: number } | null;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(job?.status ?? "aceito");
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [convId, setConvId] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const dest =
@@ -85,11 +90,15 @@ export function TrabalhoView({
     }
   }
 
-  async function openChat() {
+  async function toggleChat() {
     if (!job) return;
-    const supabase = createClient();
-    const { data } = await supabase.rpc("start_service_chat", { p_request_id: job.id });
-    if (data) router.push(`/app/prestador/mensagens?c=${data}`);
+    if (showChat) return setShowChat(false);
+    if (!convId) {
+      const supabase = createClient();
+      const { data } = await supabase.rpc("start_service_chat", { p_request_id: job.id });
+      setConvId((data as string) ?? null);
+    }
+    setShowChat(true);
   }
 
   async function conclude() {
@@ -152,9 +161,12 @@ export function TrabalhoView({
         height={280}
       />
 
-      <Button variant="outline" fullWidth onClick={openChat}>
-        <MessageSquare className="h-4 w-4" /> Conversar com o cliente
+      <Button variant="outline" fullWidth onClick={toggleChat}>
+        <MessageSquare className="h-4 w-4" /> {showChat ? "Ocultar conversa" : "Conversar com o cliente"}
       </Button>
+      {showChat && convId && (
+        <ConversationThread conversationId={convId} currentUserId={currentUserId} height={360} />
+      )}
 
       {/* Ações por etapa */}
       <div className="bg-white rounded-2xl border border-black/5 p-5">

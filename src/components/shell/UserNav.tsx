@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Plus, Clock, MessageSquare, User, Inbox, Wrench, Wallet, type LucideIcon } from "lucide-react";
+import { Home, Plus, Clock, User, Inbox, Wrench, Wallet, LifeBuoy, type LucideIcon } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 
@@ -10,11 +10,11 @@ const ICONS: Record<string, LucideIcon> = {
   home: Home,
   plus: Plus,
   clock: Clock,
-  message: MessageSquare,
   user: User,
   inbox: Inbox,
   wrench: Wrench,
   wallet: Wallet,
+  support: LifeBuoy,
 };
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };

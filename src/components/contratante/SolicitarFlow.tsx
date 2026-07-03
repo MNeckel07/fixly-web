@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Textarea, Input, Label } from "@/components/ui/Field";
 import { RouteMap } from "@/components/map/RouteMap";
+import { LocationPicker } from "@/components/map/LocationPicker";
 import { CategoryIcon } from "@/components/ui/icons";
 import {
   brl,
@@ -252,10 +253,9 @@ export function SolicitarFlow({
     setStep("avaliacao");
   }
 
-  async function openServiceChat() {
+  function openServiceChat() {
     if (!requestId) return;
-    const { data } = await supabase.rpc("start_service_chat", { p_request_id: requestId });
-    if (data) router.push(`/app/contratante/mensagens?c=${data}`);
+    router.push(`/app/contratante/servico/${requestId}`);
   }
 
   async function submitRating() {
@@ -341,22 +341,22 @@ export function SolicitarFlow({
               </span>
             </button>
             <div>
-              <Label>Endereço</Label>
+              <Label>Onde será o serviço?</Label>
+              <LocationPicker
+                value={loc}
+                onChange={setLoc}
+                onAddress={(a) => setAddress(a)}
+                height={200}
+              />
+            </div>
+            <div>
+              <Label>Endereço (complemento / referência)</Label>
               <Input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder={`Rua, número — ${client.city ?? "sua cidade"}`}
               />
             </div>
-            <div className="flex items-center justify-between rounded-xl bg-white border border-black/10 px-4 py-3">
-              <span className="text-sm text-gray">
-                {geoMsg || "Local do serviço no mapa"}
-              </span>
-              <Button variant="outline" size="sm" type="button" onClick={useMyLocation}>
-                <MapPin className="h-4 w-4" /> Minha localização
-              </Button>
-            </div>
-            <RouteMap target={loc} targetKind="home" requestGps showRoute={false} height={200} />
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>
@@ -389,9 +389,6 @@ export function SolicitarFlow({
             <div className="text-center py-8">
               <p className="text-gray">
                 Nenhum profissional disponível nesta categoria no momento.
-              </p>
-              <p className="text-sm text-gray-light mt-1">
-                (Cadastre/aprove um prestador desta categoria para ver propostas.)
               </p>
             </div>
           ) : (

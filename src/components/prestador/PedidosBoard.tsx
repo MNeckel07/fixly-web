@@ -130,8 +130,8 @@ export function PedidosBoard({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-bold text-ink">{brl(price)}</p>
-                      <p className="text-[11px] text-success">recebe {brl(providerNet(price))}</p>
+                      <p className="text-[11px] text-gray-light">Você recebe</p>
+                      <p className="font-bold text-success">{brl(providerNet(price))}</p>
                     </div>
                   </div>
                   <Button

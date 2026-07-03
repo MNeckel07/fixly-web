@@ -5,7 +5,7 @@ const ITEMS: NavItem[] = [
   { href: "/app/contratante", label: "Início", icon: "home" },
   { href: "/app/contratante/solicitar", label: "Solicitar", icon: "plus" },
   { href: "/app/contratante/historico", label: "Histórico", icon: "clock" },
-  { href: "/app/contratante/mensagens", label: "Mensagens", icon: "message" },
+  { href: "/app/contratante/suporte", label: "Suporte", icon: "support" },
   { href: "/app/contratante/perfil", label: "Perfil", icon: "user" },
 ];
 

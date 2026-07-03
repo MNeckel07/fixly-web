@@ -40,7 +40,7 @@ export default async function HistoricoPage() {
           {reqs.map((r) => {
             const cat = Array.isArray(r.category) ? r.category[0] : r.category;
             return (
-              <div key={r.id} className="bg-white rounded-2xl border border-black/5 p-5 flex items-center justify-between">
+              <Link key={r.id} href={`/app/contratante/servico/${r.id}`} className="bg-white rounded-2xl border border-black/5 p-5 flex items-center justify-between hover:border-primary/40 transition">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-ink">
                     <CategoryIcon slug={cat?.slug} className="h-6 w-6" />
@@ -64,7 +64,7 @@ export default async function HistoricoPage() {
                     {brl(r.final_price ?? r.estimated_price ?? 0)}
                   </p>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>

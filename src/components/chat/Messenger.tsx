@@ -13,13 +13,17 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
 
-type Participant = { profile: { id: string; full_name: string; role: Role } };
+type Participant = { profile: { id: string; full_name: string; role: Role } | null };
 type Conversation = {
   id: string;
-  type: "aprovacao" | "servico";
+  type: "aprovacao" | "servico" | "ticket";
   created_at: string;
   participants: Participant[];
 };
+
+function convLabel(t: Conversation["type"]) {
+  return t === "aprovacao" ? "Análise de cadastro" : t === "ticket" ? "Ticket de suporte" : "Serviço";
+}
 type Message = {
   id: string;
   conversation_id: string;
@@ -55,8 +59,9 @@ export function Messenger({
 
   const other = useCallback(
     (c: Conversation) =>
-      c.participants.find((p) => p.profile.id !== currentUserId)?.profile ??
-      c.participants[0]?.profile,
+      c.participants.find((p) => p.profile && p.profile.id !== currentUserId)?.profile ??
+      c.participants.find((p) => p.profile)?.profile ??
+      null,
     [currentUserId],
   );
 
@@ -203,12 +208,12 @@ export function Messenger({
                   }`}
                 >
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-canvas font-semibold text-ink shrink-0">
-                    {o?.full_name.charAt(0)}
+                    {o?.full_name?.charAt(0) ?? "?"}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium text-ink truncate">{o?.full_name}</p>
+                    <p className="font-medium text-ink truncate">{o?.full_name ?? "Usuário"}</p>
                     <p className="text-xs text-gray-light">
-                      {c.type === "aprovacao" ? "Análise de cadastro" : "Serviço"}
+                      {convLabel(c.type)}
                       {o && ` · ${ROLE_LABELS[o.role]}`}
                     </p>
                   </div>
@@ -233,13 +238,11 @@ export function Messenger({
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas font-semibold text-ink text-sm">
-                {other(sel)?.full_name.charAt(0)}
+                {other(sel)?.full_name?.charAt(0) ?? "?"}
               </div>
               <div>
-                <p className="font-medium text-ink leading-tight">{other(sel)?.full_name}</p>
-                <p className="text-xs text-gray-light">
-                  {sel.type === "aprovacao" ? "Análise de cadastro" : "Serviço"}
-                </p>
+                <p className="font-medium text-ink leading-tight">{other(sel)?.full_name ?? "Usuário"}</p>
+                <p className="text-xs text-gray-light">{convLabel(sel.type)}</p>
               </div>
             </div>
 
