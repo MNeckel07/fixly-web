@@ -2,19 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 
-export type NavItem = { href: string; label: string; icon: string };
+export type NavItem = { href: string; label: string; icon: LucideIcon };
 
-export function UserNav({
-  items,
-  name,
-}: {
-  items: NavItem[];
-  name: string;
-}) {
+export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
   const path = usePathname();
+  const isActive = (href: string) =>
+    href === items[0].href ? path === href : path.startsWith(href);
+
   return (
     <>
       {/* Top bar (desktop) */}
@@ -23,21 +21,18 @@ export function UserNav({
           <Logo size={24} variant="dark" />
           <nav className="hidden md:flex items-center gap-1">
             {items.map((it) => {
-              const active =
-                it.href === items[0].href
-                  ? path === it.href
-                  : path.startsWith(it.href);
+              const Icon = it.icon;
               return (
                 <Link
                   key={it.href}
                   href={it.href}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                    active
+                    isActive(it.href)
                       ? "bg-primary/15 text-primary-dark"
                       : "text-gray hover:bg-black/[0.04]"
                   }`}
                 >
-                  <span>{it.icon}</span>
+                  <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
                   {it.label}
                 </Link>
               );
@@ -53,17 +48,16 @@ export function UserNav({
       {/* Bottom tab bar (mobile) */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-white border-t border-black/5 flex">
         {items.map((it) => {
-          const active =
-            it.href === items[0].href ? path === it.href : path.startsWith(it.href);
+          const Icon = it.icon;
           return (
             <Link
               key={it.href}
               href={it.href}
               className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium ${
-                active ? "text-primary-dark" : "text-gray-light"
+                isActive(it.href) ? "text-primary-dark" : "text-gray-light"
               }`}
             >
-              <span className="text-lg">{it.icon}</span>
+              <Icon className="h-5 w-5" strokeWidth={1.75} />
               {it.label}
             </Link>
           );

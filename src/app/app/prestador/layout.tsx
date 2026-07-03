@@ -1,11 +1,13 @@
+import { Inbox, Wrench, Wallet, MessageSquare, User } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { UserNav, type NavItem } from "@/components/shell/UserNav";
 
 const ITEMS: NavItem[] = [
-  { href: "/app/prestador", label: "Pedidos", icon: "📥" },
-  { href: "/app/prestador/trabalho", label: "Trabalho", icon: "🔧" },
-  { href: "/app/prestador/ganhos", label: "Ganhos", icon: "💰" },
-  { href: "/app/prestador/perfil", label: "Perfil", icon: "👤" },
+  { href: "/app/prestador", label: "Pedidos", icon: Inbox },
+  { href: "/app/prestador/trabalho", label: "Trabalho", icon: Wrench },
+  { href: "/app/prestador/ganhos", label: "Ganhos", icon: Wallet },
+  { href: "/app/prestador/mensagens", label: "Mensagens", icon: MessageSquare },
+  { href: "/app/prestador/perfil", label: "Perfil", icon: User },
 ];
 
 export default async function PrestadorLayout({

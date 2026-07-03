@@ -21,7 +21,7 @@ if (!dbUrl) {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-const files = ["0001_init.sql", "0002_dispatch.sql"];
+const files = ["0001_init.sql", "0002_dispatch.sql", "0003_v2.sql"];
 
 const client = new pg.Client({
   connectionString: dbUrl,

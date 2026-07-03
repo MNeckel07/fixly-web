@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Check, MessageSquare, FileText, Wrench, Home } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { createClient } from "@/lib/supabase/client";
 import { approveProfile, rejectProfile, getDocumentUrl } from "@/app/admin/actions";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
 
@@ -30,10 +33,20 @@ const DOC_LABELS: Record<string, string> = {
 };
 
 export function ApprovalCard({ profile }: { profile: ProfileLite }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [openingDoc, setOpeningDoc] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  async function openChat() {
+    setStarting(true);
+    const supabase = createClient();
+    const { data } = await supabase.rpc("start_approval_chat", { p_applicant: profile.id });
+    setStarting(false);
+    if (data) router.push(`/admin/mensagens?c=${data}`);
+  }
 
   async function viewDoc(path: string) {
     setOpeningDoc(path);
@@ -47,8 +60,8 @@ export function ApprovalCard({ profile }: { profile: ProfileLite }) {
       <div className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-xl">
-              {profile.role === "prestador" ? "🔧" : "🏠"}
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-canvas text-gray">
+              {profile.role === "prestador" ? <Wrench className="h-5 w-5" /> : <Home className="h-5 w-5" />}
             </div>
             <div>
               <h3 className="font-semibold text-ink">{profile.full_name}</h3>
@@ -98,7 +111,7 @@ export function ApprovalCard({ profile }: { profile: ProfileLite }) {
                   disabled={openingDoc === d.file_path}
                   className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-ink hover:bg-black/[0.03] transition"
                 >
-                  <span>📄</span>
+                  <FileText className="h-4 w-4 text-gray" />
                   {DOC_LABELS[d.kind] ?? d.kind}
                   <span className="text-primary-dark text-xs">
                     {openingDoc === d.file_path ? "abrindo..." : "ver"}
@@ -155,10 +168,13 @@ export function ApprovalCard({ profile }: { profile: ProfileLite }) {
                 })
               }
             >
-              ✓ Aprovar cadastro
+              <Check className="h-4 w-4" /> Aprovar cadastro
             </Button>
             <Button variant="outline" size="sm" onClick={() => setRejecting(true)}>
               Reprovar
+            </Button>
+            <Button variant="ghost" size="sm" loading={starting} onClick={openChat}>
+              <MessageSquare className="h-4 w-4" /> Mensagem
             </Button>
           </div>
         )}

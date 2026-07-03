@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Clock3, Wrench, Home, ClipboardList, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { StatCard, PageHeader } from "@/components/admin/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -26,23 +27,20 @@ export default async function AdminDashboard() {
 
   return (
     <div className="p-6 md:p-8 max-w-6xl">
-      <PageHeader
-        title="Visão geral"
-        subtitle="Acompanhe os cadastros e a operação da plataforma."
-      />
+      <PageHeader title="Visão geral" subtitle="Acompanhe os cadastros e a operação da plataforma." />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Cadastros pendentes" value={pendentes ?? 0} icon="⏳" accent="warning" />
-        <StatCard label="Prestadores ativos" value={prestadores ?? 0} icon="🔧" accent="primary" />
-        <StatCard label="Contratantes ativos" value={contratantes ?? 0} icon="🏠" accent="info" />
-        <StatCard label="Serviços no total" value={servicos ?? 0} icon="🧰" accent="success" />
+        <StatCard label="Cadastros pendentes" value={pendentes ?? 0} icon={Clock3} accent="warning" />
+        <StatCard label="Prestadores ativos" value={prestadores ?? 0} icon={Wrench} accent="primary" />
+        <StatCard label="Contratantes ativos" value={contratantes ?? 0} icon={Home} accent="info" />
+        <StatCard label="Serviços no total" value={servicos ?? 0} icon={ClipboardList} accent="success" />
       </div>
 
       <div className="bg-white rounded-2xl border border-black/5 mt-8">
         <div className="flex items-center justify-between px-6 py-4 border-b border-black/5">
           <h2 className="font-semibold text-ink">Aguardando aprovação</h2>
-          <Link href="/admin/cadastros" className="text-sm font-semibold text-primary-dark">
-            Ver fila completa →
+          <Link href="/admin/cadastros" className="inline-flex items-center gap-1 text-sm font-semibold text-primary-dark">
+            Ver fila completa <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
         {recent && recent.length > 0 ? (
@@ -50,8 +48,8 @@ export default async function AdminDashboard() {
             {recent.map((p) => (
               <li key={p.id} className="flex items-center justify-between px-6 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-canvas text-lg">
-                    {p.role === "prestador" ? "🔧" : "🏠"}
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-canvas text-gray">
+                    {p.role === "prestador" ? <Wrench className="h-4 w-4" /> : <Home className="h-4 w-4" />}
                   </div>
                   <div>
                     <p className="font-medium text-ink">{p.full_name}</p>
@@ -65,9 +63,7 @@ export default async function AdminDashboard() {
             ))}
           </ul>
         ) : (
-          <p className="px-6 py-10 text-center text-gray">
-            Nenhum cadastro pendente. Tudo em dia! ✅
-          </p>
+          <p className="px-6 py-10 text-center text-gray">Nenhum cadastro pendente. Tudo em dia.</p>
         )}
       </div>
     </div>
