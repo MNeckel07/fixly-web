@@ -3,13 +3,17 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Wrench, Home, FileText } from "lucide-react";
+import { ArrowLeft, Wrench, Home, FileText, Copy } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea, Select } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
 import { CategoryIcon } from "@/components/ui/icons";
 import { LocationPicker } from "@/components/map/LocationPicker";
+import { createAccount } from "@/app/cadastro/actions";
+import { PasswordField } from "@/components/auth/PasswordField";
+import { isPasswordStrong } from "@/lib/password";
+import { geocodeCep } from "@/lib/geo";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
 import { TERMS, TERMS_VERSION, termsPlainText } from "@/lib/terms";
 import type { ServiceCategory } from "@/lib/types";
@@ -61,6 +65,17 @@ export function SignupForm({
   }
   const primaryCat = useMemo(() => categories.find((c) => c.id === categoryIds[0]), [categories, categoryIds]);
 
+  const [geoBusy, setGeoBusy] = useState(false);
+  async function useSameAddress() {
+    if (!f.zip_code) { setError("Preencha o CEP do endereço de cadastro primeiro."); return; }
+    setError("");
+    setGeoBusy(true);
+    const g = await geocodeCep(f.zip_code);
+    setGeoBusy(false);
+    if (g) setCoords({ lat: g.lat, lng: g.lng });
+    else setError("Não consegui localizar o CEP do cadastro no mapa. Informe o CEP de atendimento abaixo.");
+  }
+
   async function lookupCep(cep: string) {
     const clean = cep.replace(/\D/g, "");
     if (clean.length !== 8) return;
@@ -78,6 +93,7 @@ export function SignupForm({
     for (const d of docTypes) {
       if (d.required && !files.current[d.slug]) return setError(`Envie o documento obrigatório: ${d.label}`);
     }
+    if (!isPasswordStrong(f.password)) return setError("A senha não atende aos requisitos de segurança (veja o checklist).");
     if (role === "prestador" && categoryIds.length === 0) return setError("Selecione ao menos um tipo de serviço que você presta.");
     if (role === "prestador" && !coords) return setError("Informe sua localização de atendimento (GPS ou CEP).");
     if (!acceptTerms) return setError("É necessário ler e aceitar os Termos de Uso.");
@@ -85,20 +101,18 @@ export function SignupForm({
     setLoading(true);
     const supabase = createClient();
 
-    const { data: signUp, error: signErr } = await supabase.auth.signUp({
-      email: f.email, password: f.password, options: { data: { full_name: f.full_name } },
+    // cria a conta já confirmada no servidor (funciona com "Confirm email" ligado)
+    const acc = await createAccount(f.email, f.password, f.full_name);
+    if (!acc.ok) { setError(acc.error ?? "Não foi possível criar a conta."); return setLoading(false); }
+
+    const { data: si, error: siErr } = await supabase.auth.signInWithPassword({
+      email: f.email, password: f.password,
     });
-    if (signErr) {
-      setError(signErr.message.includes("registered") ? "Este e-mail já está cadastrado." : signErr.message);
+    const userId = si?.user?.id ?? acc.userId ?? null;
+    if (siErr || !si?.session || !userId) {
+      setError("Conta criada, mas não foi possível entrar. Tente fazer login.");
       return setLoading(false);
     }
-    let userId = signUp.user?.id ?? null;
-    if (!signUp.session) {
-      const { data: si } = await supabase.auth.signInWithPassword({ email: f.email, password: f.password });
-      userId = si.user?.id ?? userId;
-      if (!si.session) { setError("Conta criada, mas confirme o e-mail (ou desative 'Confirm email' no Supabase)."); return setLoading(false); }
-    }
-    if (!userId) { setError("Não foi possível criar a conta."); return setLoading(false); }
 
     const { error: profErr } = await supabase.from("profiles").upsert({
       id: userId, role, status: "pendente",
@@ -242,8 +256,13 @@ export function SignupForm({
               <Field label="Sobre você (experiência, especialidades)">
                 <Textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder={`Ex.: ${primaryCat?.name ?? "Profissional"} com anos de experiência...`} />
               </Field>
-              <Field label="Sua região de atendimento (base para pedidos próximos)">
-                <LocationPicker value={coords} onChange={setCoords} height={180} />
+              <Field label="Endereço de atendimento (base para o raio de pedidos)">
+                <div className="mb-2">
+                  <Button type="button" variant="outline" size="sm" onClick={useSameAddress} loading={geoBusy}>
+                    <Copy className="h-4 w-4" /> Usar o mesmo endereço do cadastro
+                  </Button>
+                </div>
+                <LocationPicker value={coords} onChange={setCoords} onAddress={() => {}} height={180} hideGps />
               </Field>
             </Section>
 
@@ -282,7 +301,15 @@ export function SignupForm({
 
         {/* Senha */}
         <Section title="Acesso">
-          <Field label="Senha"><Input type="password" required minLength={8} value={f.password} onChange={set("password")} placeholder="mínimo 8 caracteres" /></Field>
+          <Field label="Senha">
+            <PasswordField
+              value={f.password}
+              onChange={(v) => setF((p) => ({ ...p, password: v }))}
+              showStrength
+              autoComplete="new-password"
+              placeholder="crie uma senha forte"
+            />
+          </Field>
         </Section>
 
         {/* Termos */}

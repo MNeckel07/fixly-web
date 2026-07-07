@@ -28,6 +28,7 @@ const files = [
   "0004_tickets_multicategoria.sql",
   "0005_ticket_number.sql",
   "0006_security.sql",
+  "0007_open_requests_visibility.sql",
 ];
 
 const client = new pg.Client({

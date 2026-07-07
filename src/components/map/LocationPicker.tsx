@@ -19,11 +19,13 @@ export function LocationPicker({
   onChange,
   onAddress,
   height = 220,
+  hideGps = false,
 }: {
   value: Loc | null;
   onChange: (loc: Loc) => void;
   onAddress?: (addr: string) => void;
   height?: number;
+  hideGps?: boolean;
 }) {
   const [cep, setCep] = useState("");
   const [status, setStatus] = useState("");
@@ -90,9 +92,11 @@ export function LocationPicker({
   return (
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row gap-2">
-        <Button type="button" variant="outline" onClick={useGps} className="sm:w-auto">
-          <LocateFixed className="h-4 w-4" /> Usar meu GPS
-        </Button>
+        {!hideGps && (
+          <Button type="button" variant="outline" onClick={useGps} className="sm:w-auto">
+            <LocateFixed className="h-4 w-4" /> Usar meu GPS
+          </Button>
+        )}
         <div className="flex-1 flex gap-2">
           <div className="relative flex-1">
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-light" />
