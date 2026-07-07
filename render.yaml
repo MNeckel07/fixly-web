@@ -1,0 +1,29 @@
+# Render — Infra as Code do Fixly (sistema-web)
+# Ao conectar o repositório no Render, ele detecta este arquivo (Blueprint).
+services:
+  - type: web
+    name: fixly-web
+    runtime: node
+    plan: free           # troque para "starter" para evitar cold start
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /login
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: NEXT_PUBLIC_MP_PUBLIC_KEY
+        sync: false
