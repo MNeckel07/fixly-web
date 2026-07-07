@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { ROLE_HOME, ROLE_LABELS, type Role } from "@/lib/brand";
+import { resolveLoginEmail } from "@/app/login/actions";
 
 const ROLES: { role: Role; icon: LucideIcon; hint: string }[] = [
   { role: "contratante", icon: Home, hint: "Preciso de um serviço" },
@@ -34,13 +35,21 @@ export function LoginForm() {
     setError("");
     const supabase = createClient();
 
+    // admin pode entrar por usuário ou e-mail; demais, por e-mail
+    const loginEmail = email.includes("@") ? email : await resolveLoginEmail(email);
+    if (!loginEmail) {
+      setError("Usuário ou senha incorretos.");
+      setLoading(false);
+      return;
+    }
+
     const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
+      email: loginEmail,
       password,
     });
 
     if (signInError || !data.user) {
-      setError("E-mail ou senha incorretos.");
+      setError("Usuário/e-mail ou senha incorretos.");
       setLoading(false);
       return;
     }
@@ -107,14 +116,14 @@ export function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <Label>E-mail</Label>
+          <Label>{role === "admin" ? "E-mail ou usuário" : "E-mail"}</Label>
           <Input
-            type="email"
+            type="text"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="voce@email.com"
-            autoComplete="email"
+            placeholder={role === "admin" ? "usuário ou voce@email.com" : "voce@email.com"}
+            autoComplete="username"
           />
         </div>
         <div>

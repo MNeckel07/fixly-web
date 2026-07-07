@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
+import { hasPerm } from "@/lib/permissions";
 import { PageHeader } from "@/components/admin/StatCard";
 import { PricingRulesEditor } from "@/components/admin/PricingRulesEditor";
 
@@ -6,6 +9,8 @@ export const dynamic = "force-dynamic";
 
 export default async function PrecificacaoPage() {
   const supabase = await createClient();
+  const { profile } = await getProfile();
+  if (!hasPerm((profile as any)?.permissions, "precificacao")) redirect("/admin");
 
   const { data: cats } = await supabase
     .from("service_categories")

@@ -1,6 +1,8 @@
 import { CheckCircle2 } from "lucide-react";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
+import { hasPerm } from "@/lib/permissions";
 import { PageHeader } from "@/components/admin/StatCard";
 import { ApprovalCard } from "@/components/admin/ApprovalCard";
 
@@ -8,7 +10,8 @@ export const dynamic = "force-dynamic";
 
 export default async function CadastrosPage() {
   const supabase = await createClient();
-  const { userId } = await getProfile();
+  const { userId, profile } = await getProfile();
+  if (!hasPerm((profile as any)?.permissions, "cadastros")) redirect("/admin");
 
   const { data: profiles } = await supabase
     .from("profiles")

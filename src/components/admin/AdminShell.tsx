@@ -19,27 +19,31 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { hasPerm, type PermKey } from "@/lib/permissions";
 
-const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
+const ITEMS: { href: string; label: string; icon: LucideIcon; perm?: PermKey }[] = [
   { href: "/admin", label: "Visão geral", icon: LayoutDashboard },
-  { href: "/admin/cadastros", label: "Aprovações", icon: FolderCheck },
-  { href: "/admin/usuarios", label: "Cadastros", icon: Users },
-  { href: "/admin/vendas", label: "Vendas", icon: TrendingUp },
-  { href: "/admin/precificacao", label: "Precificação", icon: Tag },
-  { href: "/admin/servicos", label: "Serviços", icon: Wrench },
-  { href: "/admin/suporte", label: "Suporte", icon: LifeBuoy },
-  { href: "/admin/mensagens", label: "Equipe", icon: MessageSquare },
-  { href: "/admin/documentos", label: "Documentos", icon: FileText },
+  { href: "/admin/cadastros", label: "Aprovações", icon: FolderCheck, perm: "cadastros" },
+  { href: "/admin/usuarios", label: "Usuários", icon: Users, perm: "usuarios" },
+  { href: "/admin/vendas", label: "Vendas", icon: TrendingUp, perm: "vendas" },
+  { href: "/admin/precificacao", label: "Precificação", icon: Tag, perm: "precificacao" },
+  { href: "/admin/servicos", label: "Serviços", icon: Wrench, perm: "servicos" },
+  { href: "/admin/suporte", label: "Suporte", icon: LifeBuoy, perm: "suporte" },
+  { href: "/admin/mensagens", label: "Equipe", icon: MessageSquare, perm: "equipe" },
+  { href: "/admin/documentos", label: "Documentos", icon: FileText, perm: "documentos" },
 ];
 
 export function AdminShell({
   name,
+  permissions = null,
   children,
 }: {
   name: string;
+  permissions?: string[] | null;
   children: React.ReactNode;
 }) {
   const path = usePathname();
+  const items = ITEMS.filter((it) => !it.perm || hasPerm(permissions, it.perm));
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -71,7 +75,7 @@ export function AdminShell({
         </div>
 
         <nav className="flex-1 px-2 space-y-0.5 mt-2">
-          {ITEMS.map((it) => {
+          {items.map((it) => {
             const active = it.href === "/admin" ? path === "/admin" : path.startsWith(it.href);
             const Icon = it.icon;
             return (
@@ -111,7 +115,7 @@ export function AdminShell({
             <LogoutButton className="!text-white/70" />
           </div>
           <nav className="flex gap-1 overflow-x-auto no-scrollbar px-2 pb-2">
-            {ITEMS.map((it) => {
+            {items.map((it) => {
               const active = it.href === "/admin" ? path === "/admin" : path.startsWith(it.href);
               const Icon = it.icon;
               return (

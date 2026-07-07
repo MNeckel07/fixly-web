@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
+import { hasPerm } from "@/lib/permissions";
 import { PageHeader } from "@/components/admin/StatCard";
 import { DocTypesManager } from "@/components/admin/DocTypesManager";
 
@@ -6,6 +9,8 @@ export const dynamic = "force-dynamic";
 
 export default async function DocumentosPage() {
   const supabase = await createClient();
+  const { profile } = await getProfile();
+  if (!hasPerm((profile as any)?.permissions, "documentos")) redirect("/admin");
   const { data } = await supabase
     .from("document_types")
     .select("*")
