@@ -213,7 +213,7 @@ export function SolicitarFlow({
     if (!chosen || !requestId) return;
     setBusy(true);
     setError("");
-    const res = await processPayment(requestId, chosen.price, method);
+    const res = await processPayment(requestId, method);
     if (!res.ok) {
       setBusy(false);
       setError("Falha no pagamento: " + (res.error ?? ""));

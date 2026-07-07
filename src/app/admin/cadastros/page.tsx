@@ -11,12 +11,15 @@ export default async function CadastrosPage() {
   const { data: profiles } = await supabase
     .from("profiles")
     .select(
-      "id, full_name, email, phone, cpf, city, role, bio, base_price, service_radius_km, created_at, category:service_categories(name, icon), documents(id, kind, file_path)",
+      "id, full_name, city, role, bio, base_price, service_radius_km, created_at, category:service_categories(name, icon), documents(id, kind, file_path), private:profiles_private(email, phone, cpf)",
     )
     .eq("status", "pendente")
     .order("created_at", { ascending: false });
 
-  const list = (profiles ?? []) as any[];
+  const list = (profiles ?? []).map((p: any) => {
+    const priv = Array.isArray(p.private) ? p.private[0] : p.private;
+    return { ...p, email: priv?.email ?? null, phone: priv?.phone ?? null, cpf: priv?.cpf ?? null };
+  });
 
   return (
     <div className="p-6 md:p-8 max-w-4xl">

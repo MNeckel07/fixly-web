@@ -19,8 +19,16 @@ export async function getProfile(): Promise<{
     .select("*")
     .eq("id", user.id)
     .single();
+  if (!profile) return { userId: user.id, profile: null };
 
-  return { userId: user.id, profile: (profile as Profile) ?? null };
+  // dados sensíveis do próprio usuário (só o dono e o admin leem)
+  const { data: priv } = await supabase
+    .from("profiles_private")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return { userId: user.id, profile: { ...profile, ...(priv ?? {}) } as Profile };
 }
 
 /**

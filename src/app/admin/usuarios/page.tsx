@@ -8,13 +8,18 @@ export default async function UsuariosPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
-    .select("id, full_name, email, phone, role, status, city, active, created_at, category:service_categories(name)")
+    .select("id, full_name, role, status, city, active, created_at, category:service_categories(name), private:profiles_private(email, phone)")
     .order("created_at", { ascending: false });
 
-  const users = (data ?? []).map((u: any) => ({
-    ...u,
-    category: (Array.isArray(u.category) ? u.category[0] : u.category)?.name ?? null,
-  }));
+  const users = (data ?? []).map((u: any) => {
+    const priv = Array.isArray(u.private) ? u.private[0] : u.private;
+    return {
+      ...u,
+      email: priv?.email ?? "—",
+      phone: priv?.phone ?? null,
+      category: (Array.isArray(u.category) ? u.category[0] : u.category)?.name ?? null,
+    };
+  });
 
   return (
     <div className="p-6 md:p-8 max-w-6xl">

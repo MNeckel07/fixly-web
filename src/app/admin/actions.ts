@@ -39,18 +39,21 @@ export async function approveProfile(formData: FormData) {
       reject_reason: null,
     })
     .eq("id", id)
-    .select("full_name, email, role")
+    .select("full_name, role")
     .single();
 
   if (error) throw new Error(error.message);
 
   await supabase.from("documents").update({ status: "aprovado" }).eq("profile_id", id);
 
-  await sendEmail({
-    to: profile.email,
-    subject: "Seu cadastro no Fixly foi aprovado!",
-    html: approvalEmailHtml(profile.full_name, profile.role as Role),
-  });
+  const { data: priv } = await supabase.from("profiles_private").select("email").eq("id", id).single();
+  if (priv?.email) {
+    await sendEmail({
+      to: priv.email,
+      subject: "Seu cadastro no Fixly foi aprovado!",
+      html: approvalEmailHtml(profile.full_name, profile.role as Role),
+    });
+  }
 
   revalidatePath("/admin");
 }
@@ -69,16 +72,19 @@ export async function rejectProfile(formData: FormData) {
       reject_reason: reason || null,
     })
     .eq("id", id)
-    .select("full_name, email, role")
+    .select("full_name, role")
     .single();
 
   if (error) throw new Error(error.message);
 
-  await sendEmail({
-    to: profile.email,
-    subject: "Sobre o seu cadastro no Fixly",
-    html: rejectionEmailHtml(profile.full_name, profile.role as Role, reason),
-  });
+  const { data: priv } = await supabase.from("profiles_private").select("email").eq("id", id).single();
+  if (priv?.email) {
+    await sendEmail({
+      to: priv.email,
+      subject: "Sobre o seu cadastro no Fixly",
+      html: rejectionEmailHtml(profile.full_name, profile.role as Role, reason),
+    });
+  }
 
   revalidatePath("/admin");
 }

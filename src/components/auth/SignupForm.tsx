@@ -102,20 +102,28 @@ export function SignupForm({
 
     const { error: profErr } = await supabase.from("profiles").upsert({
       id: userId, role, status: "pendente",
-      full_name: f.full_name, email: f.email, phone: f.phone, cpf: f.cpf, rg: f.rg,
-      birth_date: f.birth_date || null, gender: f.gender || null,
-      zip_code: f.zip_code, address: f.address, address_number: f.address_number,
-      complement: f.complement, neighborhood: f.neighborhood, city: f.city, state: f.state,
+      full_name: f.full_name, city: f.city, state: f.state,
       terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION,
       ...(role === "prestador" && {
         category_id: categoryIds[0], base_price: Number(basePrice) || null,
         service_radius_km: Number(radius) || 10, bio,
-        bank_name: bank.bank_name, bank_agency: bank.bank_agency, bank_account: bank.bank_account,
-        bank_account_type: bank.bank_account_type, pix_key: bank.pix_key,
         lat: coords?.lat, lng: coords?.lng,
       }),
     });
     if (profErr) { setError("Erro ao salvar perfil: " + profErr.message); return setLoading(false); }
+
+    // dados sensíveis (tabela separada, só o dono e o admin leem)
+    const { error: privErr } = await supabase.from("profiles_private").upsert({
+      id: userId, email: f.email, phone: f.phone, cpf: f.cpf, rg: f.rg,
+      birth_date: f.birth_date || null, gender: f.gender || null,
+      zip_code: f.zip_code, address: f.address, address_number: f.address_number,
+      complement: f.complement, neighborhood: f.neighborhood,
+      ...(role === "prestador" && {
+        bank_name: bank.bank_name, bank_agency: bank.bank_agency, bank_account: bank.bank_account,
+        bank_account_type: bank.bank_account_type, pix_key: bank.pix_key,
+      }),
+    });
+    if (privErr) { setError("Erro ao salvar dados: " + privErr.message); return setLoading(false); }
 
     // categorias (tipos de serviço) do prestador
     if (role === "prestador" && categoryIds.length > 0) {
@@ -274,7 +282,7 @@ export function SignupForm({
 
         {/* Senha */}
         <Section title="Acesso">
-          <Field label="Senha"><Input type="password" required minLength={4} value={f.password} onChange={set("password")} placeholder="mínimo 4 caracteres" /></Field>
+          <Field label="Senha"><Input type="password" required minLength={8} value={f.password} onChange={set("password")} placeholder="mínimo 8 caracteres" /></Field>
         </Section>
 
         {/* Termos */}

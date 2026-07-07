@@ -23,7 +23,7 @@ type Job = {
   final_price: number | null;
   urgent: boolean;
   category: { name: string; slug: string } | null;
-  client: { full_name: string; phone: string | null; city: string | null } | null;
+  client: { full_name: string; city: string | null } | null;
 };
 
 export function TrabalhoView({
@@ -103,27 +103,9 @@ export function TrabalhoView({
   }
 
   async function conclude() {
-    const supabase = createClient();
-    await update("concluido", async () => {
-      // incrementa contador de serviços do próprio prestador
-      const { data: me } = await supabase.auth.getUser();
-      if (me.user) {
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("jobs_done")
-          .eq("id", me.user.id)
-          .single();
-        await supabase
-          .from("profiles")
-          .update({ jobs_done: (prof?.jobs_done ?? 0) + 1 })
-          .eq("id", me.user.id);
-      }
-      // libera o pagamento retido (se existir)
-      await supabase
-        .from("payments")
-        .update({ status: "liberado", released_at: new Date().toISOString() })
-        .eq("request_id", job!.id);
-    });
+    // marca como concluído; a contagem de serviços é atualizada por trigger
+    // confiável no banco, e a liberação do pagamento é feita pelo contratante.
+    await update("concluido");
   }
 
   const arrived = status === "a_caminho" && progress >= 1;

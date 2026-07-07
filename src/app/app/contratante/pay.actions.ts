@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { createEscrowCharge, releaseEscrow } from "@/lib/gateway";
 import type { PayMethod, PaymentBreakdown } from "@/lib/pricing";
 
@@ -12,21 +12,35 @@ export interface PayResult {
   pixQrCode?: string;
 }
 
-export async function processPayment(
-  requestId: string,
-  amount: number,
-  method: PayMethod,
-): Promise<PayResult> {
+/**
+ * Processa o pagamento. O VALOR é derivado no servidor (a partir da proposta
+ * aceita ou do preço do pedido) — NUNCA confiando em valor vindo do cliente.
+ * A escrita na tabela de pagamentos usa a chave de servidor (RLS bloqueia o
+ * cliente de escrever pagamentos diretamente).
+ */
+export async function processPayment(requestId: string, method: PayMethod): Promise<PayResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Não autenticado" };
 
   const { data: req } = await supabase
     .from("service_requests")
-    .select("id, client_id, description")
+    .select("id, client_id, description, estimated_price, final_price")
     .eq("id", requestId)
     .single();
   if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
+
+  // valor confiável: proposta aceita (gerada no servidor) > final > estimado
+  const { data: prop } = await supabase
+    .from("proposals")
+    .select("price")
+    .eq("request_id", requestId)
+    .eq("status", "aceita")
+    .order("price", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const amount = Number(prop?.price ?? req.final_price ?? req.estimated_price ?? 0);
+  if (!amount || amount <= 0) return { ok: false, error: "Valor do serviço indefinido" };
 
   let charge;
   try {
@@ -41,7 +55,8 @@ export async function processPayment(
   }
 
   const { breakdown } = charge;
-  await supabase.from("payments").insert({
+  const admin = createAdminClient();
+  await admin.from("payments").insert({
     request_id: requestId,
     amount: breakdown.amount,
     fee: breakdown.platformFee,
@@ -51,7 +66,7 @@ export async function processPayment(
     gateway: charge.gateway,
     gateway_id: charge.id,
     gateway_status: charge.status,
-    status: charge.status === "retido" ? "retido" : "retido",
+    status: "retido",
   });
 
   if (charge.status === "retido") {
@@ -74,7 +89,8 @@ export async function approveService(requestId: string): Promise<{ ok: boolean; 
     .single();
   if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
 
-  const { data: pay } = await supabase
+  const admin = createAdminClient();
+  const { data: pay } = await admin
     .from("payments")
     .select("gateway_id")
     .eq("request_id", requestId)
@@ -84,7 +100,7 @@ export async function approveService(requestId: string): Promise<{ ok: boolean; 
     if (pay?.gateway_id) await releaseEscrow(pay.gateway_id);
   } catch { /* ignora falha de liberacao no mock */ }
 
-  await supabase
+  await admin
     .from("payments")
     .update({ status: "liberado", released_at: new Date().toISOString() })
     .eq("request_id", requestId);
