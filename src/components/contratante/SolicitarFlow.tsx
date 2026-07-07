@@ -11,10 +11,12 @@ import { LocationPicker } from "@/components/map/LocationPicker";
 import { CategoryIcon } from "@/components/ui/icons";
 import {
   brl,
-  estimatePrice,
+  estimateRange,
   haversineKm,
   paymentBreakdown,
   type PayMethod,
+  type PriceRange,
+  type PricingRule,
 } from "@/lib/pricing";
 import { processPayment, approveService } from "@/app/app/contratante/pay.actions";
 import type { ServiceCategory } from "@/lib/types";
@@ -68,11 +70,13 @@ export function SolicitarFlow({
   providers,
   preselectSlug,
   client,
+  pricingRules = {},
 }: {
   categories: ServiceCategory[];
   providers: Provider[];
   preselectSlug: string | null;
   client: ClientInfo;
+  pricingRules?: Record<string, PricingRule>;
 }) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -93,6 +97,7 @@ export function SolicitarFlow({
 
   const [requestId, setRequestId] = useState<string | null>(null);
   const [estimated, setEstimated] = useState(0);
+  const [range, setRange] = useState<PriceRange | null>(null);
   const [proposals, setProposals] = useState<ProposalRow[]>([]);
   const [chosen, setChosen] = useState<ProposalRow | null>(null);
   const [method, setMethod] = useState<PayMethod>("pix");
@@ -135,10 +140,12 @@ export function SolicitarFlow({
     setError("");
     setStep("precificando");
 
-    const price = estimatePrice(category.base_price, urgent, distanceToNearest);
+    const rng = estimateRange(pricingRules[category.id] ?? null, urgent, distanceToNearest);
+    const price = Math.round((rng.min + rng.max) / 2);
 
     // animação de "calculando"
     await new Promise((r) => setTimeout(r, 1600));
+    setRange(rng);
     setEstimated(price);
 
     // cria o pedido
@@ -153,6 +160,8 @@ export function SolicitarFlow({
         lat: loc.lat,
         lng: loc.lng,
         estimated_price: price,
+        estimated_min: rng.min,
+        estimated_max: rng.max,
         status: "buscando",
       })
       .select("id")
@@ -385,7 +394,7 @@ export function SolicitarFlow({
       {step === "propostas" && (
         <Card
           title="Profissionais disponíveis"
-          subtitle={`Preço estimado: ${brl(estimated)} · ${proposals.length} proposta(s)`}
+          subtitle={`Pré-orçamento: ${range ? `${brl(range.min)} – ${brl(range.max)}` : brl(estimated)} · ${proposals.length} proposta(s)`}
         >
           {proposals.length === 0 ? (
             <div className="text-center py-8">

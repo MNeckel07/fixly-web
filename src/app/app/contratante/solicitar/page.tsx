@@ -28,11 +28,16 @@ export default async function SolicitarPage({
     .eq("role", "prestador")
     .eq("status", "aprovado");
 
+  const { data: rules } = await supabase.from("pricing_rules").select("*");
+  const pricingRules: Record<string, any> = {};
+  (rules ?? []).forEach((r: any) => (pricingRules[r.category_id] = r));
+
   return (
     <SolicitarFlow
       categories={categories}
       providers={provs ?? []}
       preselectSlug={cat ?? null}
+      pricingRules={pricingRules}
       client={{
         id: profile!.id,
         name: profile!.full_name,

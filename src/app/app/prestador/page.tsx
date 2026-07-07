@@ -23,7 +23,7 @@ export default async function PrestadorHome() {
   const { data: open } = await supabase
     .from("service_requests")
     .select(
-      "id, description, urgent, address, estimated_price, status, lat, lng, category_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)",
+      "id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, category_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)",
     )
     .in("status", ["buscando", "proposta_enviada"])
     .order("created_at", { ascending: false })
@@ -57,6 +57,8 @@ export default async function PrestadorHome() {
       urgent: r.urgent,
       address: r.address,
       estimated_price: r.estimated_price,
+      estimated_min: r.estimated_min,
+      estimated_max: r.estimated_max,
       lat: r.lat,
       lng: r.lng,
       category: Array.isArray(r.category) ? r.category[0] : r.category,

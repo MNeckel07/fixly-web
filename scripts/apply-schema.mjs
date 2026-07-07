@@ -30,6 +30,8 @@ const files = [
   "0006_security.sql",
   "0007_open_requests_visibility.sql",
   "0008_admin_team_chat.sql",
+  "0009_pricing.sql",
+  "0010_dispatch_range.sql",
 ];
 
 const client = new pg.Client({

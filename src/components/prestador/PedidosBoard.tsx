@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Inbox, User, MapPin } from "lucide-react";
+import { useState } from "react";
+import { Inbox, User, MapPin, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { CategoryIcon } from "@/components/ui/icons";
@@ -14,6 +13,8 @@ type Req = {
   urgent: boolean;
   address: string | null;
   estimated_price: number | null;
+  estimated_min: number | null;
+  estimated_max: number | null;
   lat: number | null;
   lng: number | null;
   category: { name: string; slug: string } | null;
@@ -34,39 +35,16 @@ export function PedidosBoard({
   jobsDone: number;
   basePrice: number;
 }) {
-  const router = useRouter();
   const [online, setOnline] = useState(true);
-  const [pending, startTransition] = useTransition();
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-
-  function accept(id: string) {
-    setAcceptingId(id);
-    setError("");
-    startTransition(async () => {
-      const supabase = createClient();
-      const { error } = await supabase.rpc("accept_request", { p_request_id: id });
-      if (error) {
-        setError(error.message);
-        setAcceptingId(null);
-        return;
-      }
-      router.push("/app/prestador/trabalho");
-      router.refresh();
-    });
-  }
 
   return (
     <div className="space-y-6">
-      {/* Header do prestador */}
       <div className="rounded-3xl bg-ink text-white p-6 relative overflow-hidden">
         <div className="absolute -top-12 -right-8 h-48 w-48 rounded-full bg-primary/20 blur-3xl" />
         <div className="flex items-center justify-between relative">
           <div>
             <p className="text-white/60 text-sm">Olá, {providerName.split(" ")[0]}</p>
-            <p className="text-xl font-bold">
-              {online ? "Você está online" : "Você está offline"}
-            </p>
+            <p className="text-xl font-bold">{online ? "Você está online" : "Você está offline"}</p>
           </div>
           <button
             onClick={() => setOnline((v) => !v)}
@@ -88,8 +66,6 @@ export function PedidosBoard({
           <span className="text-sm text-gray-light">{requests.length} na sua região</span>
         </div>
 
-        {error && <p className="text-sm text-danger mb-3">{error}</p>}
-
         {!online ? (
           <div className="bg-white rounded-2xl border border-black/5 p-10 text-center text-gray">
             Fique <b>online</b> para receber pedidos.
@@ -99,55 +75,107 @@ export function PedidosBoard({
             <Inbox className="h-9 w-9 text-gray-light mx-auto mb-2" strokeWidth={1.5} />
             <p className="text-ink font-medium">Nenhum pedido no momento</p>
             <p className="text-sm text-gray-light mt-1">
-              Novos pedidos da sua categoria aparecem aqui em tempo real.
+              Pedidos da sua categoria e dentro do seu raio aparecem aqui.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {requests.map((r) => {
-              const price = r.myProposal?.price ?? r.estimated_price ?? basePrice;
-              return (
-                <div key={r.id} className="bg-white rounded-2xl border border-black/5 p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-ink">
-                        <CategoryIcon slug={r.category?.slug} className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-ink">{r.category?.name ?? "Serviço"}</p>
-                          {r.urgent && (
-                            <span className="text-[11px] font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">
-                              URGENTE
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray mt-0.5">{r.description}</p>
-                        <p className="flex items-center gap-1 text-xs text-gray-light mt-1">
-                          <User className="h-3.5 w-3.5" /> {r.client?.full_name ?? "Cliente"}
-                          <MapPin className="h-3.5 w-3.5 ml-1" /> {r.address || r.client?.city || "—"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-[11px] text-gray-light">Você recebe</p>
-                      <p className="font-bold text-success">{brl(providerNet(price))}</p>
-                    </div>
-                  </div>
-                  <Button
-                    fullWidth
-                    className="mt-3"
-                    loading={pending && acceptingId === r.id}
-                    onClick={() => accept(r.id)}
-                  >
-                    Aceitar pedido
-                  </Button>
-                </div>
-              );
-            })}
+            {requests.map((r) => (
+              <RequestCard key={r.id} r={r} basePrice={basePrice} />
+            ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
+  const max = r.estimated_max ?? r.estimated_price ?? basePrice;
+  const min = r.estimated_min ?? r.estimated_price ?? basePrice;
+  const cap = Math.round(max * 1.15);
+  const [value, setValue] = useState<string>(String(r.myProposal?.price ?? max));
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(!!r.myProposal);
+  const [error, setError] = useState("");
+
+  async function submit() {
+    const price = Number(value);
+    if (!price || price <= 0) return setError("Informe um valor válido.");
+    if (price > cap) return setError(`Máximo permitido: ${brl(cap)} (15% acima do pré-orçamento).`);
+    setBusy(true);
+    setError("");
+    const supabase = createClient();
+    const { error } = await supabase.rpc("submit_proposal", {
+      p_request_id: r.id,
+      p_price: price,
+      p_eta: null,
+      p_message: null,
+    });
+    setBusy(false);
+    if (error) return setError(error.message);
+    setSent(true);
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-black/5 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-ink">
+            <CategoryIcon slug={r.category?.slug} className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-ink">{r.category?.name ?? "Serviço"}</p>
+              {r.urgent && (
+                <span className="text-[11px] font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">URGENTE</span>
+              )}
+            </div>
+            <p className="text-sm text-gray mt-0.5">{r.description}</p>
+            <p className="flex items-center gap-1 text-xs text-gray-light mt-1">
+              <User className="h-3.5 w-3.5" /> {r.client?.full_name ?? "Cliente"}
+              <MapPin className="h-3.5 w-3.5 ml-1" /> {r.address || r.client?.city || "—"}
+            </p>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[11px] text-gray-light">Pré-orçamento</p>
+          <p className="font-semibold text-ink">{brl(min)}–{brl(max)}</p>
+        </div>
+      </div>
+
+      {sent ? (
+        <div className="mt-3 flex items-center justify-between rounded-xl bg-success/5 px-4 py-3">
+          <span className="inline-flex items-center gap-1.5 text-sm text-success font-medium">
+            <Check className="h-4 w-4" /> Proposta enviada: {brl(Number(value))}
+          </span>
+          <button onClick={() => setSent(false)} className="text-xs text-gray hover:text-ink underline">
+            alterar
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="text-xs text-gray-light">Sua proposta (até {brl(cap)})</label>
+              <div className="flex items-center rounded-xl border border-black/10 px-3 mt-1 focus-within:border-primary">
+                <span className="text-gray-light text-sm">R$</span>
+                <input
+                  type="number"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="w-full py-2.5 px-2 outline-none"
+                />
+              </div>
+            </div>
+            <Button loading={busy} onClick={submit}>Enviar proposta</Button>
+          </div>
+          <p className="text-[11px] text-gray-light mt-1.5">
+            Você recebe (líquido): <b className="text-success">{brl(providerNet(Number(value) || max))}</b>
+          </p>
+          {error && <p className="text-xs text-danger mt-1">{error}</p>}
+        </div>
+      )}
     </div>
   );
 }
