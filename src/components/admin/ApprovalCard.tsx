@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, MessageSquare, FileText, Wrench, Home } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
+import { ConversationThread } from "@/components/chat/ConversationThread";
 import { approveProfile, rejectProfile, getDocumentUrl } from "@/app/admin/actions";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
 
@@ -41,20 +41,25 @@ const DOC_LABELS: Record<string, string> = {
   comprovante_endereco: "Comprovante de endereço",
 };
 
-export function ApprovalCard({ profile }: { profile: ProfileLite }) {
-  const router = useRouter();
+export function ApprovalCard({ profile, currentUserId }: { profile: ProfileLite; currentUserId: string }) {
   const [pending, startTransition] = useTransition();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [openingDoc, setOpeningDoc] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [chatConv, setChatConv] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState(false);
 
   async function openChat() {
-    setStarting(true);
-    const supabase = createClient();
-    const { data } = await supabase.rpc("start_approval_chat", { p_applicant: profile.id });
-    setStarting(false);
-    if (data) router.push(`/admin/mensagens?c=${data}`);
+    if (showChat) return setShowChat(false);
+    if (!chatConv) {
+      setStarting(true);
+      const supabase = createClient();
+      const { data } = await supabase.rpc("start_approval_chat", { p_applicant: profile.id });
+      setChatConv((data as string) ?? null);
+      setStarting(false);
+    }
+    setShowChat(true);
   }
 
   async function viewDoc(path: string) {
@@ -183,8 +188,13 @@ export function ApprovalCard({ profile }: { profile: ProfileLite }) {
               Reprovar
             </Button>
             <Button variant="ghost" size="sm" loading={starting} onClick={openChat}>
-              <MessageSquare className="h-4 w-4" /> Mensagem
+              <MessageSquare className="h-4 w-4" /> {showChat ? "Ocultar conversa" : "Mensagem"}
             </Button>
+          </div>
+        )}
+        {showChat && chatConv && (
+          <div className="mt-4">
+            <ConversationThread conversationId={chatConv} currentUserId={currentUserId} height={360} />
           </div>
         )}
       </div>

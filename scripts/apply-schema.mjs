@@ -29,6 +29,7 @@ const files = [
   "0005_ticket_number.sql",
   "0006_security.sql",
   "0007_open_requests_visibility.sql",
+  "0008_admin_team_chat.sql",
 ];
 
 const client = new pg.Client({

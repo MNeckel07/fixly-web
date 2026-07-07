@@ -26,7 +26,7 @@ const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/vendas", label: "Vendas", icon: TrendingUp },
   { href: "/admin/servicos", label: "Serviços", icon: Wrench },
   { href: "/admin/suporte", label: "Suporte", icon: LifeBuoy },
-  { href: "/admin/mensagens", label: "Atendimento", icon: MessageSquare },
+  { href: "/admin/mensagens", label: "Equipe", icon: MessageSquare },
   { href: "/admin/documentos", label: "Documentos", icon: FileText },
 ];
 

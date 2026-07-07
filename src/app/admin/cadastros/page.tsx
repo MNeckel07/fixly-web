@@ -1,5 +1,6 @@
 import { CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
 import { PageHeader } from "@/components/admin/StatCard";
 import { ApprovalCard } from "@/components/admin/ApprovalCard";
 
@@ -7,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CadastrosPage() {
   const supabase = await createClient();
+  const { userId } = await getProfile();
 
   const { data: profiles } = await supabase
     .from("profiles")
@@ -41,6 +43,7 @@ export default async function CadastrosPage() {
           {list.map((p) => (
             <ApprovalCard
               key={p.id}
+              currentUserId={userId!}
               profile={{
                 ...p,
                 category: Array.isArray(p.category) ? p.category[0] : p.category,
