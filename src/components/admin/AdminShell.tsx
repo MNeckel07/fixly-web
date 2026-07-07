@@ -103,9 +103,29 @@ export function AdminShell({
       </aside>
 
       <main className="flex-1 min-w-0">
-        <div className="md:hidden flex items-center justify-between bg-ink text-white px-4 py-3">
-          <Logo size={20} />
-          <LogoutButton className="!text-white/70" />
+        <div className="md:hidden sticky top-0 z-20 bg-ink text-white">
+          <div className="flex items-center justify-between px-4 py-3">
+            <Logo size={20} />
+            <LogoutButton className="!text-white/70" />
+          </div>
+          <nav className="flex gap-1 overflow-x-auto no-scrollbar px-2 pb-2">
+            {ITEMS.map((it) => {
+              const active = it.href === "/admin" ? path === "/admin" : path.startsWith(it.href);
+              const Icon = it.icon;
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                    active ? "bg-primary text-ink" : "text-white/70 hover:bg-white/10"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  {it.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
         {children}
       </main>

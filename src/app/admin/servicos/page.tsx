@@ -20,8 +20,8 @@ export default async function ServicosPage() {
   return (
     <div className="p-6 md:p-8 max-w-6xl">
       <PageHeader title="Serviços" subtitle="Pedidos de serviço na plataforma" />
-      <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-2xl border border-black/5 overflow-x-auto">
+        <table className="w-full text-sm min-w-[460px]">
           <thead className="bg-canvas text-gray-light">
             <tr className="text-left">
               <th className="px-5 py-3 font-medium">Serviço</th>
