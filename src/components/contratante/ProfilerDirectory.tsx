@@ -21,10 +21,12 @@ export function ProfilerDirectory({
   providers,
   currentUserId = null,
   followingIds = [],
+  showRequestButton = true,
 }: {
   providers: Provider[];
   currentUserId?: string | null;
   followingIds?: string[];
+  showRequestButton?: boolean;
 }) {
   const followingSet = new Set(followingIds);
   const [q, setQ] = useState("");
@@ -94,12 +96,14 @@ export function ProfilerDirectory({
                       Ver portfólio
                     </Link>
                   )}
-                  <Link
-                    href={`/app/contratante/solicitar?cat=${p.category?.slug ?? ""}`}
-                    className="flex-1 inline-flex items-center justify-center h-10 rounded-xl bg-primary text-ink font-semibold text-sm hover:bg-primary-dark transition"
-                  >
-                    Solicitar
-                  </Link>
+                  {showRequestButton && (
+                    <Link
+                      href={`/app/contratante/solicitar?cat=${p.category?.slug ?? ""}`}
+                      className="flex-1 inline-flex items-center justify-center h-10 rounded-xl bg-primary text-ink font-semibold text-sm hover:bg-primary-dark transition"
+                    >
+                      Solicitar
+                    </Link>
+                  )}
                   <span className="[&>*]:!h-10">
                     <FollowButton providerId={p.id} currentUserId={currentUserId} initialFollowing={followingSet.has(p.id)} />
                   </span>

@@ -22,12 +22,14 @@ export function ProfilerTabs({
   followingIds,
   feed,
   publicUrlBase,
+  showRequestButton = true,
 }: {
   providers: Provider[];
   currentUserId: string;
   followingIds: string[];
   feed: Post[];
   publicUrlBase: string;
+  showRequestButton?: boolean;
 }) {
   const [tab, setTab] = useState<"explorar" | "seguindo">("explorar");
 
@@ -48,7 +50,7 @@ export function ProfilerTabs({
       </div>
 
       {tab === "explorar" ? (
-        <ProfilerDirectory providers={providers} currentUserId={currentUserId} followingIds={followingIds} />
+        <ProfilerDirectory providers={providers} currentUserId={currentUserId} followingIds={followingIds} showRequestButton={showRequestButton} />
       ) : (
         <Feed posts={feed} publicUrlBase={publicUrlBase} />
       )}
