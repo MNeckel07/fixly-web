@@ -33,6 +33,7 @@ const files = [
   "0009_pricing.sql",
   "0010_dispatch_range.sql",
   "0011_admin_users.sql",
+  "0012_categorias_reforma.sql",
 ];
 
 const client = new pg.Client({

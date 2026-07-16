@@ -25,6 +25,7 @@ type Service = {
   estimated_price: number | null;
   final_price: number | null;
   rating: number | null;
+  review: string | null;
   provider_id: string | null;
   category: { name: string; slug: string } | null;
   provider: { full_name: string; rating: number | null; jobs_done: number | null; lat: number | null; lng: number | null } | null;
@@ -43,6 +44,9 @@ export function ServiceDetail({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [rating, setRating] = useState(service.rating ?? 0);
+  const [comment, setComment] = useState(service.review ?? "");
+  const [reviewErr, setReviewErr] = useState("");
+  const [reviewSent, setReviewSent] = useState(!!(service.rating && service.review));
   const [showChat, setShowChat] = useState(false);
 
   const inProgress = ["aceito", "a_caminho", "em_andamento"].includes(service.status);
@@ -62,10 +66,15 @@ export function ServiceDetail({
   }
   const canApprove = ["a_caminho", "em_andamento"].includes(service.status);
 
-  async function rate(n: number) {
-    setRating(n);
+  async function submitReview() {
+    if (rating < 1) return setReviewErr("Dê uma nota de 1 a 5 estrelas.");
+    if (comment.trim().length < 5) return setReviewErr("Escreva um comentário sobre o serviço.");
+    setReviewErr("");
+    setBusy(true);
     const supabase = createClient();
-    await supabase.from("service_requests").update({ rating: n }).eq("id", service.id);
+    await supabase.from("service_requests").update({ rating, review: comment.trim() }).eq("id", service.id);
+    setBusy(false);
+    setReviewSent(true);
     router.refresh();
   }
 
@@ -145,14 +154,31 @@ export function ServiceDetail({
           </div>
 
           <div className="mt-5">
-            <p className="text-sm font-medium text-ink mb-2">Sua avaliação</p>
+            <p className="text-sm font-medium text-ink mb-2">Sua avaliação {!reviewSent && <span className="text-danger">*</span>}</p>
             <div className="flex gap-1.5">
               {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} onClick={() => rate(n)}>
+                <button key={n} type="button" disabled={reviewSent} onClick={() => setRating(n)}>
                   <Star className={`h-8 w-8 ${n <= rating ? "fill-primary text-primary" : "text-black/15"}`} />
                 </button>
               ))}
             </div>
+            {reviewSent ? (
+              <p className="mt-3 text-sm text-gray bg-canvas rounded-xl px-4 py-3">“{comment}”</p>
+            ) : (
+              <div className="mt-3">
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  rows={3}
+                  placeholder="Conte como foi o serviço (obrigatório)"
+                  className="w-full rounded-xl border border-black/10 px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+                {reviewErr && <p className="text-xs text-danger mt-1">{reviewErr}</p>}
+                <Button className="mt-2" size="sm" loading={busy} onClick={submitReview}>
+                  Enviar avaliação
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

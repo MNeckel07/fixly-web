@@ -24,7 +24,7 @@ export default async function HistoricoPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-ink mb-1">Histórico</h1>
+      <h1 className="text-2xl font-bold text-ink mb-1">Meus Serviços</h1>
       <p className="text-gray mb-6">Seus pedidos de serviço</p>
 
       {reqs.length === 0 ? (

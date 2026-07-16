@@ -69,12 +69,14 @@ export function SolicitarFlow({
   categories,
   providers,
   preselectSlug,
+  initialDescription = "",
   client,
   pricingRules = {},
 }: {
   categories: ServiceCategory[];
   providers: Provider[];
   preselectSlug: string | null;
+  initialDescription?: string;
   client: ClientInfo;
   pricingRules?: Record<string, PricingRule>;
 }) {
@@ -87,9 +89,10 @@ export function SolicitarFlow({
 
   const [step, setStep] = useState<Step>(preCat ? "detalhes" : "categoria");
   const [category, setCategory] = useState<ServiceCategory | null>(preCat);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(initialDescription);
   const [urgent, setUrgent] = useState(false);
   const [address, setAddress] = useState("");
+  const [houseNumber, setHouseNumber] = useState("");
   const [loc, setLoc] = useState<{ lat: number; lng: number }>(
     client.lat && client.lng ? { lat: client.lat, lng: client.lng } : DEFAULT_LOC,
   );
@@ -137,6 +140,10 @@ export function SolicitarFlow({
       setError("Descreva o que você precisa.");
       return;
     }
+    if (!houseNumber.trim()) {
+      setError("Informe o número da residência.");
+      return;
+    }
     setError("");
     setStep("precificando");
 
@@ -156,7 +163,7 @@ export function SolicitarFlow({
         category_id: category.id,
         description,
         urgent,
-        address,
+        address: [address, `nº ${houseNumber}`].filter(Boolean).join(", "),
         lat: loc.lat,
         lng: loc.lng,
         estimated_price: price,
@@ -360,13 +367,24 @@ export function SolicitarFlow({
                 height={200}
               />
             </div>
-            <div>
-              <Label>Endereço (complemento / referência)</Label>
-              <Input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder={`Rua, número — ${client.city ?? "sua cidade"}`}
-              />
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <Label>Endereço (rua / referência)</Label>
+                <Input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder={`Rua — ${client.city ?? "sua cidade"}`}
+                />
+              </div>
+              <div>
+                <Label>Número *</Label>
+                <Input
+                  value={houseNumber}
+                  onChange={(e) => setHouseNumber(e.target.value)}
+                  placeholder="123"
+                  inputMode="numeric"
+                />
+              </div>
             </div>
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">

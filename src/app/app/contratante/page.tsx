@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
+import { CategoryBrowser } from "@/components/contratante/CategoryBrowser";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { brl } from "@/lib/pricing";
 import type { ServiceCategory } from "@/lib/types";
@@ -90,27 +91,7 @@ export default async function ContratanteHome() {
       )}
 
       {/* Categorias */}
-      <section>
-        <h2 className="font-semibold text-ink mb-4">Categorias de serviço</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {categories.map((c) => (
-            <Link
-              key={c.id}
-              href={`/app/contratante/solicitar?cat=${c.slug}`}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-black/5 bg-white p-5 hover:shadow-[0_8px_28px_-12px_rgba(31,35,41,0.25)] hover:-translate-y-0.5 transition-all"
-            >
-              <div
-                className="flex h-12 w-12 items-center justify-center rounded-xl text-ink"
-                style={{ backgroundColor: `${c.color}1A` }}
-              >
-                <CategoryIcon slug={c.slug} className="h-6 w-6" />
-              </div>
-              <span className="text-sm font-medium text-ink text-center">{c.name}</span>
-              <span className="text-xs text-gray-light">a partir de {brl(c.base_price)}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <CategoryBrowser categories={categories} />
     </div>
   );
 }
