@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Zap, ClipboardList, HardHat, UsersRound } from "lucide-react";
+import { Zap, ClipboardList, HardHat, UsersRound, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { Badge } from "@/components/ui/Badge";
@@ -61,6 +61,7 @@ export default async function ContratanteHome() {
         <EntryCard href="/app/contratante/solicitar?modo=orcamento" icon={ClipboardList} title="Solicitar orçamento" desc="Serviço com visita técnica — receba propostas" tone="bg-info/10 text-info" />
         <EntryCard href="/app/contratante/solicitar?reforma=1" icon={HardHat} title="Reformas" desc="Quero reformar minha casa" tone="bg-warning/10 text-warning" />
         <EntryCard href="/app/contratante/profiler" icon={UsersRound} title="Pesquisar Profiler" desc="Veja o portfólio dos profissionais" tone="bg-success/10 text-success" />
+        <EntryCard href="/app/contratante/empreiteiros" icon={Building2} title="Empreiteiros" desc="Quero achar um empreiteiro para minha obra" tone="bg-ink/5 text-ink" />
       </section>
 
       {/* Serviço ativo */}

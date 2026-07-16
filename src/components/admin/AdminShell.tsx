@@ -12,6 +12,7 @@ import {
   FileText,
   MessageSquare,
   LifeBuoy,
+  Building2,
   FlaskConical,
   PanelLeftClose,
   PanelLeft,
@@ -30,6 +31,7 @@ const ITEMS: { href: string; label: string; icon: LucideIcon; perm?: PermKey }[]
   { href: "/admin/suporte", label: "Suporte", icon: LifeBuoy, perm: "suporte" },
   { href: "/admin/mensagens", label: "Equipe", icon: MessageSquare, perm: "equipe" },
   { href: "/admin/documentos", label: "Documentos", icon: FileText, perm: "documentos" },
+  { href: "/admin/empreiteiros", label: "Empreiteiros", icon: Building2, perm: "empreiteiros" },
   { href: "/admin/testes", label: "Testes", icon: FlaskConical, perm: "testes" },
 ];
 
