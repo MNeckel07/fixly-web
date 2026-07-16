@@ -5,6 +5,7 @@ const ITEMS: NavItem[] = [
   { href: "/app/prestador", label: "Pedidos", icon: "inbox" },
   { href: "/app/prestador/trabalho", label: "Trabalho", icon: "wrench" },
   { href: "/app/prestador/ganhos", label: "Ganhos", icon: "wallet" },
+  { href: "/app/prestador/profiler", label: "Profiler", icon: "profiler" },
   { href: "/app/prestador/suporte", label: "Suporte", icon: "support" },
   { href: "/app/prestador/perfil", label: "Perfil", icon: "user" },
 ];

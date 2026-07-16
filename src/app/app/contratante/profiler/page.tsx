@@ -12,7 +12,7 @@ export default async function ProfilerPage() {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, full_name, rating, jobs_done, bio, city, category:service_categories(name, slug)")
+    .select("id, full_name, handle, rating, jobs_done, bio, city, category:service_categories(name, slug)")
     .eq("role", "prestador")
     .eq("status", "aprovado")
     .order("rating", { ascending: false });

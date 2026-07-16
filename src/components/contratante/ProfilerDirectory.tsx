@@ -8,6 +8,7 @@ import { CategoryIcon } from "@/components/ui/icons";
 type Provider = {
   id: string;
   full_name: string;
+  handle: string | null;
   rating: number | null;
   jobs_done: number | null;
   bio: string | null;
@@ -73,12 +74,23 @@ export function ProfilerDirectory({ providers }: { providers: Provider[] }) {
                     </div>
                   </div>
                 </div>
-                <Link
-                  href={`/app/contratante/solicitar?cat=${p.category?.slug ?? ""}`}
-                  className="mt-3 inline-flex items-center justify-center w-full h-10 rounded-xl bg-primary text-ink font-semibold text-sm hover:bg-primary-dark transition"
-                >
-                  Solicitar serviço
-                </Link>
+                <div className="mt-3 flex gap-2">
+                  {p.handle && (
+                    <Link
+                      href={`/p/${p.handle}`}
+                      target="_blank"
+                      className="flex-1 inline-flex items-center justify-center h-10 rounded-xl border border-black/10 text-ink font-semibold text-sm hover:bg-black/[0.03] transition"
+                    >
+                      Ver portfólio
+                    </Link>
+                  )}
+                  <Link
+                    href={`/app/contratante/solicitar?cat=${p.category?.slug ?? ""}`}
+                    className="flex-1 inline-flex items-center justify-center h-10 rounded-xl bg-primary text-ink font-semibold text-sm hover:bg-primary-dark transition"
+                  >
+                    Solicitar serviço
+                  </Link>
+                </div>
               </div>
             );
           })}
