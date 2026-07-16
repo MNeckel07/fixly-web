@@ -16,7 +16,7 @@ export default async function CadastrosPage() {
   const { data: profiles } = await supabase
     .from("profiles")
     .select(
-      "id, full_name, city, role, bio, base_price, service_radius_km, created_at, category:service_categories(name, icon), documents(id, kind, file_path), private:profiles_private(email, phone, cpf)",
+      "id, full_name, city, role, bio, base_price, service_radius_km, created_at, category:service_categories!profiles_category_id_fkey(name, icon), documents(id, kind, file_path), private:profiles_private(email, phone, cpf)",
     )
     .eq("status", "pendente")
     .order("created_at", { ascending: false });

@@ -15,7 +15,7 @@ export default async function UsuariosPage() {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, full_name, role, status, city, active, funcao, permissions, created_at, category:service_categories(name), private:profiles_private(email, phone, username)")
+    .select("id, full_name, role, status, city, active, funcao, permissions, created_at, category:service_categories!profiles_category_id_fkey(name), private:profiles_private(email, phone, username)")
     .order("created_at", { ascending: false });
 
   const rows = (data ?? []).map((u: any) => {

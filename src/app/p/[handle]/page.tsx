@@ -14,7 +14,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
 
   const { data: prov } = await supabase
     .from("profiles")
-    .select("id, full_name, handle, headline, bio, city, rating, jobs_done, category:service_categories(name, slug)")
+    .select("id, full_name, handle, headline, bio, city, rating, jobs_done, category:service_categories!profiles_category_id_fkey(name, slug)")
     .ilike("handle", handle)
     .eq("role", "prestador")
     .eq("status", "aprovado")
