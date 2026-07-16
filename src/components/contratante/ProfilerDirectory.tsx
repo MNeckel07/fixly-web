@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Search, Star, BadgeCheck, ShieldCheck } from "lucide-react";
 import { CategoryIcon } from "@/components/ui/icons";
+import { FollowButton } from "@/components/profiler/FollowButton";
 
 type Provider = {
   id: string;
@@ -16,7 +17,16 @@ type Provider = {
   category: { name: string; slug: string } | null;
 };
 
-export function ProfilerDirectory({ providers }: { providers: Provider[] }) {
+export function ProfilerDirectory({
+  providers,
+  currentUserId = null,
+  followingIds = [],
+}: {
+  providers: Provider[];
+  currentUserId?: string | null;
+  followingIds?: string[];
+}) {
+  const followingSet = new Set(followingIds);
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
   const list = query
@@ -74,7 +84,7 @@ export function ProfilerDirectory({ providers }: { providers: Provider[] }) {
                     </div>
                   </div>
                 </div>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex gap-2 items-stretch">
                   {p.handle && (
                     <Link
                       href={`/p/${p.handle}`}
@@ -88,8 +98,11 @@ export function ProfilerDirectory({ providers }: { providers: Provider[] }) {
                     href={`/app/contratante/solicitar?cat=${p.category?.slug ?? ""}`}
                     className="flex-1 inline-flex items-center justify-center h-10 rounded-xl bg-primary text-ink font-semibold text-sm hover:bg-primary-dark transition"
                   >
-                    Solicitar serviço
+                    Solicitar
                   </Link>
+                  <span className="[&>*]:!h-10">
+                    <FollowButton providerId={p.id} currentUserId={currentUserId} initialFollowing={followingSet.has(p.id)} />
+                  </span>
                 </div>
               </div>
             );
