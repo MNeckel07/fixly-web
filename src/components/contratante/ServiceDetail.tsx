@@ -11,7 +11,8 @@ import { CategoryIcon } from "@/components/ui/icons";
 import { RouteMap } from "@/components/map/RouteMap";
 import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
-import { approveService, processPayment } from "@/app/app/contratante/pay.actions";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { approveService, processPayment, cancelService } from "@/app/app/contratante/pay.actions";
 import { brl, paymentBreakdown, type PayMethod } from "@/lib/pricing";
 
 type Service = {
@@ -74,6 +75,18 @@ export function ServiceDetail({
   const [showChat, setShowChat] = useState(false);
   const [method, setMethod] = useState<PayMethod>("pix");
   const [payErr, setPayErr] = useState("");
+  const [showCancel, setShowCancel] = useState(false);
+
+  const canCancel = !["concluido", "cancelado"].includes(service.status);
+  const isPaid = ["a_caminho", "em_andamento"].includes(service.status);
+
+  async function cancel() {
+    setBusy(true);
+    await cancelService(service.id);
+    setBusy(false);
+    setShowCancel(false);
+    router.refresh();
+  }
 
   const awaiting = !service.provider_id && ["buscando", "proposta_enviada"].includes(service.status);
   const awaitingQuote = service.mode === "orcamento" && !!service.provider_id && !service.final_price && service.status !== "concluido";
@@ -346,6 +359,26 @@ export function ServiceDetail({
           </div>
         </div>
       )}
+
+      {/* Cancelar */}
+      {canCancel && (
+        <div className="text-center pt-1">
+          <button onClick={() => setShowCancel(true)} className="text-sm text-gray hover:text-danger transition">
+            Cancelar {isPaid ? "serviço" : "pedido"}
+          </button>
+        </div>
+      )}
+      <ConfirmDialog
+        open={showCancel}
+        title={`Cancelar ${isPaid ? "serviço" : "pedido"}?`}
+        description={isPaid ? "Como você já pagou, o valor será reembolsado. Esta ação não pode ser desfeita." : "Seu pedido será cancelado. Esta ação não pode ser desfeita."}
+        confirmLabel="Sim, cancelar"
+        cancelLabel="Voltar"
+        variant="danger"
+        loading={busy}
+        onConfirm={cancel}
+        onCancel={() => setShowCancel(false)}
+      />
     </div>
   );
 }

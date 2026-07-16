@@ -125,6 +125,15 @@ export function TrabalhoView({
     await update("concluido");
   }
 
+  async function decline() {
+    setBusy(true);
+    const supabase = createClient();
+    await supabase.from("service_requests").update({ status: "cancelado" }).eq("id", job!.id);
+    setBusy(false);
+    router.push("/app/prestador");
+    router.refresh();
+  }
+
   const arrived = status === "a_caminho" && progress >= 1;
 
   return (
@@ -197,6 +206,11 @@ export function TrabalhoView({
           <div className="text-center text-sm text-gray">
             {job.mode === "orcamento" ? "Orçamento enviado" : "Proposta aceita"} — aguardando o pagamento do cliente para iniciar.
           </div>
+        )}
+        {status === "aceito" && (
+          <button onClick={decline} disabled={busy} className="w-full text-center text-sm text-gray hover:text-danger transition mt-3">
+            Recusar este pedido
+          </button>
         )}
         {status === "a_caminho" && !arrived && (
           <div className="text-center">

@@ -108,3 +108,28 @@ export async function approveService(requestId: string): Promise<{ ok: boolean; 
 
   return { ok: true };
 }
+
+/** Cancela o pedido/serviço. Se já houver pagamento retido, reembolsa (mock). */
+export async function cancelService(requestId: string): Promise<{ ok: boolean; error?: string; refunded?: boolean }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const { data: req } = await supabase
+    .from("service_requests")
+    .select("id, client_id, status")
+    .eq("id", requestId)
+    .single();
+  if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
+  if (["concluido", "cancelado"].includes(req.status)) return { ok: false, error: "Este serviço não pode ser cancelado." };
+
+  const admin = createAdminClient();
+  let refunded = false;
+  const { data: pay } = await admin.from("payments").select("id, status").eq("request_id", requestId).maybeSingle();
+  if (pay && pay.status === "retido") {
+    await admin.from("payments").update({ status: "reembolsado" }).eq("request_id", requestId);
+    refunded = true;
+  }
+  await supabase.from("service_requests").update({ status: "cancelado" }).eq("id", requestId);
+  return { ok: true, refunded };
+}

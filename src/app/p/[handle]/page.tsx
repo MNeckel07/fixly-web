@@ -93,6 +93,16 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
 
           {prov.bio && <p className="text-sm text-gray mt-4 leading-relaxed">{prov.bio}</p>}
 
+          {elite ? (
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-2.5 text-sm">
+              <ShieldCheck className="h-4 w-4 shrink-0" /> Serviços com <b>garantia Fixly</b> (profissional avaliado 4,5★ ou mais).
+            </div>
+          ) : (
+            <div className="mt-3 rounded-xl bg-black/[0.03] text-gray-light px-4 py-2.5 text-xs">
+              Profissional disponível, mas ainda sem o Selo Fixly — sem garantia da plataforma.
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2 mt-5">
             <Link
               href={`/app/contratante/solicitar?cat=${category?.slug ?? ""}`}
