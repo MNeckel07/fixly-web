@@ -13,7 +13,7 @@ export default async function TrabalhoPage() {
   const { data: job } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, address, lat, lng, estimated_price, final_price, urgent, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)",
+      "id, description, status, address, lat, lng, estimated_price, final_price, mode, urgent, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)",
     )
     .eq("provider_id", profile!.id)
     .in("status", ["aceito", "a_caminho", "em_andamento"])

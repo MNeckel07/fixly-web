@@ -38,6 +38,7 @@ const files = [
   "0014_profiler.sql",
   "0015_provider_pricing.sql",
   "0016_provider_reviews.sql",
+  "0017_orcamento.sql",
 ];
 
 const client = new pg.Client({

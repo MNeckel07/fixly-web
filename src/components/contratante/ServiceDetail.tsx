@@ -24,6 +24,7 @@ type Service = {
   lng: number | null;
   estimated_price: number | null;
   final_price: number | null;
+  mode: string | null;
   rating: number | null;
   review: string | null;
   provider_id: string | null;
@@ -75,7 +76,8 @@ export function ServiceDetail({
   const [payErr, setPayErr] = useState("");
 
   const awaiting = !service.provider_id && ["buscando", "proposta_enviada"].includes(service.status);
-  const toPay = service.status === "aceito";
+  const awaitingQuote = service.mode === "orcamento" && !!service.provider_id && !service.final_price && service.status !== "concluido";
+  const toPay = service.status === "aceito" && !!service.final_price;
 
   async function choose(p: Proposal) {
     if (!p.provider) return;
@@ -156,6 +158,17 @@ export function ServiceDetail({
           </div>
         )}
       </div>
+
+      {/* Orçamento — aguardando o profissional enviar o valor */}
+      {awaitingQuote && (
+        <div className="flex items-start gap-2 rounded-2xl bg-info/5 text-info px-4 py-3 text-sm">
+          <MessageSquare className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            <b>Orçamento em andamento.</b> Combine a visita técnica pelo chat abaixo. O profissional enviará o valor —
+            quando chegar, você poderá pagar aqui.
+          </span>
+        </div>
+      )}
 
       {/* Propostas recebidas — escolha o profissional */}
       {awaiting && (

@@ -21,6 +21,7 @@ type Job = {
   lng: number | null;
   estimated_price: number | null;
   final_price: number | null;
+  mode: string | null;
   urgent: boolean;
   category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
@@ -41,7 +42,23 @@ export function TrabalhoView({
   const [busy, setBusy] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [quoteValue, setQuoteValue] = useState("");
+  const [quoteErr, setQuoteErr] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const needsQuote = job?.mode === "orcamento" && !job?.final_price;
+  const awaitingPayment = status === "aceito" && !needsQuote;
+
+  async function sendQuote() {
+    const v = Number(quoteValue);
+    if (!v || v <= 0) return setQuoteErr("Informe um valor válido.");
+    setQuoteErr("");
+    setBusy(true);
+    const supabase = createClient();
+    await supabase.from("service_requests").update({ final_price: v }).eq("id", job!.id);
+    setBusy(false);
+    router.refresh();
+  }
 
   const dest =
     job?.lat && job?.lng ? { lat: job.lat, lng: job.lng } : { lat: -23.55, lng: -46.63 };
@@ -126,23 +143,31 @@ export function TrabalhoView({
             </div>
           </div>
           <div className="text-right">
-            <p className="font-bold text-ink">{brl(price)}</p>
-            <p className="text-[11px] text-success">recebe {brl(providerNet(price))}</p>
+            {needsQuote ? (
+              <p className="text-sm font-semibold text-info">Orçamento</p>
+            ) : (
+              <>
+                <p className="font-bold text-ink">{brl(price)}</p>
+                <p className="text-[11px] text-success">recebe {brl(providerNet(price))}</p>
+              </>
+            )}
           </div>
         </div>
         <p className="text-sm text-gray bg-canvas rounded-xl px-4 py-3 mt-4">{job.description}</p>
       </div>
 
-      <RouteMap
-        target={dest}
-        targetKind="home"
-        origin={status === "aceito" ? null : origin}
-        progress={progress}
-        moverKind="wrench"
-        requestGps
-        showRoute={status !== "aceito"}
-        height={280}
-      />
+      {["a_caminho", "em_andamento"].includes(status) && (
+        <RouteMap
+          target={dest}
+          targetKind="home"
+          origin={origin}
+          progress={progress}
+          moverKind="wrench"
+          requestGps
+          showRoute
+          height={280}
+        />
+      )}
 
       <Button variant="outline" fullWidth onClick={toggleChat}>
         <MessageSquare className="h-4 w-4" /> {showChat ? "Ocultar conversa" : "Conversar com o cliente"}
@@ -154,10 +179,24 @@ export function TrabalhoView({
 
       {/* Ações por etapa */}
       <div className="bg-white rounded-2xl border border-black/5 p-5">
-        {status === "aceito" && (
-          <Button fullWidth size="lg" loading={busy} onClick={() => update("a_caminho")}>
-            <Car className="h-5 w-5" /> Iniciar rota (estou a caminho)
-          </Button>
+        {needsQuote && (
+          <div>
+            <p className="text-sm text-gray mb-2">
+              Combine a visita pelo chat e, depois de avaliar, envie o valor do orçamento. O cliente paga por aqui.
+            </p>
+            <label className="text-xs text-gray-light">Valor do orçamento</label>
+            <div className="flex items-center rounded-xl border border-black/10 px-3 mt-1 mb-2 focus-within:border-primary">
+              <span className="text-gray-light text-sm">R$</span>
+              <input type="number" value={quoteValue} onChange={(e) => setQuoteValue(e.target.value)} className="w-full py-2.5 px-2 outline-none" placeholder="0,00" />
+            </div>
+            {quoteErr && <p className="text-xs text-danger mb-2">{quoteErr}</p>}
+            <Button fullWidth loading={busy} onClick={sendQuote}>Enviar orçamento</Button>
+          </div>
+        )}
+        {awaitingPayment && (
+          <div className="text-center text-sm text-gray">
+            {job.mode === "orcamento" ? "Orçamento enviado" : "Proposta aceita"} — aguardando o pagamento do cliente para iniciar.
+          </div>
         )}
         {status === "a_caminho" && !arrived && (
           <div className="text-center">

@@ -14,7 +14,7 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
   const { data: svc } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, urgent, address, lat, lng, estimated_price, final_price, rating, review, provider_id, created_at, category:service_categories(name, slug), provider:profiles!service_requests_provider_id_fkey(full_name, rating, jobs_done, lat, lng), payment:payments(amount, fee, gateway_fee, provider_net, method, status)",
+      "id, description, status, urgent, address, lat, lng, estimated_price, final_price, mode, rating, review, provider_id, created_at, category:service_categories(name, slug), provider:profiles!service_requests_provider_id_fkey(full_name, rating, jobs_done, lat, lng), payment:payments(amount, fee, gateway_fee, provider_net, method, status)",
     )
     .eq("id", id)
     .eq("client_id", userId)
