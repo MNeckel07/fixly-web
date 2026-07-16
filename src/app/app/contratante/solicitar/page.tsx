@@ -22,25 +22,13 @@ export default async function SolicitarPage({
     .order("name");
   const categories = (cats as ServiceCategory[]) ?? [];
 
-  const { data: provs } = await supabase
-    .from("profiles")
-    .select("id, full_name, rating, jobs_done, base_price, lat, lng, category_id, bio")
-    .eq("role", "prestador")
-    .eq("status", "aprovado");
-
-  const { data: rules } = await supabase.from("pricing_rules").select("*");
-  const pricingRules: Record<string, any> = {};
-  (rules ?? []).forEach((r: any) => (pricingRules[r.category_id] = r));
-
   return (
     <SolicitarFlow
       categories={categories}
-      providers={provs ?? []}
       preselectSlug={cat ?? null}
       initialDescription={desc ?? ""}
       initialUrgent={modo === "express"}
       reformaOnly={reforma === "1"}
-      pricingRules={pricingRules}
       client={{
         id: profile!.id,
         name: profile!.full_name,

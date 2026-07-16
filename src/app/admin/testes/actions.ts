@@ -44,9 +44,6 @@ export async function createTestRequest(): Promise<{ ok: boolean; error?: string
   if (!client) return { ok: false, error: "Nenhum contratante de teste encontrado." };
 
   const { data: cat } = await admin.from("service_categories").select("id, name").eq("slug", "eletricista").maybeSingle();
-  const { data: rule } = await admin.from("pricing_rules").select("base_min, base_max").eq("category_id", cat?.id).maybeSingle();
-  const min = Number(rule?.base_min ?? 100);
-  const max = Number(rule?.base_max ?? 180);
 
   const { error } = await admin.from("service_requests").insert({
     client_id: client.id,
@@ -56,9 +53,6 @@ export async function createTestRequest(): Promise<{ ok: boolean; error?: string
     address: "Endereço de teste, nº 100",
     lat: client.lat ?? -23.5505,
     lng: client.lng ?? -46.6333,
-    estimated_min: min,
-    estimated_max: max,
-    estimated_price: Math.round((min + max) / 2),
     status: "buscando",
   });
   if (error) return { ok: false, error: error.message };
@@ -96,15 +90,15 @@ export async function forceStep(requestId: string, step: Step): Promise<{ ok: bo
       const { data: prim } = await admin.from("profiles").select("id").eq("role", "prestador").eq("status", "aprovado").eq("category_id", req.category_id);
       (prim ?? []).forEach((r: any) => ids.add(r.id));
     }
-    let provs: { id: string }[] | null = null;
+    let provs: { id: string; base_price: number | null }[] | null = null;
     if (ids.size) {
-      ({ data: provs } = await admin.from("profiles").select("id").eq("status", "aprovado").in("id", Array.from(ids)).limit(3));
+      ({ data: provs } = await admin.from("profiles").select("id, base_price").eq("status", "aprovado").in("id", Array.from(ids)).limit(3));
     } else {
-      ({ data: provs } = await admin.from("profiles").select("id").eq("role", "prestador").eq("status", "aprovado").limit(3));
+      ({ data: provs } = await admin.from("profiles").select("id, base_price").eq("role", "prestador").eq("status", "aprovado").limit(3));
     }
-    const min = Number(req.estimated_min ?? 100), max = Number(req.estimated_max ?? 180);
     for (const p of provs ?? []) {
-      const price = Math.round(min + Math.random() * (max - min));
+      // preço do próprio prestador (base ± variação)
+      const price = Math.max(50, Math.round((p.base_price ?? 120) + (Math.random() * 40 - 15)));
       await admin.from("proposals").upsert(
         { request_id: requestId, provider_id: p.id, price, eta_minutes: 20 + Math.round(Math.random() * 40), status: "enviada" },
         { onConflict: "request_id,provider_id" },

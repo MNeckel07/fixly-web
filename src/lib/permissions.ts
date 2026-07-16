@@ -3,7 +3,6 @@ export const ADMIN_PERMISSIONS = [
   { key: "cadastros", label: "Aprovações de cadastro" },
   { key: "usuarios", label: "Usuários e permissões" },
   { key: "vendas", label: "Vendas" },
-  { key: "precificacao", label: "Precificação" },
   { key: "servicos", label: "Serviços" },
   { key: "suporte", label: "Suporte (tickets)" },
   { key: "equipe", label: "Equipe (chat interno)" },
