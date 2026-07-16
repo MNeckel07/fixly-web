@@ -13,6 +13,7 @@ import {
   MessageSquare,
   LifeBuoy,
   Tag,
+  FlaskConical,
   PanelLeftClose,
   PanelLeft,
   type LucideIcon,
@@ -31,6 +32,7 @@ const ITEMS: { href: string; label: string; icon: LucideIcon; perm?: PermKey }[]
   { href: "/admin/suporte", label: "Suporte", icon: LifeBuoy, perm: "suporte" },
   { href: "/admin/mensagens", label: "Equipe", icon: MessageSquare, perm: "equipe" },
   { href: "/admin/documentos", label: "Documentos", icon: FileText, perm: "documentos" },
+  { href: "/admin/testes", label: "Testes", icon: FlaskConical, perm: "testes" },
 ];
 
 export function AdminShell({

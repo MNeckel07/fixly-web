@@ -8,6 +8,7 @@ export const ADMIN_PERMISSIONS = [
   { key: "suporte", label: "Suporte (tickets)" },
   { key: "equipe", label: "Equipe (chat interno)" },
   { key: "documentos", label: "Tipos de documento" },
+  { key: "testes", label: "Modo de teste" },
 ] as const;
 
 export type PermKey = (typeof ADMIN_PERMISSIONS)[number]["key"];

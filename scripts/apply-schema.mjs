@@ -34,6 +34,7 @@ const files = [
   "0010_dispatch_range.sql",
   "0011_admin_users.sql",
   "0012_categorias_reforma.sql",
+  "0013_test_mode.sql",
 ];
 
 const client = new pg.Client({
