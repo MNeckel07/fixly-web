@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Star, MessageSquare, CheckCircle2, Lock } from "lucide-react";
+import { ArrowLeft, Star, MessageSquare, CheckCircle2, Lock, ShieldCheck, BadgeCheck, ExternalLink, Zap, CreditCard, Smartphone, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -11,8 +11,8 @@ import { CategoryIcon } from "@/components/ui/icons";
 import { RouteMap } from "@/components/map/RouteMap";
 import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
-import { approveService } from "@/app/app/contratante/pay.actions";
-import { brl } from "@/lib/pricing";
+import { approveService, processPayment } from "@/app/app/contratante/pay.actions";
+import { brl, paymentBreakdown, type PayMethod } from "@/lib/pricing";
 
 type Service = {
   id: string;
@@ -32,14 +32,37 @@ type Service = {
   payment: { amount: number; fee: number; gateway_fee: number; provider_net: number; method: string; status: string } | null;
 };
 
+type Proposal = {
+  id: string;
+  price: number;
+  eta_minutes: number | null;
+  provider: {
+    id: string;
+    full_name: string;
+    handle: string | null;
+    rating: number | null;
+    jobs_done: number | null;
+    category: { name: string; slug: string } | null;
+  } | null;
+};
+
+const METHODS: { key: PayMethod; label: string; Icon: typeof Zap }[] = [
+  { key: "pix", label: "Pix", Icon: Zap },
+  { key: "cartao", label: "Cartão", Icon: CreditCard },
+  { key: "apple_pay", label: "Apple Pay", Icon: Smartphone },
+  { key: "google_pay", label: "Google Pay", Icon: Wallet },
+];
+
 export function ServiceDetail({
   service,
   currentUserId,
   conversationId,
+  proposals = [],
 }: {
   service: Service;
   currentUserId: string;
   conversationId: string | null;
+  proposals?: Proposal[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -48,6 +71,33 @@ export function ServiceDetail({
   const [reviewErr, setReviewErr] = useState("");
   const [reviewSent, setReviewSent] = useState(!!(service.rating && service.review));
   const [showChat, setShowChat] = useState(false);
+  const [method, setMethod] = useState<PayMethod>("pix");
+  const [payErr, setPayErr] = useState("");
+
+  const awaiting = !service.provider_id && ["buscando", "proposta_enviada"].includes(service.status);
+  const toPay = service.status === "aceito";
+
+  async function choose(p: Proposal) {
+    if (!p.provider) return;
+    setBusy(true);
+    const supabase = createClient();
+    await supabase.from("proposals").update({ status: "aceita" }).eq("id", p.id);
+    await supabase
+      .from("service_requests")
+      .update({ provider_id: p.provider.id, final_price: p.price, status: "aceito" })
+      .eq("id", service.id);
+    setBusy(false);
+    router.refresh();
+  }
+
+  async function pay() {
+    setBusy(true);
+    setPayErr("");
+    const res = await processPayment(service.id, method);
+    setBusy(false);
+    if (!res.ok) return setPayErr(res.error ?? "Falha no pagamento.");
+    router.refresh();
+  }
 
   const inProgress = ["aceito", "a_caminho", "em_andamento"].includes(service.status);
   const done = service.status === "concluido";
@@ -107,8 +157,109 @@ export function ServiceDetail({
         )}
       </div>
 
+      {/* Propostas recebidas — escolha o profissional */}
+      {awaiting && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-semibold text-ink">Propostas recebidas</h2>
+            <span className="text-sm text-gray-light">{proposals.length} proposta(s)</span>
+          </div>
+          {proposals.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-black/5 p-8 text-center text-gray">
+              Aguardando os profissionais enviarem propostas. Atualize em instantes.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {proposals.map((p) => {
+                const r = p.provider?.rating ?? 5;
+                const elite = r >= 4.5;
+                return (
+                  <div key={p.id} className="bg-white rounded-2xl border border-black/5 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-canvas text-ink shrink-0">
+                          <CategoryIcon slug={p.provider?.category?.slug} className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-semibold text-ink truncate">{p.provider?.full_name ?? "Profissional"}</p>
+                            {elite && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-success bg-success/10 px-1.5 py-0.5 rounded-full">
+                                <ShieldCheck className="h-3 w-3" /> Selo
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-gray mt-0.5">
+                            <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-primary text-primary" /> {r.toFixed(1)}</span>
+                            <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3.5 w-3.5" /> {p.provider?.jobs_done ?? 0} serviços</span>
+                            {p.eta_minutes && <span>~{p.eta_minutes} min</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-lg font-bold text-ink">{brl(p.price)}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      {p.provider?.handle && (
+                        <Link href={`/p/${p.provider.handle}`} target="_blank" className="flex-1 inline-flex items-center justify-center gap-1 h-10 rounded-xl border border-black/10 text-ink text-sm font-medium hover:bg-black/[0.03]">
+                          Ver perfil e avaliações <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      )}
+                      <Button className="flex-1" loading={busy} onClick={() => choose(p)}>Escolher</Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pagamento — após escolher o profissional */}
+      {toPay && (
+        <div className="bg-white rounded-2xl border border-black/5 p-5">
+          <h2 className="font-semibold text-ink mb-1">Pagamento protegido</h2>
+          <p className="text-sm text-gray-light mb-4">Você paga agora; o profissional só recebe após sua aprovação.</p>
+
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {METHODS.map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                onClick={() => setMethod(key)}
+                className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition ${
+                  method === key ? "border-primary bg-primary/10 text-ink" : "border-black/10 text-gray"
+                }`}
+              >
+                <Icon className="h-4 w-4" /> {label}
+              </button>
+            ))}
+          </div>
+
+          {(() => {
+            const bd = paymentBreakdown(service.final_price ?? val, method);
+            return (
+              <div className="rounded-xl bg-canvas p-4 text-sm space-y-1.5 mb-4">
+                <Row label="Profissional" value={service.provider?.full_name ?? "—"} />
+                <Row label="Valor do serviço" value={brl(bd.amount)} />
+                <Row label="Comissão Fixly (15%)" value={`- ${brl(bd.platformFee)}`} muted />
+                <Row label="Tarifa do pagamento" value={`- ${brl(bd.gatewayFee)}`} muted />
+                <Row label="Prestador recebe" value={brl(bd.providerNet)} />
+                <div className="border-t border-black/10 my-1" />
+                <Row label="Total a pagar" value={brl(bd.amount)} bold />
+              </div>
+            );
+          })()}
+
+          {payErr && <p className="text-sm text-danger mb-3">{payErr}</p>}
+          <Button fullWidth size="lg" loading={busy} onClick={pay}>
+            <Lock className="h-4 w-4" /> Pagar {brl(service.final_price ?? val)} e contratar
+          </Button>
+        </div>
+      )}
+
       {/* Mapa */}
-      {inProgress && (
+      {inProgress && service.status !== "aceito" && (
         <RouteMap target={dest} targetKind="home" origin={origin} moverKind="wrench" requestGps showRoute={!!origin} height={260} />
       )}
 
@@ -128,7 +279,7 @@ export function ServiceDetail({
       )}
 
       {/* Aprovar */}
-      {inProgress && (
+      {["a_caminho", "em_andamento"].includes(service.status) && (
         <div className="flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-3 text-sm">
           <Lock className="h-4 w-4 shrink-0" /> Pagamento protegido — o profissional só recebe após sua aprovação.
         </div>

@@ -37,6 +37,8 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
     .select("*", { count: "exact", head: true })
     .eq("following_id", prov.id);
 
+  const { data: reviews } = await supabase.rpc("get_provider_reviews", { p_provider: prov.id, p_limit: 6 });
+
   const { data: { user } } = await supabase.auth.getUser();
   let following = false;
   if (user) {
@@ -121,6 +123,28 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
             </div>
           )}
         </div>
+
+        {/* Avaliações */}
+        {(reviews ?? []).length > 0 && (
+          <div>
+            <h2 className="font-semibold text-ink mb-3">Avaliações de clientes</h2>
+            <div className="space-y-2">
+              {(reviews ?? []).map((rv: any, i: number) => (
+                <div key={i} className="bg-white rounded-2xl border border-black/5 p-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Star key={n} className={`h-4 w-4 ${n <= rv.rating ? "fill-primary text-primary" : "text-black/15"}`} />
+                      ))}
+                    </div>
+                    {rv.category && <span className="text-xs text-gray-light">· {rv.category}</span>}
+                  </div>
+                  <p className="text-sm text-gray mt-1.5">“{rv.review}”</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <p className="text-center text-xs text-gray-light py-4">
           Perfil no <Link href="/" className="font-semibold text-ink">Fixly</Link> — serviços com pagamento protegido.

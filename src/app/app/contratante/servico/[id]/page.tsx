@@ -28,6 +28,25 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
     conversationId = (data as string) ?? null;
   }
 
+  // propostas recebidas (enquanto o cliente ainda não escolheu um profissional)
+  let proposals: any[] = [];
+  if (!svc.provider_id) {
+    const { data: props } = await supabase
+      .from("proposals")
+      .select(
+        "id, price, eta_minutes, provider:profiles!proposals_provider_id_fkey(id, full_name, handle, rating, jobs_done, category:service_categories!profiles_category_id_fkey(name, slug))",
+      )
+      .eq("request_id", id)
+      .order("price", { ascending: true });
+    proposals = (props ?? []).map((p: any) => {
+      const provider = Array.isArray(p.provider) ? p.provider[0] : p.provider;
+      return {
+        ...p,
+        provider: provider ? { ...provider, category: Array.isArray(provider.category) ? provider.category[0] : provider.category } : null,
+      };
+    });
+  }
+
   const norm = {
     ...svc,
     category: Array.isArray(svc.category) ? svc.category[0] : svc.category,
@@ -35,5 +54,5 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
     payment: Array.isArray(svc.payment) ? svc.payment[0] : svc.payment,
   };
 
-  return <ServiceDetail service={norm as any} currentUserId={userId} conversationId={conversationId} />;
+  return <ServiceDetail service={norm as any} currentUserId={userId} conversationId={conversationId} proposals={proposals} />;
 }

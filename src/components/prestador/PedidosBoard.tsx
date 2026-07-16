@@ -91,10 +91,7 @@ export function PedidosBoard({
 }
 
 function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
-  const max = r.estimated_max ?? r.estimated_price ?? basePrice;
-  const min = r.estimated_min ?? r.estimated_price ?? basePrice;
-  const cap = Math.round(max * 1.15);
-  const [value, setValue] = useState<string>(String(r.myProposal?.price ?? max));
+  const [value, setValue] = useState<string>(String(r.myProposal?.price ?? basePrice));
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(!!r.myProposal);
   const [error, setError] = useState("");
@@ -102,7 +99,6 @@ function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
   async function submit() {
     const price = Number(value);
     if (!price || price <= 0) return setError("Informe um valor válido.");
-    if (price > cap) return setError(`Máximo permitido: ${brl(cap)} (15% acima do pré-orçamento).`);
     setBusy(true);
     setError("");
     const supabase = createClient();
@@ -138,10 +134,6 @@ function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
             </p>
           </div>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-[11px] text-gray-light">Pré-orçamento</p>
-          <p className="font-semibold text-ink">{brl(min)}–{brl(max)}</p>
-        </div>
       </div>
 
       {sent ? (
@@ -157,7 +149,7 @@ function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
         <div className="mt-3">
           <div className="flex items-end gap-2">
             <div className="flex-1">
-              <label className="text-xs text-gray-light">Sua proposta (até {brl(cap)})</label>
+              <label className="text-xs text-gray-light">Seu preço para este serviço</label>
               <div className="flex items-center rounded-xl border border-black/10 px-3 mt-1 focus-within:border-primary">
                 <span className="text-gray-light text-sm">R$</span>
                 <input
@@ -171,7 +163,7 @@ function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
             <Button loading={busy} onClick={submit}>Enviar proposta</Button>
           </div>
           <p className="text-[11px] text-gray-light mt-1.5">
-            Você recebe (líquido): <b className="text-success">{brl(providerNet(Number(value) || max))}</b>
+            Você recebe (líquido): <b className="text-success">{brl(providerNet(Number(value) || basePrice))}</b>
           </p>
           {error && <p className="text-xs text-danger mt-1">{error}</p>}
         </div>

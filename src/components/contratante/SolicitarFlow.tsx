@@ -138,7 +138,7 @@ export function SolicitarFlow({
     );
   }, [providers, category, loc]);
 
-  // ── Passo: precificar + criar pedido + disparar ──
+  // ── Envia o pedido (sem preço da plataforma) e vai acompanhar as propostas ──
   async function startPricing() {
     if (!category) return;
     if (!description.trim()) {
@@ -150,17 +150,8 @@ export function SolicitarFlow({
       return;
     }
     setError("");
-    setStep("precificando");
+    setBusy(true);
 
-    const rng = estimateRange(pricingRules[category.id] ?? null, urgent, distanceToNearest);
-    const price = Math.round((rng.min + rng.max) / 2);
-
-    // animação de "calculando"
-    await new Promise((r) => setTimeout(r, 1600));
-    setRange(rng);
-    setEstimated(price);
-
-    // cria o pedido
     const { data: req, error: reqErr } = await supabase
       .from("service_requests")
       .insert({
@@ -171,39 +162,23 @@ export function SolicitarFlow({
         address: [address, `nº ${houseNumber}`].filter(Boolean).join(", "),
         lat: loc.lat,
         lng: loc.lng,
-        estimated_price: price,
-        estimated_min: rng.min,
-        estimated_max: rng.max,
         status: "buscando",
       })
       .select("id")
       .single();
 
     if (reqErr || !req) {
+      setBusy(false);
       setError("Erro ao criar pedido: " + (reqErr?.message ?? ""));
-      setStep("detalhes");
       return;
     }
-    setRequestId(req.id);
 
-    // dispara para prestadores próximos (função no banco)
+    // dispara para prestadores próximos (cada um envia seu preço)
     await supabase.rpc("dispatch_request", { p_request_id: req.id });
 
-    // busca as propostas geradas
-    const { data: props } = await supabase
-      .from("proposals")
-      .select(
-        "id, price, eta_minutes, provider:profiles!proposals_provider_id_fkey(id, full_name, rating, jobs_done, bio, lat, lng)",
-      )
-      .eq("request_id", req.id)
-      .order("price", { ascending: true });
-
-    const normalized: ProposalRow[] = (props ?? []).map((p: any) => ({
-      ...p,
-      provider: Array.isArray(p.provider) ? p.provider[0] : p.provider,
-    }));
-    setProposals(normalized);
-    setStep("propostas");
+    // vai para a página do serviço: propostas, escolha, pagamento
+    router.push(`/app/contratante/servico/${req.id}`);
+    router.refresh();
   }
 
   // ── Passo: escolher proposta ──
@@ -394,7 +369,7 @@ export function SolicitarFlow({
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>
-              <Button fullWidth onClick={startPricing}>Ver preço estimado</Button>
+              <Button fullWidth loading={busy} onClick={startPricing}>Enviar pedido e ver propostas</Button>
             </div>
           </div>
         </Card>
@@ -618,10 +593,9 @@ function Row({
 }
 
 const STEPS: { key: Step; label: string }[] = [
+  { key: "categoria", label: "Serviço" },
   { key: "detalhes", label: "Detalhes" },
   { key: "propostas", label: "Propostas" },
-  { key: "pagamento", label: "Pagamento" },
-  { key: "acompanhamento", label: "Acompanhar" },
 ];
 
 function Stepper({ step }: { step: Step }) {
