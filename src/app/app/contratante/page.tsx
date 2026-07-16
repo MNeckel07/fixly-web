@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Zap, ClipboardList, HardHat, UsersRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { Badge } from "@/components/ui/Badge";
@@ -53,12 +53,14 @@ export default async function ContratanteHome() {
         <h1 className="text-2xl font-bold mt-1 max-w-sm relative">
           Qual serviço você precisa resolver hoje?
         </h1>
-        <Link
-          href="/app/contratante/solicitar"
-          className="inline-flex items-center gap-2 mt-5 bg-primary text-ink font-semibold rounded-xl px-5 h-12 hover:bg-primary-dark transition relative"
-        >
-          <Plus className="h-5 w-5" /> Solicitar serviço
-        </Link>
+      </section>
+
+      {/* Pontos de entrada */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <EntryCard href="/app/contratante/solicitar?modo=express" icon={Zap} title="Express" desc="Preciso agora — envia para profissionais disponíveis" tone="bg-primary/10 text-primary-dark" />
+        <EntryCard href="/app/contratante/solicitar?modo=orcamento" icon={ClipboardList} title="Solicitar orçamento" desc="Serviço com visita técnica — receba propostas" tone="bg-info/10 text-info" />
+        <EntryCard href="/app/contratante/solicitar?reforma=1" icon={HardHat} title="Reformas" desc="Quero reformar minha casa" tone="bg-warning/10 text-warning" />
+        <EntryCard href="/app/contratante/profiler" icon={UsersRound} title="Pesquisar Profiler" desc="Veja o portfólio dos profissionais" tone="bg-success/10 text-success" />
       </section>
 
       {/* Serviço ativo */}
@@ -93,5 +95,32 @@ export default async function ContratanteHome() {
       {/* Categorias */}
       <CategoryBrowser categories={categories} />
     </div>
+  );
+}
+
+function EntryCard({
+  href,
+  icon: Icon,
+  title,
+  desc,
+  tone,
+}: {
+  href: string;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  title: string;
+  desc: string;
+  tone: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-2xl border border-black/5 bg-white p-5 hover:shadow-[0_8px_28px_-12px_rgba(31,35,41,0.25)] hover:-translate-y-0.5 transition-all"
+    >
+      <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${tone}`}>
+        <Icon className="h-5 w-5" strokeWidth={1.75} />
+      </div>
+      <p className="font-semibold text-ink mt-3">{title}</p>
+      <p className="text-xs text-gray-light mt-0.5 leading-snug">{desc}</p>
+    </Link>
   );
 }

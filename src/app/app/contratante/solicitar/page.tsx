@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 export default async function SolicitarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cat?: string; desc?: string }>;
+  searchParams: Promise<{ cat?: string; desc?: string; modo?: string; reforma?: string }>;
 }) {
-  const { cat, desc } = await searchParams;
+  const { cat, desc, modo, reforma } = await searchParams;
   const supabase = await createClient();
   const { profile } = await getProfile();
   if (!profile) redirect("/login");
@@ -38,6 +38,8 @@ export default async function SolicitarPage({
       providers={provs ?? []}
       preselectSlug={cat ?? null}
       initialDescription={desc ?? ""}
+      initialUrgent={modo === "express"}
+      reformaOnly={reforma === "1"}
       pricingRules={pricingRules}
       client={{
         id: profile!.id,

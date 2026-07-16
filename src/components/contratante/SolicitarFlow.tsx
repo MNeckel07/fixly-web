@@ -9,6 +9,7 @@ import { Textarea, Input, Label } from "@/components/ui/Field";
 import { RouteMap } from "@/components/map/RouteMap";
 import { LocationPicker } from "@/components/map/LocationPicker";
 import { CategoryIcon } from "@/components/ui/icons";
+import { REFORMA_SLUGS } from "@/lib/categoryRouter";
 import {
   brl,
   estimateRange,
@@ -70,6 +71,8 @@ export function SolicitarFlow({
   providers,
   preselectSlug,
   initialDescription = "",
+  initialUrgent = false,
+  reformaOnly = false,
   client,
   pricingRules = {},
 }: {
@@ -77,6 +80,8 @@ export function SolicitarFlow({
   providers: Provider[];
   preselectSlug: string | null;
   initialDescription?: string;
+  initialUrgent?: boolean;
+  reformaOnly?: boolean;
   client: ClientInfo;
   pricingRules?: Record<string, PricingRule>;
 }) {
@@ -90,7 +95,7 @@ export function SolicitarFlow({
   const [step, setStep] = useState<Step>(preCat ? "detalhes" : "categoria");
   const [category, setCategory] = useState<ServiceCategory | null>(preCat);
   const [description, setDescription] = useState(initialDescription);
-  const [urgent, setUrgent] = useState(false);
+  const [urgent, setUrgent] = useState(initialUrgent);
   const [address, setAddress] = useState("");
   const [houseNumber, setHouseNumber] = useState("");
   const [loc, setLoc] = useState<{ lat: number; lng: number }>(
@@ -304,9 +309,9 @@ export function SolicitarFlow({
       <Stepper step={step} />
 
       {step === "categoria" && (
-        <Card title="O que você precisa?" subtitle="Escolha a categoria do serviço">
+        <Card title={reformaOnly ? "Reforma — o que você precisa?" : "O que você precisa?"} subtitle="Escolha a categoria do serviço">
           <div className="grid grid-cols-2 gap-3">
-            {categories.map((c) => (
+            {(reformaOnly ? categories.filter((c) => REFORMA_SLUGS.includes(c.slug)) : categories).map((c) => (
               <button
                 key={c.id}
                 onClick={() => {

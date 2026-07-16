@@ -32,6 +32,14 @@ const KEYWORDS: Record<string, string[]> = {
   marido_aluguel: ["marido de aluguel", "reparo", "conserto", "instalar", "furar", "prateleira"],
 };
 
+/** Categorias associadas a reforma/obra (para o atalho "Quero reformar minha casa"). */
+export const REFORMA_SLUGS = [
+  "alvenaria", "carpintaria", "armador", "pisos", "gesso", "telhados", "esquadrias",
+  "vidracaria", "marcenaria", "serralheria", "impermeabilizacao", "fachadas", "banheiros",
+  "churrasqueiras", "gas", "pintor", "eletricista", "encanador", "faz_tudo",
+  "marido_aluguel", "pequenos_reparos",
+];
+
 export function routeCategory(text: string): { slug: string; matched: boolean } {
   const t = text.toLowerCase();
   let best: string | null = null;
