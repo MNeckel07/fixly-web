@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, Star, BadgeCheck, ShieldCheck } from "lucide-react";
 import { CategoryIcon } from "@/components/ui/icons";
 import { FollowButton } from "@/components/profiler/FollowButton";
+import { providerReputation } from "@/lib/reputation";
 
 type Provider = {
   id: string;
@@ -14,8 +15,11 @@ type Provider = {
   jobs_done: number | null;
   bio: string | null;
   city: string | null;
+  avatar_path: string | null;
   category: { name: string; slug: string } | null;
 };
+
+const avatarBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/`;
 
 export function ProfilerDirectory({
   providers,
@@ -57,14 +61,19 @@ export function ProfilerDirectory({
       ) : (
         <div className="space-y-3">
           {list.map((p) => {
-            const rating = p.rating ?? 5;
-            const elite = rating >= 4.5;
+            const rep = providerReputation(p.rating, p.jobs_done);
+            const elite = rep.elite;
             return (
               <div key={p.id} className="bg-white rounded-2xl border border-black/5 p-5">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-ink shrink-0">
-                    <CategoryIcon slug={p.category?.slug} className="h-6 w-6" />
-                  </div>
+                  {p.avatar_path ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarBase + p.avatar_path} alt={p.full_name} className="h-12 w-12 rounded-xl object-cover shrink-0" />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-canvas text-ink shrink-0">
+                      <CategoryIcon slug={p.category?.slug} className="h-6 w-6" />
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="font-semibold text-ink">{p.full_name}</p>
@@ -78,7 +87,7 @@ export function ProfilerDirectory({
                     {p.bio && <p className="text-sm text-gray mt-1 line-clamp-2">{p.bio}</p>}
                     <div className="flex items-center gap-3 mt-2 text-xs text-gray">
                       <span className="inline-flex items-center gap-1">
-                        <Star className="h-3.5 w-3.5 fill-primary text-primary" /> {rating.toFixed(1)}
+                        <Star className="h-3.5 w-3.5 fill-primary text-primary" /> {rep.label}
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <BadgeCheck className="h-3.5 w-3.5" /> {p.jobs_done ?? 0} serviços

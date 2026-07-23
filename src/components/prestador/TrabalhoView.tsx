@@ -10,7 +10,7 @@ import { RouteMap } from "@/components/map/RouteMap";
 import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { CategoryIcon } from "@/components/ui/icons";
-import { brl, providerNet } from "@/lib/pricing";
+import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
 
 type Job = {
   id: string;
@@ -23,6 +23,7 @@ type Job = {
   final_price: number | null;
   mode: string | null;
   urgent: boolean;
+  photos: string[] | null;
   category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
 };
@@ -31,10 +32,12 @@ export function TrabalhoView({
   job,
   currentUserId,
   providerLoc,
+  defaultAdvancePct = 0,
 }: {
   job: Job | null;
   currentUserId: string;
   providerLoc: { lat: number; lng: number } | null;
+  defaultAdvancePct?: number;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(job?.status ?? "aceito");
@@ -43,11 +46,13 @@ export function TrabalhoView({
   const [convId, setConvId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [quoteValue, setQuoteValue] = useState("");
+  const [advancePct, setAdvancePct] = useState(defaultAdvancePct);
   const [quoteErr, setQuoteErr] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const needsQuote = job?.mode === "orcamento" && !job?.final_price;
   const awaitingPayment = status === "aceito" && !needsQuote;
+  const photos = job?.photos ?? [];
 
   async function sendQuote() {
     const v = Number(quoteValue);
@@ -55,7 +60,7 @@ export function TrabalhoView({
     setQuoteErr("");
     setBusy(true);
     const supabase = createClient();
-    await supabase.from("service_requests").update({ final_price: v }).eq("id", job!.id);
+    await supabase.from("service_requests").update({ final_price: v, advance_pct: advancePct }).eq("id", job!.id);
     setBusy(false);
     router.refresh();
   }
@@ -163,6 +168,16 @@ export function TrabalhoView({
           </div>
         </div>
         <p className="text-sm text-gray bg-canvas rounded-xl px-4 py-3 mt-4">{job.description}</p>
+        {photos.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {photos.map((ph) => (
+              <a key={ph} href={ph} target="_blank" rel="noreferrer" className="h-16 w-16 rounded-lg overflow-hidden bg-canvas border border-black/5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={ph} alt="Foto do serviço" className="h-full w-full object-cover" />
+              </a>
+            ))}
+          </div>
+        )}
       </div>
 
       {["a_caminho", "em_andamento"].includes(status) && (
@@ -197,6 +212,22 @@ export function TrabalhoView({
             <div className="flex items-center rounded-xl border border-black/10 px-3 mt-1 mb-2 focus-within:border-primary">
               <span className="text-gray-light text-sm">R$</span>
               <input type="number" value={quoteValue} onChange={(e) => setQuoteValue(e.target.value)} className="w-full py-2.5 px-2 outline-none" placeholder="0,00" />
+            </div>
+            <div className="mb-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-gray-light">Receber adiantado: <b className="text-ink">{advancePct}%</b></label>
+                <div className="flex gap-1">
+                  {[0, 30, 50, 100].map((p) => (
+                    <button key={p} type="button" onClick={() => setAdvancePct(p)} className={`text-[11px] px-2 py-0.5 rounded-full border transition ${advancePct === p ? "border-primary bg-primary/10 text-ink font-medium" : "border-black/10 text-gray"}`}>{p}%</button>
+                  ))}
+                </div>
+              </div>
+              <input type="range" min={0} max={100} step={5} value={advancePct} onChange={(e) => setAdvancePct(Number(e.target.value))} className="w-full accent-[#FFC107] mt-1" />
+              {advancePct > 0 && Number(quoteValue) > 0 && (
+                <p className="text-[11px] text-gray-light">
+                  Taxa de adiantamento: <b className="text-ink">- {brl(Math.round((Number(quoteValue) * advancePct / 100) * ADVANCE_FEE_RATE * 100) / 100)}</b> (quanto mais adiantado, menos líquido)
+                </p>
+              )}
             </div>
             {quoteErr && <p className="text-xs text-danger mb-2">{quoteErr}</p>}
             <Button fullWidth loading={busy} onClick={sendQuote}>Enviar orçamento</Button>

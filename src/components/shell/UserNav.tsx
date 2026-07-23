@@ -30,7 +30,9 @@ export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
       {/* Top bar (desktop) */}
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-black/5">
         <div className="max-w-5xl mx-auto flex items-center justify-between px-4 h-16">
-          <Logo size={24} variant="dark" />
+          <Link href={items[0].href} aria-label="Início" className="transition hover:opacity-80">
+            <Logo size={24} variant="dark" />
+          </Link>
           <nav className="hidden md:flex items-center gap-1">
             {items.map((it) => {
               const Icon = ICONS[it.icon];

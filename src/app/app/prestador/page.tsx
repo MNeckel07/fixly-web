@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { haversineKm } from "@/lib/pricing";
+import { signRequestPhotoMap } from "@/lib/uploads";
 import { PedidosBoard } from "@/components/prestador/PedidosBoard";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default async function PrestadorHome() {
   const { data: open } = await supabase
     .from("service_requests")
     .select(
-      "id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, category_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)",
+      "id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, photos, category_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)",
     )
     .in("status", ["buscando", "proposta_enviada"])
     .order("created_at", { ascending: false })
@@ -61,18 +62,24 @@ export default async function PrestadorHome() {
       estimated_max: r.estimated_max,
       lat: r.lat,
       lng: r.lng,
+      photos: (r.photos as string[] | null) ?? [],
       category: Array.isArray(r.category) ? r.category[0] : r.category,
       client: Array.isArray(r.client) ? r.client[0] : r.client,
       myProposal: propMap[r.id] ?? null,
     }));
 
+  // assina as fotos (bucket privado) só para quem tem direito de ver
+  const signedMap = await signRequestPhotoMap(supabase, requests.flatMap((r) => r.photos));
+  for (const r of requests) r.photos = r.photos.map((p: string) => signedMap[p]).filter(Boolean);
+
   return (
     <PedidosBoard
       requests={requests}
       providerName={profile!.full_name}
-      rating={profile!.rating ?? 5}
+      rating={profile!.rating ?? 0}
       jobsDone={profile!.jobs_done ?? 0}
       basePrice={profile!.base_price ?? 0}
+      defaultAdvancePct={profile!.advance_pct ?? 0}
     />
   );
 }

@@ -12,6 +12,7 @@ type Provider = {
   jobs_done: number | null;
   bio: string | null;
   city: string | null;
+  avatar_path: string | null;
   category: { name: string; slug: string } | null;
 };
 type Post = { id: string; image_path: string; caption: string | null; created_at: string; provider: { full_name: string; handle: string | null } | null };

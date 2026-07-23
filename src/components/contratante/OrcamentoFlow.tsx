@@ -3,13 +3,16 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Star, ShieldCheck, BadgeCheck, ExternalLink } from "lucide-react";
+import { Star, ShieldCheck, BadgeCheck, ExternalLink, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Textarea, Input, Label } from "@/components/ui/Field";
 import { LocationPicker } from "@/components/map/LocationPicker";
 import { CategoryIcon } from "@/components/ui/icons";
-import { REFORMA_SLUGS } from "@/lib/categoryRouter";
+import { PhotoPicker } from "@/components/contratante/PhotoPicker";
+import { REFORMA_SLUGS, descriptionExample } from "@/lib/categoryRouter";
+import { uploadRequestPhotos } from "@/lib/uploads";
+import { providerReputation } from "@/lib/reputation";
 import type { ServiceCategory } from "@/lib/types";
 
 type Prov = {
@@ -19,9 +22,21 @@ type Prov = {
   rating: number | null;
   jobs_done: number | null;
   bio: string | null;
+  avatar_path: string | null;
   category_ids: string[];
 };
-type ClientInfo = { id: string; name: string; lat: number | null; lng: number | null; city: string | null };
+
+const avatarBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/`;
+type ClientInfo = {
+  id: string;
+  name: string;
+  lat: number | null;
+  lng: number | null;
+  city: string | null;
+  address: string | null;
+  addressNumber: string | null;
+  complement: string | null;
+};
 
 const DEFAULT_LOC = { lat: -23.5505, lng: -46.6333 };
 
@@ -47,9 +62,19 @@ export function OrcamentoFlow({
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
   const [houseNumber, setHouseNumber] = useState("");
+  const [complement, setComplement] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
   const [loc, setLoc] = useState<{ lat: number; lng: number }>(client.lat && client.lng ? { lat: client.lat, lng: client.lng } : DEFAULT_LOC);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+
+  const hasCadastro = !!(client.address || (client.lat && client.lng));
+  function useCadastroAddress() {
+    if (client.address) setAddress(client.address);
+    if (client.addressNumber) setHouseNumber(client.addressNumber);
+    if (client.complement) setComplement(client.complement);
+    if (client.lat && client.lng) setLoc({ lat: client.lat, lng: client.lng });
+  }
 
   const shownCategories = reformaOnly ? categories.filter((c) => REFORMA_SLUGS.includes(c.slug)) : categories;
   const matches = category ? providers.filter((p) => p.category_ids.includes(category.id)) : [];
@@ -58,6 +83,9 @@ export function OrcamentoFlow({
     if (!category) return;
     setBusy(p.id);
     setError("");
+    const fullAddress = [address, houseNumber ? `nº ${houseNumber}` : "", complement.trim() ? `compl. ${complement.trim()}` : ""]
+      .filter(Boolean)
+      .join(", ");
     const { data: req, error: reqErr } = await supabase
       .from("service_requests")
       .insert({
@@ -65,7 +93,7 @@ export function OrcamentoFlow({
         category_id: category.id,
         provider_id: p.id,
         description: description.trim() || "Solicitação de orçamento (visita técnica)",
-        address: [address, houseNumber ? `nº ${houseNumber}` : ""].filter(Boolean).join(", "),
+        address: fullAddress,
         lat: loc.lat,
         lng: loc.lng,
         mode: "orcamento",
@@ -76,6 +104,10 @@ export function OrcamentoFlow({
     if (reqErr || !req) {
       setBusy(null);
       return setError("Erro ao pedir orçamento: " + (reqErr?.message ?? ""));
+    }
+    if (photos.length > 0) {
+      const paths = await uploadRequestPhotos(supabase, client.id, req.id, photos);
+      if (paths.length > 0) await supabase.from("service_requests").update({ photos: paths }).eq("id", req.id);
     }
     await supabase.rpc("start_service_chat", { p_request_id: req.id });
     router.push(`/app/contratante/servico/${req.id}`);
@@ -108,10 +140,21 @@ export function OrcamentoFlow({
           <div className="space-y-4">
             <div>
               <Label>O que você precisa? (opcional)</Label>
-              <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex.: Quero pintar a sala e dois quartos..." />
+              <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder={descriptionExample(category.slug)} />
             </div>
             <div>
-              <Label>Onde será o serviço?</Label>
+              <Label>Fotos do serviço</Label>
+              <PhotoPicker files={photos} onChange={setPhotos} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Onde será o serviço?</Label>
+                {hasCadastro && (
+                  <button type="button" onClick={useCadastroAddress} className="inline-flex items-center gap-1 text-xs font-medium text-primary-dark hover:underline mb-1.5">
+                    <MapPin className="h-3.5 w-3.5" /> Usar endereço de cadastro
+                  </button>
+                )}
+              </div>
               <LocationPicker value={loc} onChange={setLoc} onAddress={(a) => setAddress(a)} height={180} />
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -123,6 +166,10 @@ export function OrcamentoFlow({
                 <Label>Número</Label>
                 <Input value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} placeholder="123" inputMode="numeric" />
               </div>
+            </div>
+            <div>
+              <Label>Complemento (apto, bloco, referência)</Label>
+              <Input value={complement} onChange={(e) => setComplement(e.target.value)} placeholder="Ex.: Apto 42, bloco B — portão azul" />
             </div>
             <div className="flex gap-2">
               {!preCat && <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>}
@@ -140,14 +187,19 @@ export function OrcamentoFlow({
           ) : (
             <div className="space-y-3">
               {matches.map((p) => {
-                const r = p.rating ?? 5;
-                const elite = r >= 4.5;
+                const rep = providerReputation(p.rating, p.jobs_done);
+                const elite = rep.elite;
                 return (
                   <div key={p.id} className="rounded-xl border border-black/10 p-4">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-canvas font-semibold text-ink shrink-0">
-                        {p.full_name.charAt(0)}
-                      </div>
+                      {p.avatar_path ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={avatarBase + p.avatar_path} alt={p.full_name} className="h-11 w-11 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-canvas font-semibold text-ink shrink-0">
+                          {p.full_name.charAt(0)}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="font-semibold text-ink truncate">{p.full_name}</p>
@@ -158,7 +210,7 @@ export function OrcamentoFlow({
                           )}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-gray mt-0.5">
-                          <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-primary text-primary" /> {r.toFixed(1)}</span>
+                          <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-primary text-primary" /> {rep.label}</span>
                           <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3.5 w-3.5" /> {p.jobs_done ?? 0} serviços</span>
                         </div>
                         {p.bio && <p className="text-sm text-gray mt-1 line-clamp-2">{p.bio}</p>}

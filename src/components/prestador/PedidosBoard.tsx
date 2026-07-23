@@ -5,7 +5,7 @@ import { Inbox, User, MapPin, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { CategoryIcon } from "@/components/ui/icons";
-import { brl, providerNet } from "@/lib/pricing";
+import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
 
 type Req = {
   id: string;
@@ -17,6 +17,7 @@ type Req = {
   estimated_max: number | null;
   lat: number | null;
   lng: number | null;
+  photos: string[] | null;
   category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
   myProposal: { price: number; eta: number | null } | null;
@@ -28,12 +29,14 @@ export function PedidosBoard({
   rating,
   jobsDone,
   basePrice,
+  defaultAdvancePct = 0,
 }: {
   requests: Req[];
   providerName: string;
   rating: number;
   jobsDone: number;
   basePrice: number;
+  defaultAdvancePct?: number;
 }) {
   const [online, setOnline] = useState(true);
 
@@ -54,7 +57,7 @@ export function PedidosBoard({
           </button>
         </div>
         <div className="grid grid-cols-3 gap-3 mt-5 relative">
-          <Stat label="Avaliação" value={rating.toFixed(1)} />
+          <Stat label="Avaliação" value={jobsDone > 0 ? rating.toFixed(1) : "Novo"} />
           <Stat label="Serviços" value={String(jobsDone)} />
           <Stat label="Preço-base" value={brl(basePrice)} />
         </div>
@@ -81,7 +84,7 @@ export function PedidosBoard({
         ) : (
           <div className="space-y-3">
             {requests.map((r) => (
-              <RequestCard key={r.id} r={r} basePrice={basePrice} />
+              <RequestCard key={r.id} r={r} basePrice={basePrice} defaultAdvancePct={defaultAdvancePct} />
             ))}
           </div>
         )}
@@ -90,14 +93,19 @@ export function PedidosBoard({
   );
 }
 
-function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
+function RequestCard({ r, basePrice, defaultAdvancePct }: { r: Req; basePrice: number; defaultAdvancePct: number }) {
   const [value, setValue] = useState<string>(String(r.myProposal?.price ?? basePrice));
+  const [advancePct, setAdvancePct] = useState<number>(defaultAdvancePct);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(!!r.myProposal);
   const [error, setError] = useState("");
+  const photos = r.photos ?? [];
+
+  const price = Number(value) || 0;
+  const advanceFee = Math.round(((price * advancePct) / 100) * ADVANCE_FEE_RATE * 100) / 100;
+  const net = Math.max(providerNet(price || basePrice) - advanceFee, 0);
 
   async function submit() {
-    const price = Number(value);
     if (!price || price <= 0) return setError("Informe um valor válido.");
     setBusy(true);
     setError("");
@@ -107,6 +115,7 @@ function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
       p_price: price,
       p_eta: null,
       p_message: null,
+      p_advance_pct: advancePct,
     });
     setBusy(false);
     if (error) return setError(error.message);
@@ -136,6 +145,17 @@ function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
         </div>
       </div>
 
+      {photos.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {photos.map((ph) => (
+            <a key={ph} href={ph} target="_blank" rel="noreferrer" className="h-16 w-16 rounded-lg overflow-hidden bg-canvas border border-black/5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={ph} alt="Foto do serviço" className="h-full w-full object-cover" />
+            </a>
+          ))}
+        </div>
+      )}
+
       {sent ? (
         <div className="mt-3 flex items-center justify-between rounded-xl bg-success/5 px-4 py-3">
           <span className="inline-flex items-center gap-1.5 text-sm text-success font-medium">
@@ -162,9 +182,28 @@ function RequestCard({ r, basePrice }: { r: Req; basePrice: number }) {
             </div>
             <Button loading={busy} onClick={submit}>Enviar proposta</Button>
           </div>
-          <p className="text-[11px] text-gray-light mt-1.5">
-            Você recebe (líquido): <b className="text-success">{brl(providerNet(Number(value) || basePrice))}</b>
-          </p>
+          <div className="mt-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-gray-light">Receber adiantado: <b className="text-ink">{advancePct}%</b></label>
+              <div className="flex gap-1">
+                {[0, 30, 50, 100].map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setAdvancePct(p)}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border transition ${advancePct === p ? "border-primary bg-primary/10 text-ink font-medium" : "border-black/10 text-gray"}`}
+                  >
+                    {p}%
+                  </button>
+                ))}
+              </div>
+            </div>
+            <input type="range" min={0} max={100} step={5} value={advancePct} onChange={(e) => setAdvancePct(Number(e.target.value))} className="w-full accent-[#FFC107] mt-1" />
+            <p className="text-[11px] text-gray-light">
+              Quanto mais adiantado, maior a taxa. Você recebe (líquido): <b className="text-success">{brl(net)}</b>
+              {advancePct > 0 && <> — sendo <b className="text-ink">{brl(Math.max((price * advancePct) / 100 - advanceFee - ((price * 0.15) * advancePct) / 100, 0))}</b> ao contratar</>}
+            </p>
+          </div>
           {error && <p className="text-xs text-danger mt-1">{error}</p>}
         </div>
       )}

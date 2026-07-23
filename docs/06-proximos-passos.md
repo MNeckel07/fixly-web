@@ -9,6 +9,15 @@
 5. Ao terminar: `tsc` + `build` + commit + `git push origin main` (Render publica),
    e **atualizar estes docs** (changelog + este arquivo).
 
+## Adiado pelo dono (part 4 — "escrevo durante a semana")
+- **Laudos:** exigirão **certificado de técnico** para o serviço. O Matheus vai
+  estudar o que é necessário e escrever a regra depois — **fora deste pacote**.
+- **Regras finas de pagamento reais:** o **split de adiantamento** já está modelado
+  (simulado). A liberação real da parte adiantada (repasse ao prestador na
+  contratação) e o restante na aprovação entram junto com o Mercado Pago de
+  verdade. A **taxa de adiantamento** (`ADVANCE_FEE_RATE`, hoje 8%) é um número
+  provisório — ajustar quando o Matheus definir.
+
 ## Pendência real (depende do dono — Matheus)
 ### 🔴 Mercado Pago de verdade
 Hoje o pagamento é **mock** (`lib/gateway.ts` + `lib/mercadopago.ts`, ativados por

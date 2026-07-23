@@ -22,6 +22,8 @@ Todas idempotentes. Rodar com `npm run db:apply` (lista em `scripts/apply-schema
 | 0016 | `provider_reviews` | `get_provider_reviews()` SECURITY DEFINER (avaliações públicas no Profiler) |
 | 0017 | `orcamento` | `service_requests.mode` ('express'/'orcamento') + `visit_at` |
 | 0018 | `empreiteiros` | tabela `empreiteiros` (B2B, assinatura) + RLS |
+| 0019 | `melhoras_p4` | **rating começa em 0** (novo prestador sem Selo; trigger fallback 0 + reset dos que têm 0 serviços); `profiles.avatar_path`/`specialties`/`advance_pct`; `proposals.advance_pct` + `service_requests.advance_pct`/`photos`; `payments.advance_*`; bucket **público** `avatars` + bucket **PRIVADO** `pedidos` (RLS `pedidos_read` via `can_view_pedido()`); `submit_proposal`/`dispatch_request` carregam o adiantamento; empreiteiros `category_ids`/`handle` (único) + `empreiteiro_items` (fotos, bucket `portfolio`) |
+| 0020 | `security_hardening` | trigger `guard_request_changes` em `service_requests`: só o **contratante** escreve `rating`/`review` (impede auto-avaliação do prestador) e estados finais (`concluido`/`cancelado`) não voltam (impede farm de `jobs_done`) — server actions e admin passam pelo bypass/`is_admin()` |
 
 **Observação:** `pricing_rules` (0009/0012) ficou **sem uso** após o pivô 0015 —
 a aba admin de Precificação foi removida. A tabela permanece (inócua).

@@ -25,7 +25,7 @@ export async function processPayment(requestId: string, method: PayMethod): Prom
 
   const { data: req } = await supabase
     .from("service_requests")
-    .select("id, client_id, description, estimated_price, final_price")
+    .select("id, client_id, description, estimated_price, final_price, advance_pct")
     .eq("id", requestId)
     .single();
   if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
@@ -42,6 +42,7 @@ export async function processPayment(requestId: string, method: PayMethod): Prom
   const amount = Number(prop?.price ?? req.final_price ?? req.estimated_price ?? 0);
   if (!amount || amount <= 0) return { ok: false, error: "Valor do serviço indefinido" };
 
+  const advancePct = Number(req.advance_pct ?? 0);
   let charge;
   try {
     charge = await createEscrowCharge({
@@ -49,6 +50,7 @@ export async function processPayment(requestId: string, method: PayMethod): Prom
       method,
       description: req.description ?? "Serviço Fixly",
       payerEmail: user.email ?? undefined,
+      advancePct,
     });
   } catch (e: any) {
     return { ok: false, error: e.message };
@@ -62,6 +64,9 @@ export async function processPayment(requestId: string, method: PayMethod): Prom
     fee: breakdown.platformFee,
     gateway_fee: breakdown.gatewayFee,
     provider_net: breakdown.providerNet,
+    advance_pct: breakdown.advancePct,
+    advance_amount: breakdown.advanceAmount,
+    advance_fee: breakdown.advanceFee,
     method,
     gateway: charge.gateway,
     gateway_id: charge.id,

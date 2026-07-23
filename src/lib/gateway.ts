@@ -35,8 +35,9 @@ export async function createEscrowCharge(input: {
   method: PayMethod;
   description: string;
   payerEmail?: string;
+  advancePct?: number;
 }): Promise<ChargeResult> {
-  const breakdown = paymentBreakdown(input.amount, input.method);
+  const breakdown = paymentBreakdown(input.amount, input.method, input.advancePct ?? 0);
 
   if (isMercadoPagoConfigured()) {
     // TODO(produção): criar pagamento no Mercado Pago.

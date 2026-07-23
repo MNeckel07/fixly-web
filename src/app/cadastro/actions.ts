@@ -1,6 +1,8 @@
 "use server";
 
+import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/server";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 /**
  * Cria a conta de autenticação já confirmada (email_confirm), usando a chave de
@@ -12,6 +14,14 @@ export async function createAccount(
   password: string,
   fullName: string,
 ): Promise<{ ok: boolean; userId?: string; error?: string }> {
+  // Rate limit: como usa a chave de servidor (cria conta confirmada), blinda
+  // contra criação em massa. Máx. 5 contas por IP a cada 15 min.
+  const ip = clientIp(await headers());
+  const rl = rateLimit(`signup:${ip}`, 5, 15 * 60_000);
+  if (!rl.ok) {
+    return { ok: false, error: `Muitas tentativas de cadastro. Tente novamente em ${Math.ceil(rl.retryAfter / 60)} min.` };
+  }
+
   if (!email || !password || password.length < 10) {
     return { ok: false, error: "Dados inválidos." };
   }

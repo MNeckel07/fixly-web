@@ -2,9 +2,11 @@ import { Star } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABELS } from "@/lib/brand";
+import { providerReputation } from "@/lib/reputation";
 import type { Profile } from "@/lib/types";
 
 export function ProfileCard({ profile }: { profile: Profile }) {
+  const rep = providerReputation(profile.rating, profile.jobs_done);
   return (
     <div className="max-w-lg mx-auto">
       <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
@@ -31,7 +33,7 @@ export function ProfileCard({ profile }: { profile: Profile }) {
                 label="Avaliação"
                 value={
                   <span className="inline-flex items-center gap-1">
-                    <Star className="h-4 w-4 fill-primary text-primary" /> {(profile.rating ?? 5).toFixed(1)}
+                    <Star className="h-4 w-4 fill-primary text-primary" /> {rep.label}
                   </span>
                 }
               />

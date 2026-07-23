@@ -39,6 +39,11 @@ export interface Profile {
   rating: number | null;
   jobs_done: number | null;
   avatar_url: string | null;
+  avatar_path: string | null;
+  advance_pct: number | null;
+  specialties: string | null;
+  headline: string | null;
+  handle: string | null;
   reviewed_at: string | null;
   reject_reason: string | null;
   created_at: string;

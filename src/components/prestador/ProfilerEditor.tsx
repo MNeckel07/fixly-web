@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, Upload, Trash2, ExternalLink, ImagePlus } from "lucide-react";
+import { Check, Upload, Trash2, ExternalLink, ImagePlus, User, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea } from "@/components/ui/Field";
@@ -15,11 +15,13 @@ export function ProfilerEditor({
   initial,
   items,
   publicUrlBase,
+  avatarUrlBase,
 }: {
   providerId: string;
-  initial: { handle: string; headline: string; bio: string };
+  initial: { handle: string; headline: string; bio: string; avatar_path: string | null; advance_pct: number };
   items: Item[];
   publicUrlBase: string; // ex.: https://xxxx.supabase.co/storage/v1/object/public/portfolio/
+  avatarUrlBase: string; // ex.: https://xxxx.supabase.co/storage/v1/object/public/avatars/
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -28,6 +30,7 @@ export function ProfilerEditor({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   async function save() {
     setError("");
@@ -36,13 +39,36 @@ export function ProfilerEditor({
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ handle, headline: f.headline, bio: f.bio })
+      .update({ handle, headline: f.headline, bio: f.bio, advance_pct: f.advance_pct })
       .eq("id", providerId);
     setSaving(false);
     if (error) return setError(error.message.includes("duplicate") ? "Esse nome de usuário já está em uso." : error.message);
     setF((p) => ({ ...p, handle }));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    router.refresh();
+  }
+
+  async function uploadAvatar(file: File) {
+    setAvatarBusy(true);
+    setError("");
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `${providerId}/avatar-${Date.now()}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (upErr) { setAvatarBusy(false); return setError("Erro ao enviar a foto: " + upErr.message); }
+    const { error: dbErr } = await supabase.from("profiles").update({ avatar_path: path }).eq("id", providerId);
+    setAvatarBusy(false);
+    if (dbErr) return setError(dbErr.message);
+    setF((p) => ({ ...p, avatar_path: path }));
+    router.refresh();
+  }
+
+  async function removeAvatar() {
+    setAvatarBusy(true);
+    if (f.avatar_path) await supabase.storage.from("avatars").remove([f.avatar_path]);
+    await supabase.from("profiles").update({ avatar_path: null }).eq("id", providerId);
+    setAvatarBusy(false);
+    setF((p) => ({ ...p, avatar_path: null }));
     router.refresh();
   }
 
@@ -69,6 +95,31 @@ export function ProfilerEditor({
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       <div className="bg-white rounded-2xl border border-black/5 p-6 space-y-4">
+        {/* Foto de perfil */}
+        <div>
+          <Label>Foto de perfil</Label>
+          <div className="flex items-center gap-4">
+            {f.avatar_path ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrlBase + f.avatar_path} alt="Sua foto" className="h-16 w-16 rounded-full object-cover border border-black/5" />
+            ) : (
+              <div className="h-16 w-16 rounded-full bg-canvas flex items-center justify-center text-gray-light">
+                <User className="h-7 w-7" />
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm cursor-pointer hover:bg-black/[0.03]">
+                <Upload className="h-4 w-4" /> {avatarBusy ? "Enviando..." : f.avatar_path ? "Trocar" : "Adicionar foto"}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadAvatar(e.target.files[0])} />
+              </label>
+              {f.avatar_path && (
+                <button onClick={removeAvatar} disabled={avatarBusy} className="text-sm text-gray hover:text-danger">Remover</button>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-gray-light mt-1.5">Aparece nos cards de busca, nas suas propostas e no seu cartão.</p>
+        </div>
+
         <div>
           <Label>Nome de usuário (link público)</Label>
           <div className="flex items-center rounded-xl border border-black/10 px-3 focus-within:border-primary">
@@ -89,6 +140,20 @@ export function ProfilerEditor({
           <Label>Sobre você</Label>
           <Textarea rows={3} value={f.bio} onChange={(e) => setF((p) => ({ ...p, bio: e.target.value }))} />
         </div>
+
+        {/* Adiantamento padrão */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray"><Wallet className="h-4 w-4" /> Adiantamento padrão</span>
+            <span className="text-sm font-semibold text-ink">{f.advance_pct}%</span>
+          </div>
+          <input type="range" min={0} max={100} step={5} value={f.advance_pct} onChange={(e) => setF((p) => ({ ...p, advance_pct: Number(e.target.value) }))} className="w-full accent-[#FFC107] mt-2" />
+          <p className="text-xs text-gray-light mt-1">
+            Quanto você quer receber <b>antes</b> de concluir o serviço (o resto sai ao aprovar). Vem pré-preenchido nas suas propostas.
+            Quanto mais adiantado, maior a taxa — então você recebe um pouco menos.
+          </p>
+        </div>
+
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex items-center gap-3">
           <Button onClick={save} loading={saving}>{saved ? <><Check className="h-4 w-4" /> Salvo</> : "Salvar"}</Button>

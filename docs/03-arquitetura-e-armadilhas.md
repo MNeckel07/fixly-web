@@ -60,6 +60,20 @@ components/  → ui, auth, shell, admin, contratante, prestador, chat, map, prof
    `createAccount` (admin API, email_confirm) pra funcionar mesmo assim.
 8. **Preço:** NÃO existe mais preço da plataforma. `pricing_rules` e a aba
    Precificação foram **removidas**; a tabela ainda existe mas está **sem uso**.
+9. **`npm run db:apply` está QUEBRADO para re-execução completa.** Ele reroda
+   0001→N e o **0004 falha** (`conversations_type_check` é violado por linhas com
+   `type='equipe'`, que só existe a partir do 0008). Para aplicar migrações novas,
+   rode **apenas os arquivos novos**, cada um numa transação (script pontual com
+   `pg`, `begin`/`commit`). Não "conserte" o 0004 sem cuidado.
+10. **Fotos de pedido = bucket PRIVADO `pedidos`.** Nunca montar URL pública; use
+    `signRequestPhotos`/`signRequestPhotoMap` (`lib/uploads.ts`) **no servidor** com
+    o cliente do usuário (o RLS `pedidos_read`/`can_view_pedido` decide o acesso).
+    `avatars`/`portfolio` são públicos (vitrine) — esses podem usar URL pública.
+11. **Integridade de `service_requests`:** o trigger `guard_request_changes` (0020)
+    só deixa o **contratante** escrever `rating`/`review` e trava estados finais.
+    Server actions que mexem em status usam o **cliente do usuário** (passam pelo
+    trigger) — se for usar `createAdminClient` para forçar etapa, tudo bem (o
+    trigger libera quando `auth.uid()` é nulo/service-role ou `is_admin()`).
 
 ## Convenções
 - Escrever código no estilo do redor (Tailwind utilitário, `lib/brand` para labels

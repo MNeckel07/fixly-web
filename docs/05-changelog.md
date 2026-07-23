@@ -36,3 +36,41 @@ Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 - **Finalização**: cancelamento de serviço (+ reembolso mock), edição de perfil,
   nota de garantia da meritocracia.
 - **SEO removido do escopo** (vai ser tratado em outro domínio/projeto à parte).
+
+## v6 — Melhoras (docs "Fixy melhoras parte 4")
+- **Logo clicável** volta ao início (contratante/prestador/admin).
+- Ícone de **impermeabilização** (Droplets). Placeholder da descrição **por categoria**.
+- **Reformas** agora usa o fluxo **Orçamento** (visita técnica), não mais o Express.
+- **Reputação começa em 0** — novo prestador aparece como **"Novo"** (sem Selo
+  automático). Helper `lib/reputation.ts` aplicado em todos os cards.
+- **Cartão QR = cartão de visita**: headline + selos + avatar, desenhado num
+  **canvas**; **baixar/imprimir** geram o cartão inteiro (antes só o QR).
+- **Foto de perfil (avatar)** do prestador (`ProfilerEditor` → bucket `avatars`),
+  exibida nos cards de busca, propostas, perfil público e no cartão.
+- **Pedido com fotos** (bucket `pedidos`) + **complemento** + **"usar endereço de
+  cadastro"** (Express, Orçamento e Reforma). Fotos aparecem pro prestador.
+- **Adiantamento (split do prestador):** ele define **% que recebe antes** do
+  serviço (padrão no perfil + ajustável por proposta). Taxa fixa extra sobre a
+  parte adiantada (`ADVANCE_FEE_RATE` em `pricing.ts`) — **simulada**, refletida no
+  breakdown/extrato. O valor continua sendo do prestador; o contratante paga ao
+  escolher (escrow).
+- **Empreiteiros:** múltiplas especialidades (`category_ids`) + **profiler público
+  `/e/<handle>`** (fotos, contato, cartão QR), igual ao do prestador.
+- **Cadastro do prestador:** categoria **pesquisável** + campo **"Outros"**
+  (texto livre → `profiles.specialties`).
+
+## v6.1 — Auditoria de segurança (part 4)
+- **Bundle limpo:** nenhum segredo real no cliente (auditado `.next/static`).
+  Os "541 key" são internals do React/Next (`key:` de JSX, `*_SEGMENT_KEY`), não
+  segredos. Source maps de produção **desligados** (default).
+- **Chave exposta = publishable/anon** (`sb_publishable_...`), pública por design e
+  limitada por RLS. A `SUPABASE_SECRET_KEY` é **server-only** (`import "server-only"`,
+  `createAdminClient`) e não vai pro bundle. MP/Resend também server-only.
+- **RLS auditado** (17 tabelas, todas com RLS; PII isolada; pagamentos write só admin).
+  Fechados 2 buracos de integridade via `guard_request_changes` (0020): auto-avaliação
+  do prestador e farm de `jobs_done`. **Testado em produção** (deny + allow, com rollback).
+- **`pedidos` virou bucket PRIVADO** (fotos de casa/serviço) — leitura só por URL
+  assinada, autorizada por `can_view_pedido()`. Telas passam a assinar server-side.
+- **Rate limiting** (`lib/rateLimit.ts`): `createAccount` (5/IP a cada 15 min) e proxy
+  (400 req/min por IP; 60/min em `/login` e `/cadastro`). In-memory por instância —
+  para autoscale, trocar por Upstash Redis.

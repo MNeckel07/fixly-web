@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/Button";
 import { Textarea, Input, Label } from "@/components/ui/Field";
 import { LocationPicker } from "@/components/map/LocationPicker";
 import { CategoryIcon } from "@/components/ui/icons";
-import { REFORMA_SLUGS } from "@/lib/categoryRouter";
+import { PhotoPicker } from "@/components/contratante/PhotoPicker";
+import { MapPin } from "lucide-react";
+import { REFORMA_SLUGS, descriptionExample } from "@/lib/categoryRouter";
+import { uploadRequestPhotos } from "@/lib/uploads";
 import type { ServiceCategory } from "@/lib/types";
 
 type ClientInfo = {
@@ -17,6 +20,9 @@ type ClientInfo = {
   lat: number | null;
   lng: number | null;
   city: string | null;
+  address: string | null;
+  addressNumber: string | null;
+  complement: string | null;
 };
 
 type Step = "categoria" | "detalhes";
@@ -49,11 +55,21 @@ export function SolicitarFlow({
   const [urgent, setUrgent] = useState(initialUrgent);
   const [address, setAddress] = useState("");
   const [houseNumber, setHouseNumber] = useState("");
+  const [complement, setComplement] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
   const [loc, setLoc] = useState<{ lat: number; lng: number }>(
     client.lat && client.lng ? { lat: client.lat, lng: client.lng } : DEFAULT_LOC,
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const hasCadastro = !!(client.address || (client.lat && client.lng));
+  function useCadastroAddress() {
+    if (client.address) setAddress(client.address);
+    if (client.addressNumber) setHouseNumber(client.addressNumber);
+    if (client.complement) setComplement(client.complement);
+    if (client.lat && client.lng) setLoc({ lat: client.lat, lng: client.lng });
+  }
 
   // Envia o pedido (a plataforma NÃO define preço) e vai acompanhar as propostas
   async function submit() {
@@ -63,6 +79,10 @@ export function SolicitarFlow({
     setError("");
     setBusy(true);
 
+    const fullAddress = [address, `nº ${houseNumber}`, complement.trim() ? `compl. ${complement.trim()}` : ""]
+      .filter(Boolean)
+      .join(", ");
+
     const { data: req, error: reqErr } = await supabase
       .from("service_requests")
       .insert({
@@ -70,7 +90,7 @@ export function SolicitarFlow({
         category_id: category.id,
         description,
         urgent,
-        address: [address, `nº ${houseNumber}`].filter(Boolean).join(", "),
+        address: fullAddress,
         lat: loc.lat,
         lng: loc.lng,
         status: "buscando",
@@ -81,6 +101,12 @@ export function SolicitarFlow({
     if (reqErr || !req) {
       setBusy(false);
       return setError("Erro ao criar pedido: " + (reqErr?.message ?? ""));
+    }
+
+    // sobe as fotos (se houver) e grava os caminhos no pedido
+    if (photos.length > 0) {
+      const paths = await uploadRequestPhotos(supabase, client.id, req.id, photos);
+      if (paths.length > 0) await supabase.from("service_requests").update({ photos: paths }).eq("id", req.id);
     }
 
     // dispara para prestadores próximos (cada um envia seu preço)
@@ -129,8 +155,12 @@ export function SolicitarFlow({
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ex.: Tomada da cozinha parou de funcionar e preciso resolver hoje."
+                placeholder={descriptionExample(category.slug)}
               />
+            </div>
+            <div>
+              <Label>Fotos do serviço</Label>
+              <PhotoPicker files={photos} onChange={setPhotos} />
             </div>
             <button
               onClick={() => setUrgent((v) => !v)}
@@ -147,7 +177,14 @@ export function SolicitarFlow({
               </span>
             </button>
             <div>
-              <Label>Onde será o serviço?</Label>
+              <div className="flex items-center justify-between">
+                <Label>Onde será o serviço?</Label>
+                {hasCadastro && (
+                  <button type="button" onClick={useCadastroAddress} className="inline-flex items-center gap-1 text-xs font-medium text-primary-dark hover:underline mb-1.5">
+                    <MapPin className="h-3.5 w-3.5" /> Usar endereço de cadastro
+                  </button>
+                )}
+              </div>
               <LocationPicker value={loc} onChange={setLoc} onAddress={(a) => setAddress(a)} height={200} />
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -159,6 +196,10 @@ export function SolicitarFlow({
                 <Label>Número *</Label>
                 <Input value={houseNumber} onChange={(e) => setHouseNumber(e.target.value)} placeholder="123" inputMode="numeric" />
               </div>
+            </div>
+            <div>
+              <Label>Complemento (apto, bloco, referência)</Label>
+              <Input value={complement} onChange={(e) => setComplement(e.target.value)} placeholder="Ex.: Apto 42, bloco B — portão azul" />
             </div>
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">

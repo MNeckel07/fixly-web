@@ -12,13 +12,17 @@ export default async function EmpreiteirosPage() {
 
   const { data } = await supabase
     .from("empreiteiros")
-    .select("id, company_name, specialties, description, city, phone, whatsapp, category:service_categories(name, slug)")
+    .select("id, company_name, handle, category_ids, specialties, description, city, phone, whatsapp, category:service_categories(name, slug)")
     .eq("subscription_active", true)
     .order("created_at", { ascending: false });
+
+  const { data: allCats } = await supabase.from("service_categories").select("id, name");
+  const catName = new Map<string, string>((allCats ?? []).map((c: any) => [c.id, c.name]));
 
   const empreiteiros = (data ?? []).map((e: any) => ({
     ...e,
     category: Array.isArray(e.category) ? e.category[0] : e.category,
+    secondary: ((e.category_ids ?? []) as string[]).map((id) => catName.get(id)).filter(Boolean) as string[],
   }));
 
   return (

@@ -26,13 +26,16 @@ export default async function SolicitarPage({
     lat: profile.lat,
     lng: profile.lng,
     city: profile.city,
+    address: profile.address,
+    addressNumber: profile.address_number,
+    complement: profile.complement,
   };
 
   // Modo Orçamento: escolher um profissional e conversar antes do preço
   if (modo === "orcamento") {
     const { data: provs } = await supabase
       .from("profiles")
-      .select("id, full_name, handle, rating, jobs_done, bio, category_id")
+      .select("id, full_name, handle, rating, jobs_done, bio, avatar_path, category_id")
       .eq("role", "prestador")
       .eq("status", "aprovado");
     const { data: pcs } = await supabase.from("provider_categories").select("provider_id, category_id");

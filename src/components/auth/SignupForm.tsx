@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Wrench, Home, FileText, Copy } from "lucide-react";
+import { ArrowLeft, Wrench, Home, FileText, Copy, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea, Select } from "@/components/ui/Field";
@@ -46,7 +46,12 @@ export function SignupForm({
 
   // prestador
   const [categoryIds, setCategoryIds] = useState<string[]>(categories[0] ? [categories[0].id] : []);
+  const [catSearch, setCatSearch] = useState("");
+  const [specialties, setSpecialties] = useState("");
   const [basePrice, setBasePrice] = useState(categories[0]?.base_price?.toString() ?? "");
+  const shownCats = catSearch.trim()
+    ? categories.filter((c) => c.name.toLowerCase().includes(catSearch.trim().toLowerCase()))
+    : categories;
   const [radius, setRadius] = useState("10");
   const [bio, setBio] = useState("");
   const [bank, setBank] = useState({ bank_name: "", bank_agency: "", bank_account: "", bank_account_type: "corrente", pix_key: "" });
@@ -121,6 +126,7 @@ export function SignupForm({
       ...(role === "prestador" && {
         category_id: categoryIds[0], base_price: Number(basePrice) || null,
         service_radius_km: Number(radius) || 10, bio,
+        specialties: specialties.trim() || null,
         lat: coords?.lat, lng: coords?.lng,
       }),
     });
@@ -230,8 +236,17 @@ export function SignupForm({
           <>
             <Section title="Dados profissionais">
               <Field label="Tipos de serviço que você presta (selecione um ou mais)">
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-light" />
+                  <input
+                    value={catSearch}
+                    onChange={(e) => setCatSearch(e.target.value)}
+                    placeholder="Pesquisar categoria..."
+                    className="w-full h-11 pl-9 pr-3 rounded-xl border border-black/10 outline-none focus:border-primary text-[15px]"
+                  />
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {categories.map((c) => {
+                  {shownCats.map((c) => {
                     const active = categoryIds.includes(c.id);
                     return (
                       <button
@@ -247,7 +262,13 @@ export function SignupForm({
                       </button>
                     );
                   })}
+                  {shownCats.length === 0 && (
+                    <p className="col-span-full text-sm text-gray-light py-2">Nenhuma categoria com esse nome — descreva em &ldquo;Outros&rdquo; abaixo.</p>
+                  )}
                 </div>
+              </Field>
+              <Field label="Outros — não achou seu serviço? Descreva aqui">
+                <Input value={specialties} onChange={(e) => setSpecialties(e.target.value)} placeholder="Ex.: Instalação de painéis solares, tratamento de piscina..." />
               </Field>
               <Field label="Preço-base da visita (R$)"><Input type="number" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} /></Field>
               <Field label={`Raio de atendimento: ${radius} km (pedidos fora do raio não chegam para você)`}>

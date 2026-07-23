@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CategoryIcon } from "@/components/ui/icons";
 import { QrCard } from "@/components/profiler/QrCard";
 import { FollowButton } from "@/components/profiler/FollowButton";
+import { providerReputation } from "@/lib/reputation";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
 
   const { data: prov } = await supabase
     .from("profiles")
-    .select("id, full_name, handle, headline, bio, city, rating, jobs_done, category:service_categories!profiles_category_id_fkey(name, slug)")
+    .select("id, full_name, handle, headline, bio, city, rating, jobs_done, avatar_path, category:service_categories!profiles_category_id_fkey(name, slug)")
     .ilike("handle", handle)
     .eq("role", "prestador")
     .eq("status", "aprovado")
@@ -23,8 +24,11 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
   if (!prov) notFound();
 
   const category = Array.isArray(prov.category) ? prov.category[0] : prov.category;
-  const rating = prov.rating ?? 5;
-  const elite = rating >= 4.5;
+  const rep = providerReputation(prov.rating, prov.jobs_done);
+  const elite = rep.elite;
+  const avatarUrl = prov.avatar_path
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${prov.avatar_path}`
+    : null;
 
   const { data: items } = await supabase
     .from("portfolio_items")
@@ -68,9 +72,14 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
         {/* Cabeçalho do profissional */}
         <div className="bg-white rounded-2xl border border-black/5 p-6">
           <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-canvas text-ink shrink-0">
-              <CategoryIcon slug={category?.slug} className="h-8 w-8" />
-            </div>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt={prov.full_name} className="h-16 w-16 rounded-2xl object-cover shrink-0" />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-canvas text-ink shrink-0">
+                <CategoryIcon slug={category?.slug} className="h-8 w-8" />
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold text-ink">{prov.full_name}</h1>
@@ -83,7 +92,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
               <p className="text-gray">{category?.name ?? "Profissional"}</p>
               {prov.headline && <p className="text-sm text-ink mt-1">{prov.headline}</p>}
               <div className="flex items-center gap-4 mt-2 text-sm text-gray">
-                <span className="inline-flex items-center gap-1"><Star className="h-4 w-4 fill-primary text-primary" /> {rating.toFixed(1)}</span>
+                <span className="inline-flex items-center gap-1"><Star className="h-4 w-4 fill-primary text-primary" /> {rep.label}</span>
                 <span className="inline-flex items-center gap-1"><BadgeCheck className="h-4 w-4" /> {prov.jobs_done ?? 0} serviços</span>
                 <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {followers ?? 0} seguidores</span>
                 {prov.city && <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {prov.city}</span>}
@@ -111,7 +120,22 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
               Solicitar serviço
             </Link>
             <FollowButton providerId={prov.id} currentUserId={user?.id ?? null} initialFollowing={following} />
-            <QrCard url={pageUrl} name={prov.full_name} handle={prov.handle} category={category?.name} />
+            <QrCard
+              url={pageUrl}
+              name={prov.full_name}
+              handle={prov.handle}
+              category={category?.name}
+              headline={prov.headline}
+              avatarUrl={avatarUrl}
+              elite={elite}
+              ratingLabel={rep.label}
+              jobsDone={prov.jobs_done ?? 0}
+            />
+            {avatarUrl && (
+              // pré-carrega o avatar para o canvas do cartão poder desenhá-lo (mesmo host, CORS ok)
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="" className="hidden" crossOrigin="anonymous" aria-hidden />
+            )}
           </div>
         </div>
 

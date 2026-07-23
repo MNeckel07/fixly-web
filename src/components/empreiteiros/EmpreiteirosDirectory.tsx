@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Search, MapPin, Phone, MessageCircle, Building2, Megaphone } from "lucide-react";
+import { Search, MapPin, Phone, MessageCircle, Building2, Megaphone, ExternalLink } from "lucide-react";
 import { CategoryIcon } from "@/components/ui/icons";
 
 type Emp = {
   id: string;
   company_name: string;
+  handle: string | null;
   specialties: string | null;
   description: string | null;
   city: string | null;
   phone: string | null;
   whatsapp: string | null;
+  secondary: string[];
   category: { name: string; slug: string } | null;
 };
 
@@ -71,10 +73,26 @@ export function EmpreiteirosDirectory({ empreiteiros }: { empreiteiros: Emp[] })
                     {e.category?.name ?? "Empreiteiro"}{e.city ? ` · ${e.city}` : ""}
                   </p>
                   {e.specialties && <p className="text-sm text-ink mt-1">{e.specialties}</p>}
+                  {e.secondary.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {e.secondary.map((s) => (
+                        <span key={s} className="text-[11px] font-medium text-gray bg-canvas rounded-full px-2 py-0.5">{s}</span>
+                      ))}
+                    </div>
+                  )}
                   {e.description && <p className="text-sm text-gray mt-1">{e.description}</p>}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
+                {e.handle && (
+                  <Link
+                    href={`/e/${e.handle}`}
+                    target="_blank"
+                    className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border border-black/10 text-ink font-semibold text-sm hover:bg-black/[0.03]"
+                  >
+                    Ver perfil <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                )}
                 {e.whatsapp && (
                   <a
                     href={`https://wa.me/55${onlyDigits(e.whatsapp)}`}

@@ -14,6 +14,7 @@ import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { approveService, processPayment, cancelService } from "@/app/app/contratante/pay.actions";
 import { brl, paymentBreakdown, type PayMethod } from "@/lib/pricing";
+import { providerReputation } from "@/lib/reputation";
 
 type Service = {
   id: string;
@@ -29,24 +30,33 @@ type Service = {
   rating: number | null;
   review: string | null;
   provider_id: string | null;
+  photos: string[] | null;
+  advance_pct: number | null;
   category: { name: string; slug: string } | null;
-  provider: { full_name: string; rating: number | null; jobs_done: number | null; lat: number | null; lng: number | null } | null;
-  payment: { amount: number; fee: number; gateway_fee: number; provider_net: number; method: string; status: string } | null;
+  provider: { full_name: string; rating: number | null; jobs_done: number | null; avatar_path: string | null; lat: number | null; lng: number | null } | null;
+  payment: { amount: number; fee: number; gateway_fee: number; provider_net: number; method: string; status: string; advance_pct: number | null; advance_amount: number | null; advance_fee: number | null } | null;
 };
 
 type Proposal = {
   id: string;
   price: number;
   eta_minutes: number | null;
+  advance_pct: number | null;
   provider: {
     id: string;
     full_name: string;
     handle: string | null;
     rating: number | null;
     jobs_done: number | null;
+    avatar_path: string | null;
     category: { name: string; slug: string } | null;
   } | null;
 };
+
+function avatarUrl(path: string | null | undefined): string | null {
+  return path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${path}` : null;
+}
+// `service.photos` já chega como URLs assinadas (bucket privado `pedidos`).
 
 const METHODS: { key: PayMethod; label: string; Icon: typeof Zap }[] = [
   { key: "pix", label: "Pix", Icon: Zap },
@@ -99,7 +109,7 @@ export function ServiceDetail({
     await supabase.from("proposals").update({ status: "aceita" }).eq("id", p.id);
     await supabase
       .from("service_requests")
-      .update({ provider_id: p.provider.id, final_price: p.price, status: "aceito" })
+      .update({ provider_id: p.provider.id, final_price: p.price, status: "aceito", advance_pct: p.advance_pct ?? 0 })
       .eq("id", service.id);
     setBusy(false);
     router.refresh();
@@ -164,10 +174,20 @@ export function ServiceDetail({
           <Badge status={service.status} />
         </div>
         <p className="text-sm text-gray bg-canvas rounded-xl px-4 py-3 mt-4">{service.description}</p>
+        {(service.photos ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {(service.photos ?? []).map((ph) => (
+              <a key={ph} href={ph} target="_blank" rel="noreferrer" className="h-20 w-20 rounded-xl overflow-hidden bg-canvas border border-black/5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={ph} alt="Foto do serviço" className="h-full w-full object-cover hover:scale-105 transition" />
+              </a>
+            ))}
+          </div>
+        )}
         {service.provider && (
           <div className="flex items-center gap-2 mt-3 text-sm text-gray">
             Profissional: <b className="text-ink">{service.provider.full_name}</b>
-            <span className="inline-flex items-center gap-0.5"><Star className="h-3 w-3 fill-primary text-primary" /> {(service.provider.rating ?? 5).toFixed(1)}</span>
+            <span className="inline-flex items-center gap-0.5"><Star className="h-3 w-3 fill-primary text-primary" /> {providerReputation(service.provider.rating, service.provider.jobs_done).label}</span>
           </div>
         )}
       </div>
@@ -197,15 +217,20 @@ export function ServiceDetail({
           ) : (
             <div className="space-y-3">
               {proposals.map((p) => {
-                const r = p.provider?.rating ?? 5;
-                const elite = r >= 4.5;
+                const rep = providerReputation(p.provider?.rating, p.provider?.jobs_done);
+                const elite = rep.elite;
                 return (
                   <div key={p.id} className="bg-white rounded-2xl border border-black/5 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-canvas text-ink shrink-0">
-                          <CategoryIcon slug={p.provider?.category?.slug} className="h-5 w-5" />
-                        </div>
+                        {avatarUrl(p.provider?.avatar_path) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={avatarUrl(p.provider?.avatar_path)!} alt={p.provider?.full_name ?? ""} className="h-11 w-11 rounded-xl object-cover shrink-0" />
+                        ) : (
+                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-canvas text-ink shrink-0">
+                            <CategoryIcon slug={p.provider?.category?.slug} className="h-5 w-5" />
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-semibold text-ink truncate">{p.provider?.full_name ?? "Profissional"}</p>
@@ -216,7 +241,7 @@ export function ServiceDetail({
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-xs text-gray mt-0.5">
-                            <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-primary text-primary" /> {r.toFixed(1)}</span>
+                            <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-primary text-primary" /> {rep.label}</span>
                             <span className="inline-flex items-center gap-1"><BadgeCheck className="h-3.5 w-3.5" /> {p.provider?.jobs_done ?? 0} serviços</span>
                             {p.eta_minutes && <span>~{p.eta_minutes} min</span>}
                           </div>
@@ -263,14 +288,22 @@ export function ServiceDetail({
           </div>
 
           {(() => {
-            const bd = paymentBreakdown(service.final_price ?? val, method);
+            const bd = paymentBreakdown(service.final_price ?? val, method, service.advance_pct ?? 0);
             return (
               <div className="rounded-xl bg-canvas p-4 text-sm space-y-1.5 mb-4">
                 <Row label="Profissional" value={service.provider?.full_name ?? "—"} />
                 <Row label="Valor do serviço" value={brl(bd.amount)} />
                 <Row label="Comissão Fixly (15%)" value={`- ${brl(bd.platformFee)}`} muted />
                 <Row label="Tarifa do pagamento" value={`- ${brl(bd.gatewayFee)}`} muted />
-                <Row label="Prestador recebe" value={brl(bd.providerNet)} />
+                {bd.advancePct > 0 && (
+                  <>
+                    <Row label={`Taxa de adiantamento (${bd.advancePct}%)`} value={`- ${brl(bd.advanceFee)}`} muted />
+                    <div className="border-t border-black/10 my-1" />
+                    <Row label="Prestador recebe ao contratar" value={brl(bd.providerUpfront)} />
+                    <Row label="Prestador recebe ao aprovar" value={brl(bd.providerOnApproval)} />
+                  </>
+                )}
+                <Row label="Prestador recebe (total)" value={brl(bd.providerNet)} />
                 <div className="border-t border-black/10 my-1" />
                 <Row label="Total a pagar" value={brl(bd.amount)} bold />
               </div>
@@ -324,6 +357,9 @@ export function ServiceDetail({
             <Row label="Valor do serviço" value={brl(service.payment?.amount ?? val)} />
             <Row label="Comissão Fixly (15%)" value={`- ${brl(service.payment?.fee ?? 0)}`} muted />
             <Row label="Tarifa do pagamento" value={`- ${brl(service.payment?.gateway_fee ?? 0)}`} muted />
+            {(service.payment?.advance_pct ?? 0) > 0 && (
+              <Row label={`Taxa de adiantamento (${service.payment?.advance_pct}%)`} value={`- ${brl(service.payment?.advance_fee ?? 0)}`} muted />
+            )}
             <div className="border-t border-black/10 my-1" />
             <Row label="Recebido pelo profissional" value={brl(service.payment?.provider_net ?? 0)} />
             <div className="border-t border-black/10 my-1" />

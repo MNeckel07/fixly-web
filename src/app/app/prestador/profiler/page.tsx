@@ -22,7 +22,7 @@ export default async function MeuProfilerPage() {
   // comunidade: descobrir e seguir outros profissionais
   const { data: others } = await supabase
     .from("profiles")
-    .select("id, full_name, handle, rating, jobs_done, bio, city, category:service_categories!profiles_category_id_fkey(name, slug)")
+    .select("id, full_name, handle, rating, jobs_done, bio, city, avatar_path, category:service_categories!profiles_category_id_fkey(name, slug)")
     .eq("role", "prestador")
     .eq("status", "aprovado")
     .neq("id", profile.id)
@@ -56,9 +56,12 @@ export default async function MeuProfilerPage() {
             handle: (profile as any).handle ?? "",
             headline: (profile as any).headline ?? "",
             bio: profile.bio ?? "",
+            avatar_path: (profile as any).avatar_path ?? null,
+            advance_pct: (profile as any).advance_pct ?? 0,
           }}
           items={(items as any) ?? []}
           publicUrlBase={publicUrlBase}
+          avatarUrlBase={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/`}
         />
       </div>
 

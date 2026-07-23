@@ -66,7 +66,11 @@ export function AdminShell({
         } flex-col bg-ink text-white sticky top-0 h-screen transition-[width] duration-200`}
       >
         <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} px-3 h-16`}>
-          {!collapsed && <Logo size={22} />}
+          {!collapsed && (
+            <Link href="/admin" aria-label="Início" className="transition hover:opacity-80">
+              <Logo size={22} />
+            </Link>
+          )}
           <button
             onClick={toggle}
             className="text-white/50 hover:text-white p-1.5 rounded-lg hover:bg-white/10"
@@ -113,7 +117,9 @@ export function AdminShell({
       <main className="flex-1 min-w-0">
         <div className="md:hidden sticky top-0 z-20 bg-ink text-white">
           <div className="flex items-center justify-between px-4 py-3">
-            <Logo size={20} />
+            <Link href="/admin" aria-label="Início" className="transition hover:opacity-80">
+              <Logo size={20} />
+            </Link>
             <LogoutButton className="!text-white/70" />
           </div>
           <nav className="flex gap-1 overflow-x-auto no-scrollbar px-2 pb-2">
