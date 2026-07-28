@@ -19,7 +19,7 @@ const labels: Record<string, string> = {
   aprovado: "Aprovado",
   reprovado: "Reprovado",
   buscando: "Buscando",
-  proposta_enviada: "Proposta enviada",
+  proposta_enviada: "Proposta recebida",
   aceito: "Aceito",
   a_caminho: "A caminho",
   em_andamento: "Em andamento",

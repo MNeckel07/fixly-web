@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Wrench, Home, FileText, Copy, Search } from "lucide-react";
+import { ArrowLeft, Wrench, Home, FileText, Copy, Search, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea, Select } from "@/components/ui/Field";
@@ -236,6 +236,12 @@ export function SignupForm({
           <>
             <Section title="Dados profissionais">
               <Field label="Tipos de serviço que você presta (selecione um ou mais)">
+                <div className="flex items-start gap-2 rounded-xl bg-primary/10 text-primary-dark px-3 py-2.5 text-xs mb-3">
+                  <Sparkles className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    <b>Marque tudo o que você faz.</b> Quanto mais modalidades, mais vezes você é chamado — um marido de aluguel também pega serviço de eletricista, encanador, pequenos reparos, e por aí vai.
+                  </span>
+                </div>
                 <div className="relative mb-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-light" />
                   <input

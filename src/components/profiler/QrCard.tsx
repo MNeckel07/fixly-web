@@ -16,7 +16,6 @@ type Props = {
   jobsDone?: number;
 };
 
-/** Carrega uma imagem (com CORS) para desenhar no canvas sem "sujar" o canvas. */
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -37,6 +36,9 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
+const INK = "#1F2329";
+const AMBER = "#FFC107";
+
 export function QrCard({ url, name, handle, category, headline, avatarUrl, elite, ratingLabel, jobsDone }: Props) {
   const [open, setOpen] = useState(false);
   const [qr, setQr] = useState<string>("");
@@ -45,147 +47,147 @@ export function QrCard({ url, name, handle, category, headline, avatarUrl, elite
 
   useEffect(() => {
     if (!open) return;
-    QRCode.toDataURL(url, { width: 640, margin: 1, color: { dark: "#1F2329", light: "#FFFFFF" } }).then(setQr);
+    // QR claro sobre fundo escuro fica ruim de ler → geramos com quiet zone branca
+    QRCode.toDataURL(url, { width: 512, margin: 2, color: { dark: "#1F2329", light: "#FFFFFF" } }).then(setQr);
   }, [open, url]);
 
-  // Desenha o cartão inteiro num canvas (720×1040) — usado no preview, download e print.
+  // Cartão horizontal (estilo cartão de visita), tema escuro. 1080×620.
   async function buildCard(): Promise<HTMLCanvasElement> {
-    const W = 720, H = 1040, pad = 56;
+    const W = 1080, H = 620;
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d")!;
 
-    // fundo
-    ctx.fillStyle = "#F4F5F7";
+    // fundo + cartão
+    ctx.fillStyle = "#E9EBEE";
     ctx.fillRect(0, 0, W, H);
-    // cartão
-    roundRect(ctx, 28, 28, W - 56, H - 56, 36);
-    ctx.fillStyle = "#FFFFFF";
+    roundRect(ctx, 20, 20, W - 40, H - 40, 40);
+    ctx.fillStyle = INK;
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(0,0,0,0.06)";
-    ctx.stroke();
+    // brilho amber no canto
+    const grd = ctx.createRadialGradient(W - 120, 120, 20, W - 120, 120, 380);
+    grd.addColorStop(0, "rgba(255,193,7,0.18)");
+    grd.addColorStop(1, "rgba(255,193,7,0)");
+    ctx.save();
+    roundRect(ctx, 20, 20, W - 40, H - 40, 40);
+    ctx.clip();
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
 
-    let y = pad + 40;
-    ctx.textAlign = "center";
+    const padX = 72, top = 88;
 
-    // logo "Fixly"
-    ctx.font = "800 46px Poppins, system-ui, sans-serif";
-    ctx.fillStyle = "#1F2329";
-    ctx.fillText("Fi", W / 2 - 34, y);
-    const fiW = ctx.measureText("Fi").width;
-    ctx.fillStyle = "#FFC107";
-    ctx.fillText("x", W / 2 - 34 + fiW + 9, y);
-    ctx.fillStyle = "#1F2329";
-    ctx.fillText("ly", W / 2 - 34 + fiW + 9 + ctx.measureText("x").width + 9, y);
+    // logo Fixly (topo-esquerda)
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = "800 44px Poppins, system-ui, sans-serif";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("Fi", padX, top);
+    const fi = ctx.measureText("Fi").width;
+    ctx.fillStyle = AMBER;
+    ctx.fillText("x", padX + fi, top);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("ly", padX + fi + ctx.measureText("x").width, top);
 
-    y += 40;
+    // badge da categoria (topo-direita), pílula amber
+    if (category) {
+      const label = category.toUpperCase();
+      ctx.font = "700 20px Poppins, system-ui, sans-serif";
+      const tw = ctx.measureText(label).width;
+      const bw = tw + 44, bh = 40, bx = W - padX - bw, by = top - 30;
+      roundRect(ctx, bx, by, bw, bh, 20);
+      ctx.fillStyle = AMBER;
+      ctx.fill();
+      ctx.fillStyle = INK;
+      ctx.textAlign = "center";
+      ctx.fillText(label, bx + bw / 2, by + 27);
+      ctx.textAlign = "left";
+    }
 
-    // avatar (círculo) ou espaço
+    // avatar + nome
     const [avatar, qrImg] = await Promise.all([
       avatarUrl ? loadImage(avatarUrl) : Promise.resolve(null),
       qr ? loadImage(qr) : Promise.resolve(null),
     ]);
+    const avR = 62, avCx = padX + avR, avCy = 232;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avCx, avCy, avR, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
     if (avatar) {
-      const R = 60, cx = W / 2, cy = y + R;
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(avatar, cx - R, cy - R, R * 2, R * 2);
-      ctx.restore();
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = "rgba(0,0,0,0.06)";
-      ctx.stroke();
-      y += R * 2 + 28;
+      ctx.drawImage(avatar, avCx - avR, avCy - avR, avR * 2, avR * 2);
     } else {
-      y += 8;
-    }
-
-    // nome
-    ctx.font = "700 36px Poppins, system-ui, sans-serif";
-    ctx.fillStyle = "#1F2329";
-    ctx.fillText(name, W / 2, y);
-    y += 34;
-
-    // categoria
-    if (category) {
-      ctx.font = "400 24px Poppins, system-ui, sans-serif";
-      ctx.fillStyle = "#6B7280";
-      ctx.fillText(category, W / 2, y);
-      y += 34;
-    }
-
-    // headline (quebra em até 2 linhas)
-    if (headline) {
-      ctx.font = "500 23px Poppins, system-ui, sans-serif";
-      ctx.fillStyle = "#1F2329";
-      const words = headline.split(" ");
-      const lines: string[] = [];
-      let line = "";
-      for (const w of words) {
-        const test = line ? line + " " + w : w;
-        if (ctx.measureText(test).width > W - pad * 2 - 40 && line) {
-          lines.push(line);
-          line = w;
-        } else line = test;
-      }
-      if (line) lines.push(line);
-      for (const l of lines.slice(0, 2)) {
-        y += 30;
-        ctx.fillText(l, W / 2, y);
-      }
-      y += 8;
-    }
-
-    // selos (linha central)
-    y += 34;
-    const chips: { text: string; bg: string; fg: string }[] = [];
-    if (elite) chips.push({ text: "✓ Selo Fixly", bg: "#E7F6EC", fg: "#1F9D55" });
-    if (ratingLabel) chips.push({ text: (ratingLabel === "Novo" ? "★ Novo" : "★ " + ratingLabel), bg: "#FFF7E0", fg: "#8A6D00" });
-    if (typeof jobsDone === "number") chips.push({ text: `${jobsDone} serviços`, bg: "#F1F2F4", fg: "#4B5563" });
-    ctx.font = "600 20px Poppins, system-ui, sans-serif";
-    const gaps = 12;
-    const widths = chips.map((c) => ctx.measureText(c.text).width + 32);
-    const totalW = widths.reduce((a, b) => a + b, 0) + gaps * (chips.length - 1);
-    let cx = W / 2 - totalW / 2;
-    chips.forEach((c, i) => {
-      const w = widths[i];
-      roundRect(ctx, cx, y - 22, w, 36, 18);
-      ctx.fillStyle = c.bg;
-      ctx.fill();
-      ctx.fillStyle = c.fg;
+      ctx.fillStyle = AMBER;
+      ctx.fillRect(avCx - avR, avCy - avR, avR * 2, avR * 2);
+      ctx.fillStyle = INK;
+      ctx.font = "800 46px Poppins, system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(c.text, cx + w / 2, y + 3);
-      cx += w + gaps;
-    });
+      const initials = name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
+      ctx.fillText(initials, avCx, avCy + 16);
+      ctx.textAlign = "left";
+    }
+    ctx.restore();
 
-    // QR
-    y += 60;
-    if (qrImg) {
-      const size = 300;
-      ctx.drawImage(qrImg, W / 2 - size / 2, y, size, size);
-      y += size + 16;
+    const infoX = avCx + avR + 30;
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "700 40px Poppins, system-ui, sans-serif";
+    ctx.fillText(name, infoX, avCy - 6);
+    if (headline) {
+      ctx.fillStyle = "rgba(255,255,255,0.72)";
+      ctx.font = "400 23px Poppins, system-ui, sans-serif";
+      let h = headline;
+      while (ctx.measureText(h).width > W - infoX - padX && h.length > 4) h = h.slice(0, -2);
+      ctx.fillText(h + (h !== headline ? "…" : ""), infoX, avCy + 30);
     }
 
-    // chamadas
-    ctx.textAlign = "center";
-    ctx.font = "600 24px Poppins, system-ui, sans-serif";
-    ctx.fillStyle = "#1F2329";
-    ctx.fillText("Escaneie e veja meus serviços", W / 2, y);
-    y += 30;
+    // selos (rodapé-esquerda)
+    let sy = H - 96;
+    ctx.font = "600 22px Poppins, system-ui, sans-serif";
+    let sx = padX;
+    if (elite) {
+      const t = "✓ Selo Fixly";
+      const w = ctx.measureText(t).width + 32;
+      roundRect(ctx, sx, sy - 26, w, 38, 19);
+      ctx.fillStyle = "rgba(31,157,85,0.18)";
+      ctx.fill();
+      ctx.fillStyle = "#38d178";
+      ctx.textAlign = "center";
+      ctx.fillText(t, sx + w / 2, sy);
+      ctx.textAlign = "left";
+      sx += w + 16;
+    }
+    if (ratingLabel) {
+      ctx.fillStyle = AMBER;
+      ctx.font = "700 24px Poppins, system-ui, sans-serif";
+      ctx.fillText("★", sx, sy);
+      sx += 30;
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.font = "500 22px Poppins, system-ui, sans-serif";
+      const rt = `${ratingLabel === "Novo" ? "Novo" : ratingLabel}${typeof jobsDone === "number" ? `  ·  ${jobsDone} serviços` : ""}`;
+      ctx.fillText(rt, sx, sy);
+    }
+
+    // QR (rodapé-direita) com fundo branco arredondado + chamada
+    const qs = 176, qx = W - padX - qs, qy = H - 72 - qs;
+    roundRect(ctx, qx - 12, qy - 12, qs + 24, qs + 24, 18);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fill();
+    if (qrImg) ctx.drawImage(qrImg, qx, qy, qs, qs);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = AMBER;
+    ctx.font = "700 18px Poppins, system-ui, sans-serif";
+    ctx.fillText("ESCANEIE E VEJA MEUS SERVIÇOS", qx - 32, qy + 46);
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.font = "400 20px Poppins, system-ui, sans-serif";
-    ctx.fillStyle = "#9AA1AC";
-    ctx.fillText(url.replace(/^https?:\/\//, ""), W / 2, y);
+    ctx.fillText(url.replace(/^https?:\/\//, ""), qx - 32, qy + 80);
+    ctx.textAlign = "left";
 
     return canvas;
   }
 
-  // Renderiza o preview quando o modal abre e o QR estiver pronto
   useEffect(() => {
     if (!open || !qr) return;
     let cancelled = false;
@@ -233,31 +235,29 @@ export function QrCard({ url, name, handle, category, headline, avatarUrl, elite
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-ink/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="relative w-full max-w-sm">
+          <div className="relative w-full max-w-lg">
             <button onClick={() => setOpen(false)} className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-white shadow flex items-center justify-center z-10">
               <X className="h-4 w-4" />
             </button>
 
-            {/* Preview do cartão (o mesmo que é baixado/impresso) */}
-            <div className="rounded-2xl overflow-hidden shadow-float bg-white">
+            <div className="rounded-2xl overflow-hidden shadow-float bg-ink">
               {qr ? (
                 <canvas ref={previewRef} className="w-full h-auto block" />
               ) : (
-                <div className="aspect-[72/104] animate-pulse bg-canvas" />
+                <div className="aspect-[108/62] animate-pulse bg-ink" />
               )}
             </div>
 
-            {/* fallback textual de selos (acessibilidade / caso o canvas não pinte) */}
             <div className="sr-only">
               {name} — {category}. {elite ? "Selo Fixly." : ""} {ratingLabel} · {jobsDone} serviços.
               <span className="inline-flex"><ShieldCheck /><Star /><BadgeCheck /></span>
             </div>
 
             <div className="flex gap-2 mt-3">
-              <button onClick={download} disabled={rendering} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-ink text-white h-11 font-medium hover:bg-ink-soft disabled:opacity-50">
+              <button onClick={download} disabled={rendering} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-white text-ink h-11 font-medium hover:bg-white/90 disabled:opacity-50">
                 <Download className="h-4 w-4" /> Baixar cartão
               </button>
-              <button onClick={print} disabled={rendering} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-black/10 h-11 font-medium hover:bg-black/[0.03] disabled:opacity-50">
+              <button onClick={print} disabled={rendering} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 text-white h-11 font-medium hover:bg-white/10 disabled:opacity-50">
                 <Printer className="h-4 w-4" /> Imprimir
               </button>
             </div>

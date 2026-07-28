@@ -81,6 +81,29 @@ export async function processPayment(requestId: string, method: PayMethod): Prom
   return { ok: true, status: charge.status, breakdown, pixQrCode: charge.pixQrCode };
 }
 
+/**
+ * Contratante APROVA a liberação do adiantamento (parte que o prestador recebe
+ * antes de concluir). Só o dono do pedido; exige que já esteja pago (retido).
+ * (Simulado, como o resto do pagamento.)
+ */
+export async function approveAdvance(requestId: string): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const { data: req } = await supabase
+    .from("service_requests")
+    .select("id, client_id, advance_pct, status")
+    .eq("id", requestId)
+    .single();
+  if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
+  if (!req.advance_pct || req.advance_pct <= 0) return { ok: false, error: "Este serviço não tem adiantamento." };
+  if (!["a_caminho", "em_andamento"].includes(req.status)) return { ok: false, error: "Pague o serviço antes de liberar o adiantamento." };
+
+  await supabase.from("service_requests").update({ advance_approved: true }).eq("id", requestId);
+  return { ok: true };
+}
+
 /** Contratante aprova a conclusão: libera o escrow ao prestador. */
 export async function approveService(requestId: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();

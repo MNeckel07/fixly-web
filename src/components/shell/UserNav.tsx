@@ -18,7 +18,7 @@ const ICONS: Record<string, LucideIcon> = {
   profiler: Images,
 };
 
-export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };
+export type NavItem = { href: string; label: string; icon: keyof typeof ICONS; short?: string };
 
 export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
   const path = usePathname();
@@ -67,12 +67,12 @@ export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
             <Link
               key={it.href}
               href={it.href}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium ${
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium text-center leading-tight ${
                 isActive(it.href) ? "text-primary-dark" : "text-gray-light"
               }`}
             >
               <Icon className="h-5 w-5" strokeWidth={1.75} />
-              {it.label}
+              <span className="truncate max-w-full px-0.5">{it.short ?? it.label}</span>
             </Link>
           );
         })}

@@ -38,7 +38,7 @@ export default async function EmpreiteiroPublicPage({ params }: { params: Promis
   const pageUrl = `${appUrl}/e/${emp.handle}`;
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen bg-canvas overflow-x-hidden">
       <header className="bg-ink text-white">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
           <Link href="/" className="text-xl font-bold">

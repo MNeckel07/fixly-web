@@ -12,7 +12,7 @@ import { RouteMap } from "@/components/map/RouteMap";
 import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { approveService, processPayment, cancelService } from "@/app/app/contratante/pay.actions";
+import { approveService, approveAdvance, processPayment, cancelService } from "@/app/app/contratante/pay.actions";
 import { brl, paymentBreakdown, type PayMethod } from "@/lib/pricing";
 import { providerReputation } from "@/lib/reputation";
 
@@ -32,6 +32,7 @@ type Service = {
   provider_id: string | null;
   photos: string[] | null;
   advance_pct: number | null;
+  advance_approved: boolean | null;
   category: { name: string; slug: string } | null;
   provider: { full_name: string; rating: number | null; jobs_done: number | null; avatar_path: string | null; lat: number | null; lng: number | null } | null;
   payment: { amount: number; fee: number; gateway_fee: number; provider_net: number; method: string; status: string; advance_pct: number | null; advance_amount: number | null; advance_fee: number | null } | null;
@@ -42,6 +43,8 @@ type Proposal = {
   price: number;
   eta_minutes: number | null;
   advance_pct: number | null;
+  counter_price: number | null;
+  counter_status: string | null;
   provider: {
     id: string;
     full_name: string;
@@ -86,6 +89,27 @@ export function ServiceDetail({
   const [method, setMethod] = useState<PayMethod>("pix");
   const [payErr, setPayErr] = useState("");
   const [showCancel, setShowCancel] = useState(false);
+  const [counterFor, setCounterFor] = useState<string | null>(null);
+  const [counterValue, setCounterValue] = useState("");
+
+  async function sendCounter(p: Proposal) {
+    const v = Number(counterValue);
+    if (!v || v <= 0) return;
+    setBusy(true);
+    const supabase = createClient();
+    await supabase.from("proposals").update({ counter_price: v, counter_status: "pendente" }).eq("id", p.id);
+    setBusy(false);
+    setCounterFor(null);
+    setCounterValue("");
+    router.refresh();
+  }
+
+  async function doApproveAdvance() {
+    setBusy(true);
+    await approveAdvance(service.id);
+    setBusy(false);
+    router.refresh();
+  }
 
   const canCancel = !["concluido", "cancelado"].includes(service.status);
   const isPaid = ["a_caminho", "em_andamento"].includes(service.status);
@@ -249,13 +273,42 @@ export function ServiceDetail({
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-lg font-bold text-ink">{brl(p.price)}</p>
+                        {(p.advance_pct ?? 0) > 0 && (
+                          <p className="text-[11px] text-gray-light">pede {p.advance_pct}% adiantado</p>
+                        )}
                       </div>
                     </div>
+
+                    {/* Contra-proposta */}
+                    {p.counter_status === "pendente" ? (
+                      <p className="mt-3 text-xs text-info bg-info/5 rounded-lg px-3 py-2">
+                        Contra-proposta de <b>{brl(p.counter_price ?? 0)}</b> enviada — aguardando o profissional.
+                      </p>
+                    ) : p.counter_status === "recusada" ? (
+                      <p className="mt-3 text-xs text-gray-light">O profissional recusou sua contra-proposta; vale {brl(p.price)}.</p>
+                    ) : p.counter_status === "aceita" ? (
+                      <p className="mt-3 text-xs text-success">Contra-proposta aceita — novo valor {brl(p.price)}.</p>
+                    ) : counterFor === p.id ? (
+                      <div className="mt-3 flex items-end gap-2">
+                        <div className="flex-1">
+                          <label className="text-xs text-gray-light">Sua contra-proposta (R$)</label>
+                          <input type="number" value={counterValue} onChange={(e) => setCounterValue(e.target.value)} placeholder={String(Math.round(p.price * 0.9))} className="w-full h-10 rounded-xl border border-black/10 px-3 mt-1 outline-none focus:border-primary text-sm" />
+                        </div>
+                        <Button size="sm" loading={busy} onClick={() => sendCounter(p)}>Enviar</Button>
+                        <button onClick={() => setCounterFor(null)} className="text-xs text-gray hover:text-ink h-10">cancelar</button>
+                      </div>
+                    ) : null}
+
                     <div className="flex gap-2 mt-3">
                       {p.provider?.handle && (
                         <Link href={`/p/${p.provider.handle}`} target="_blank" className="flex-1 inline-flex items-center justify-center gap-1 h-10 rounded-xl border border-black/10 text-ink text-sm font-medium hover:bg-black/[0.03]">
-                          Ver perfil e avaliações <ExternalLink className="h-3.5 w-3.5" />
+                          Ver perfil <ExternalLink className="h-3.5 w-3.5" />
                         </Link>
+                      )}
+                      {!p.counter_status && (
+                        <button onClick={() => { setCounterFor(p.id); setCounterValue(""); }} className="flex-1 inline-flex items-center justify-center h-10 rounded-xl border border-black/10 text-ink text-sm font-medium hover:bg-black/[0.03]">
+                          Negociar
+                        </button>
                       )}
                       <Button className="flex-1" loading={busy} onClick={() => choose(p)}>Escolher</Button>
                     </div>
@@ -335,6 +388,22 @@ export function ServiceDetail({
             </div>
           )}
         </div>
+      )}
+
+      {/* Aprovar o adiantamento (se o profissional pediu) */}
+      {["a_caminho", "em_andamento"].includes(service.status) && (service.advance_pct ?? 0) > 0 && !service.advance_approved && (
+        <div className="rounded-2xl border border-primary/40 bg-primary/5 p-5">
+          <p className="font-semibold text-ink">Liberar adiantamento?</p>
+          <p className="text-sm text-gray mt-1">
+            O profissional pediu <b>{service.advance_pct}%</b> adiantado
+            {service.payment?.advance_amount ? <> (<b>{brl(service.payment.advance_amount)}</b>)</> : null}. Você pode liberar
+            essa parte agora para ele começar; o restante fica retido até você aprovar a conclusão.
+          </p>
+          <Button className="mt-3" loading={busy} onClick={doApproveAdvance}>Aprovar adiantamento</Button>
+        </div>
+      )}
+      {["a_caminho", "em_andamento"].includes(service.status) && service.advance_approved && (service.advance_pct ?? 0) > 0 && (
+        <p className="flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Adiantamento de {service.advance_pct}% liberado.</p>
       )}
 
       {/* Aprovar */}

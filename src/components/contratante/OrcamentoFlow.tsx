@@ -8,9 +8,9 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Textarea, Input, Label } from "@/components/ui/Field";
 import { LocationPicker } from "@/components/map/LocationPicker";
-import { CategoryIcon } from "@/components/ui/icons";
+import { CategoryPicker } from "@/components/contratante/CategoryPicker";
 import { PhotoPicker } from "@/components/contratante/PhotoPicker";
-import { REFORMA_SLUGS, descriptionExample } from "@/lib/categoryRouter";
+import { descriptionExample } from "@/lib/categoryRouter";
 import { uploadRequestPhotos } from "@/lib/uploads";
 import { providerReputation } from "@/lib/reputation";
 import type { ServiceCategory } from "@/lib/types";
@@ -76,8 +76,13 @@ export function OrcamentoFlow({
     if (client.lat && client.lng) setLoc({ lat: client.lat, lng: client.lng });
   }
 
-  const shownCategories = reformaOnly ? categories.filter((c) => REFORMA_SLUGS.includes(c.slug)) : categories;
   const matches = category ? providers.filter((p) => p.category_ids.includes(category.id)) : [];
+
+  function goProfissionais() {
+    if (!complement.trim()) return setError("Informe o complemento (apto/bloco ou uma referência).");
+    setError("");
+    setStep("profissionais");
+  }
 
   async function ask(p: Prov) {
     if (!category) return;
@@ -118,20 +123,11 @@ export function OrcamentoFlow({
     <div className="max-w-xl mx-auto">
       {step === "categoria" && (
         <Card title={reformaOnly ? "Reforma — qual serviço?" : "Solicitar orçamento"} subtitle="Escolha a categoria (serviços com visita técnica)">
-          <div className="grid grid-cols-2 gap-3">
-            {shownCategories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => { setCategory(c); setStep("detalhes"); }}
-                className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-4 hover:border-primary hover:bg-primary/5 transition text-left"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-canvas text-ink">
-                  <CategoryIcon slug={c.slug} className="h-5 w-5" />
-                </span>
-                <span className="block font-medium text-ink text-sm">{c.name}</span>
-              </button>
-            ))}
-          </div>
+          <CategoryPicker
+            categories={categories}
+            reformaOnly={reformaOnly}
+            onPick={(c) => { setCategory(c); setStep("detalhes"); }}
+          />
         </Card>
       )}
 
@@ -168,12 +164,13 @@ export function OrcamentoFlow({
               </div>
             </div>
             <div>
-              <Label>Complemento (apto, bloco, referência)</Label>
-              <Input value={complement} onChange={(e) => setComplement(e.target.value)} placeholder="Ex.: Apto 42, bloco B — portão azul" />
+              <Label>Complemento (apto, bloco, referência) *</Label>
+              <Input value={complement} onChange={(e) => setComplement(e.target.value)} placeholder="Ex.: Apto 42, bloco B (ou 'casa')" />
             </div>
+            {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
               {!preCat && <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>}
-              <Button fullWidth onClick={() => setStep("profissionais")}>Ver profissionais</Button>
+              <Button fullWidth onClick={goProfissionais}>Ver profissionais</Button>
             </div>
           </div>
         </Card>

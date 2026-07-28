@@ -15,7 +15,7 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
   const { data: svc } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, urgent, address, lat, lng, estimated_price, final_price, mode, rating, review, provider_id, photos, advance_pct, created_at, category:service_categories(name, slug), provider:profiles!service_requests_provider_id_fkey(full_name, rating, jobs_done, avatar_path, lat, lng), payment:payments(amount, fee, gateway_fee, provider_net, method, status, advance_pct, advance_amount, advance_fee)",
+      "id, description, status, urgent, address, lat, lng, estimated_price, final_price, mode, rating, review, provider_id, photos, advance_pct, advance_approved, created_at, category:service_categories(name, slug), provider:profiles!service_requests_provider_id_fkey(full_name, rating, jobs_done, avatar_path, lat, lng), payment:payments(amount, fee, gateway_fee, provider_net, method, status, advance_pct, advance_amount, advance_fee)",
     )
     .eq("id", id)
     .eq("client_id", userId)
@@ -35,7 +35,7 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
     const { data: props } = await supabase
       .from("proposals")
       .select(
-        "id, price, eta_minutes, advance_pct, provider:profiles!proposals_provider_id_fkey(id, full_name, handle, rating, jobs_done, avatar_path, category:service_categories!profiles_category_id_fkey(name, slug))",
+        "id, price, eta_minutes, advance_pct, counter_price, counter_status, provider:profiles!proposals_provider_id_fkey(id, full_name, handle, rating, jobs_done, avatar_path, category:service_categories!profiles_category_id_fkey(name, slug))",
       )
       .eq("request_id", id)
       .order("price", { ascending: true });

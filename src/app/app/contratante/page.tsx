@@ -20,6 +20,8 @@ export default async function ContratanteHome() {
   const { data: cats } = await supabase
     .from("service_categories")
     .select("*")
+    .eq("hidden", false)
+    .order("featured", { ascending: false })
     .order("name");
   const categories = (cats as ServiceCategory[]) ?? [];
 

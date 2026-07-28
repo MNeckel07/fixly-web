@@ -147,10 +147,10 @@ export function ProfilerEditor({
             <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray"><Wallet className="h-4 w-4" /> Adiantamento padrão</span>
             <span className="text-sm font-semibold text-ink">{f.advance_pct}%</span>
           </div>
-          <input type="range" min={0} max={100} step={5} value={f.advance_pct} onChange={(e) => setF((p) => ({ ...p, advance_pct: Number(e.target.value) }))} className="w-full accent-[#FFC107] mt-2" />
+          <input type="range" min={0} max={50} step={5} value={Math.min(f.advance_pct, 50)} onChange={(e) => setF((p) => ({ ...p, advance_pct: Number(e.target.value) }))} className="w-full accent-[#FFC107] mt-2" />
           <p className="text-xs text-gray-light mt-1">
-            Quanto você quer receber <b>antes</b> de concluir o serviço (o resto sai ao aprovar). Vem pré-preenchido nas suas propostas.
-            Quanto mais adiantado, maior a taxa — então você recebe um pouco menos.
+            Quanto você quer receber <b>antes</b> de concluir (máx <b>50%</b>; o resto sai ao aprovar). Vem pré-preenchido nas suas propostas.
+            O contratante precisa <b>aprovar</b> o adiantamento, e quanto mais adiantado, maior a taxa — então você recebe um pouco menos.
           </p>
         </div>
 

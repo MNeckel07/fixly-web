@@ -38,9 +38,29 @@ export function LocationPicker({
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (p) => {
-        onChange({ lat: p.coords.latitude, lng: p.coords.longitude });
-        setStatus("Localização obtida pelo GPS.");
+      async (p) => {
+        const loc = { lat: p.coords.latitude, lng: p.coords.longitude };
+        onChange(loc);
+        setStatus("Localização obtida — buscando o endereço...");
+        // reverse geocode: preenche o nome da rua (antes ficava vazio)
+        try {
+          const r = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&addressdetails=1&lat=${loc.lat}&lon=${loc.lng}`,
+            { headers: { "Accept-Language": "pt-BR" } },
+          ).then((res) => res.json());
+          const a = r?.address ?? {};
+          const rua = [a.road, a.suburb || a.neighbourhood || a.bairro, a.city || a.town || a.municipality]
+            .filter(Boolean)
+            .join(", ");
+          if (rua) {
+            onAddress?.(rua);
+            setStatus(`Local: ${rua}`);
+          } else {
+            setStatus("Localização obtida pelo GPS.");
+          }
+        } catch {
+          setStatus("Localização obtida pelo GPS.");
+        }
       },
       (err) => {
         setStatus(

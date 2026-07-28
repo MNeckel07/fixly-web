@@ -17,7 +17,7 @@ export default async function CadastroRolePage({
 
   const [{ data: catData }, { data: docData }] = await Promise.all([
     role === "prestador"
-      ? supabase.from("service_categories").select("*").order("name")
+      ? supabase.from("service_categories").select("*").eq("hidden", false).order("name")
       : Promise.resolve({ data: [] as ServiceCategory[] }),
     supabase
       .from("document_types")

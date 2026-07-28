@@ -32,13 +32,21 @@ export default async function PrestadorHome() {
 
   const { data: myProps } = await supabase
     .from("proposals")
-    .select("request_id, price, eta_minutes")
+    .select("request_id, price, eta_minutes, advance_pct, counter_price, counter_status")
     .eq("provider_id", profile.id);
 
-  const propMap: Record<string, { price: number; eta: number | null }> = {};
+  const propMap: Record<string, { price: number; eta: number | null; advance_pct: number; counter_price: number | null; counter_status: string | null }> = {};
   (myProps ?? []).forEach((p: any) => {
-    propMap[p.request_id] = { price: p.price, eta: p.eta_minutes };
+    propMap[p.request_id] = { price: p.price, eta: p.eta_minutes, advance_pct: p.advance_pct ?? 0, counter_price: p.counter_price, counter_status: p.counter_status };
   });
+
+  // prestador ocupado = já tem um serviço em andamento
+  const { count: activeCount } = await supabase
+    .from("service_requests")
+    .select("*", { count: "exact", head: true })
+    .eq("provider_id", profile.id)
+    .in("status", ["a_caminho", "em_andamento"]);
+  const busy = (activeCount ?? 0) > 0;
 
   const radius = profile.service_radius_km ?? 10;
   const requests = (open ?? [])
@@ -80,6 +88,7 @@ export default async function PrestadorHome() {
       jobsDone={profile!.jobs_done ?? 0}
       basePrice={profile!.base_price ?? 0}
       defaultAdvancePct={profile!.advance_pct ?? 0}
+      busy={busy}
     />
   );
 }

@@ -20,7 +20,7 @@ type Req = {
   photos: string[] | null;
   category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
-  myProposal: { price: number; eta: number | null } | null;
+  myProposal: { price: number; eta: number | null; advance_pct: number; counter_price: number | null; counter_status: string | null } | null;
 };
 
 export function PedidosBoard({
@@ -30,6 +30,7 @@ export function PedidosBoard({
   jobsDone,
   basePrice,
   defaultAdvancePct = 0,
+  busy = false,
 }: {
   requests: Req[];
   providerName: string;
@@ -37,8 +38,10 @@ export function PedidosBoard({
   jobsDone: number;
   basePrice: number;
   defaultAdvancePct?: number;
+  busy?: boolean;
 }) {
   const [online, setOnline] = useState(true);
+  const available = online && !busy;
 
   return (
     <div className="space-y-6">
@@ -47,14 +50,23 @@ export function PedidosBoard({
         <div className="flex items-center justify-between relative">
           <div>
             <p className="text-white/60 text-sm">Olá, {providerName.split(" ")[0]}</p>
-            <p className="text-xl font-bold">{online ? "Você está online" : "Você está offline"}</p>
+            <p className="text-xl font-bold">
+              {busy ? "Você está ocupado" : online ? "Você está online" : "Você está offline"}
+            </p>
+            {busy && <p className="text-warning text-sm mt-0.5">Em um serviço agora — conclua para receber novos pedidos.</p>}
           </div>
-          <button
-            onClick={() => setOnline((v) => !v)}
-            className={`h-8 w-14 rounded-full p-1 transition ${online ? "bg-success" : "bg-white/20"}`}
-          >
-            <span className={`block h-6 w-6 rounded-full bg-white transition ${online ? "translate-x-6" : ""}`} />
-          </button>
+          {busy ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-warning bg-warning/15 px-3 py-1.5 rounded-full self-start">
+              Ocupado
+            </span>
+          ) : (
+            <button
+              onClick={() => setOnline((v) => !v)}
+              className={`h-8 w-14 rounded-full p-1 transition ${online ? "bg-success" : "bg-white/20"}`}
+            >
+              <span className={`block h-6 w-6 rounded-full bg-white transition ${online ? "translate-x-6" : ""}`} />
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-3 gap-3 mt-5 relative">
           <Stat label="Avaliação" value={jobsDone > 0 ? rating.toFixed(1) : "Novo"} />
@@ -69,7 +81,11 @@ export function PedidosBoard({
           <span className="text-sm text-gray-light">{requests.length} na sua região</span>
         </div>
 
-        {!online ? (
+        {busy ? (
+          <div className="bg-white rounded-2xl border border-black/5 p-10 text-center text-gray">
+            Você está <b>ocupado</b> em um serviço. Conclua o atual para pegar novos pedidos.
+          </div>
+        ) : !online ? (
           <div className="bg-white rounded-2xl border border-black/5 p-10 text-center text-gray">
             Fique <b>online</b> para receber pedidos.
           </div>
@@ -95,11 +111,27 @@ export function PedidosBoard({
 
 function RequestCard({ r, basePrice, defaultAdvancePct }: { r: Req; basePrice: number; defaultAdvancePct: number }) {
   const [value, setValue] = useState<string>(String(r.myProposal?.price ?? basePrice));
-  const [advancePct, setAdvancePct] = useState<number>(defaultAdvancePct);
+  const [advancePct, setAdvancePct] = useState<number>(Math.min(defaultAdvancePct, 50));
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(!!r.myProposal);
   const [error, setError] = useState("");
+  const [counterStatus, setCounterStatus] = useState<string | null>(r.myProposal?.counter_status ?? null);
+  const counterPrice = r.myProposal?.counter_price ?? null;
   const photos = r.photos ?? [];
+
+  async function respondCounter(accept: boolean) {
+    setBusy(true);
+    setError("");
+    const supabase = createClient();
+    const patch = accept && counterPrice != null
+      ? { price: counterPrice, counter_status: "aceita" }
+      : { counter_status: "recusada" };
+    const { error } = await supabase.from("proposals").update(patch).eq("request_id", r.id);
+    setBusy(false);
+    if (error) return setError(error.message);
+    setCounterStatus(accept ? "aceita" : "recusada");
+    if (accept && counterPrice != null) setValue(String(counterPrice));
+  }
 
   const price = Number(value) || 0;
   const advanceFee = Math.round(((price * advancePct) / 100) * ADVANCE_FEE_RATE * 100) / 100;
@@ -157,13 +189,36 @@ function RequestCard({ r, basePrice, defaultAdvancePct }: { r: Req; basePrice: n
       )}
 
       {sent ? (
-        <div className="mt-3 flex items-center justify-between rounded-xl bg-success/5 px-4 py-3">
-          <span className="inline-flex items-center gap-1.5 text-sm text-success font-medium">
-            <Check className="h-4 w-4" /> Proposta enviada: {brl(Number(value))}
-          </span>
-          <button onClick={() => setSent(false)} className="text-xs text-gray hover:text-ink underline">
-            alterar
-          </button>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between rounded-xl bg-success/5 px-4 py-3">
+            <span className="inline-flex items-center gap-1.5 text-sm text-success font-medium">
+              <Check className="h-4 w-4" /> Proposta enviada: {brl(Number(value))}
+            </span>
+            {counterStatus !== "pendente" && (
+              <button onClick={() => setSent(false)} className="text-xs text-gray hover:text-ink underline">
+                alterar
+              </button>
+            )}
+          </div>
+
+          {counterStatus === "pendente" && counterPrice != null && (
+            <div className="rounded-xl bg-info/5 border border-info/20 px-4 py-3">
+              <p className="text-sm text-ink">
+                O contratante fez uma <b>contra-proposta</b>: <b>{brl(counterPrice)}</b>
+              </p>
+              <div className="flex items-center gap-3 mt-2">
+                <Button size="sm" loading={busy} onClick={() => respondCounter(true)}>Aceitar {brl(counterPrice)}</Button>
+                <button onClick={() => respondCounter(false)} disabled={busy} className="text-sm text-gray hover:text-danger">Recusar</button>
+              </div>
+            </div>
+          )}
+          {counterStatus === "aceita" && (
+            <p className="text-xs text-success">Contra-proposta aceita — novo valor {brl(Number(value))}.</p>
+          )}
+          {counterStatus === "recusada" && (
+            <p className="text-xs text-gray-light">Você recusou a contra-proposta; vale sua proposta original.</p>
+          )}
+          {error && <p className="text-xs text-danger">{error}</p>}
         </div>
       ) : (
         <div className="mt-3">
@@ -184,9 +239,9 @@ function RequestCard({ r, basePrice, defaultAdvancePct }: { r: Req; basePrice: n
           </div>
           <div className="mt-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs text-gray-light">Receber adiantado: <b className="text-ink">{advancePct}%</b></label>
+              <label className="text-xs text-gray-light">Receber adiantado: <b className="text-ink">{advancePct}%</b> <span className="text-gray-light">(máx 50%)</span></label>
               <div className="flex gap-1">
-                {[0, 30, 50, 100].map((p) => (
+                {[0, 25, 50].map((p) => (
                   <button
                     key={p}
                     type="button"
@@ -198,7 +253,7 @@ function RequestCard({ r, basePrice, defaultAdvancePct }: { r: Req; basePrice: n
                 ))}
               </div>
             </div>
-            <input type="range" min={0} max={100} step={5} value={advancePct} onChange={(e) => setAdvancePct(Number(e.target.value))} className="w-full accent-[#FFC107] mt-1" />
+            <input type="range" min={0} max={50} step={5} value={advancePct} onChange={(e) => setAdvancePct(Number(e.target.value))} className="w-full accent-[#FFC107] mt-1" />
             <p className="text-[11px] text-gray-light">
               Quanto mais adiantado, maior a taxa. Você recebe (líquido): <b className="text-success">{brl(net)}</b>
               {advancePct > 0 && <> — sendo <b className="text-ink">{brl(Math.max((price * advancePct) / 100 - advanceFee - ((price * 0.15) * advancePct) / 100, 0))}</b> ao contratar</>}

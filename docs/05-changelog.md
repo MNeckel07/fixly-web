@@ -2,6 +2,26 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v7 — Melhoras (docs "Fixy part 5", migração 0021)
+- **Catálogo curado:** 8 serviços em **destaque** (`featured`) + **busca** + **"Ver
+  todos"** nos seletores (Express/Orçamento/Reforma) e no home, com ícones
+  **coloridos** pela cor da categoria. Banheiros e "faz-tudo" **ocultos** (`hidden`).
+- **Modalidade no Solicitar:** "+ Solicitar" abre um seletor Express/Orçamento/Reforma.
+- **Express sem preço automático:** `dispatch_request` não cria mais proposta com
+  valor — o **prestador digita o preço** (resolve "propostas vindo com valor incluso").
+- **Prestador "ocupado":** quando já está em um serviço (a_caminho/em_andamento),
+  aparece Ocupado e não pega novos pedidos; o dispatch também o ignora.
+- **Adiantamento:** teto de **50%** (perfil, proposta e orçamento) + o **contratante
+  aprova** a liberação do adiantamento (`advance_approved`, `approveAdvance`).
+- **Contra-proposta:** o contratante negocia o preço (`proposals.counter_price`/
+  `counter_status`); o prestador aceita/recusa no board.
+- **% de adiantamento** aparece na proposta; roteador melhorado (termos decisivos,
+  ex.: "muro" → Alvenaria); **GPS agora preenche a rua** (reverse geocode Nominatim);
+  **complemento obrigatório**; hint "marque tudo o que você faz" no cadastro.
+- **Cartão QR** redesenhado (horizontal, tema escuro, avatar + badge + selo).
+- Rótulo "Proposta **recebida**" (contratante); rótulo curto no menu mobile.
+- **Adiado:** confirmação de e-mail real (falta Resend key) e notificações.
+
 ## v1 — Base
 - Scaffold Next 16 + Supabase; login único + 3 papéis; cadastro com upload de
   documentos + aprovação do admin (e-mail); app do contratante e do prestador;

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { SolicitarFlow } from "@/components/contratante/SolicitarFlow";
 import { OrcamentoFlow } from "@/components/contratante/OrcamentoFlow";
+import { ModalityChooser } from "@/components/contratante/ModalityChooser";
 import type { ServiceCategory } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,12 @@ export default async function SolicitarPage({
   const { profile } = await getProfile();
   if (!profile) redirect("/login");
 
-  const { data: cats } = await supabase.from("service_categories").select("*").order("name");
+  // "+ Solicitar" sem modalidade → deixa o contratante escolher express/orçamento/reforma
+  if (!modo && !cat) {
+    return <ModalityChooser />;
+  }
+
+  const { data: cats } = await supabase.from("service_categories").select("*").eq("hidden", false).order("name");
   const categories = (cats as ServiceCategory[]) ?? [];
 
   const clientInfo = {

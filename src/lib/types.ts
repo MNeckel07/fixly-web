@@ -19,6 +19,8 @@ export interface ServiceCategory {
   icon: string;
   color: string;
   base_price: number;
+  featured?: boolean;
+  hidden?: boolean;
 }
 
 export interface Profile {

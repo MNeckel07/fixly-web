@@ -55,7 +55,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
   const pageUrl = `${appUrl}/p/${prov.handle}`;
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen bg-canvas overflow-x-hidden">
       {/* topo */}
       <header className="bg-ink text-white">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
@@ -91,11 +91,11 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
               </div>
               <p className="text-gray">{category?.name ?? "Profissional"}</p>
               {prov.headline && <p className="text-sm text-ink mt-1">{prov.headline}</p>}
-              <div className="flex items-center gap-4 mt-2 text-sm text-gray">
-                <span className="inline-flex items-center gap-1"><Star className="h-4 w-4 fill-primary text-primary" /> {rep.label}</span>
-                <span className="inline-flex items-center gap-1"><BadgeCheck className="h-4 w-4" /> {prov.jobs_done ?? 0} serviços</span>
-                <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {followers ?? 0} seguidores</span>
-                {prov.city && <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {prov.city}</span>}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-gray">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap"><Star className="h-4 w-4 fill-primary text-primary" /> {rep.label}</span>
+                <span className="inline-flex items-center gap-1 whitespace-nowrap"><BadgeCheck className="h-4 w-4" /> {prov.jobs_done ?? 0} serviços</span>
+                <span className="inline-flex items-center gap-1 whitespace-nowrap"><Users className="h-4 w-4" /> {followers ?? 0} seguidores</span>
+                {prov.city && <span className="inline-flex items-center gap-1 whitespace-nowrap"><MapPin className="h-4 w-4" /> {prov.city}</span>}
               </div>
             </div>
           </div>

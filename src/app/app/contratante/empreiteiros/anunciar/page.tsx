@@ -12,7 +12,7 @@ export default async function AnunciarPage() {
   const { userId } = await getProfile();
   if (!userId) redirect("/login");
 
-  const { data: cats } = await supabase.from("service_categories").select("id, name, slug").order("name");
+  const { data: cats } = await supabase.from("service_categories").select("id, name, slug").eq("hidden", false).order("name");
   const { data: listing } = await supabase
     .from("empreiteiros")
     .select("id, company_name, category_id, category_ids, handle, specialties, description, city, phone, whatsapp, subscription_active, subscription_until")

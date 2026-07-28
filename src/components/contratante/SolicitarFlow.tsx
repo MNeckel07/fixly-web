@@ -7,10 +7,10 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Textarea, Input, Label } from "@/components/ui/Field";
 import { LocationPicker } from "@/components/map/LocationPicker";
-import { CategoryIcon } from "@/components/ui/icons";
+import { CategoryPicker } from "@/components/contratante/CategoryPicker";
 import { PhotoPicker } from "@/components/contratante/PhotoPicker";
 import { MapPin } from "lucide-react";
-import { REFORMA_SLUGS, descriptionExample } from "@/lib/categoryRouter";
+import { descriptionExample } from "@/lib/categoryRouter";
 import { uploadRequestPhotos } from "@/lib/uploads";
 import type { ServiceCategory } from "@/lib/types";
 
@@ -76,6 +76,7 @@ export function SolicitarFlow({
     if (!category) return;
     if (!description.trim()) return setError("Descreva o que você precisa.");
     if (!houseNumber.trim()) return setError("Informe o número da residência.");
+    if (!complement.trim()) return setError("Informe o complemento (apto/bloco ou uma referência).");
     setError("");
     setBusy(true);
 
@@ -116,33 +117,20 @@ export function SolicitarFlow({
     router.refresh();
   }
 
-  const shownCategories = reformaOnly
-    ? categories.filter((c) => REFORMA_SLUGS.includes(c.slug))
-    : categories;
-
   return (
     <div className="max-w-xl mx-auto">
       <Stepper step={step} />
 
       {step === "categoria" && (
         <Card title={reformaOnly ? "Reforma — o que você precisa?" : "O que você precisa?"} subtitle="Escolha a categoria do serviço">
-          <div className="grid grid-cols-2 gap-3">
-            {shownCategories.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => {
-                  setCategory(c);
-                  setStep("detalhes");
-                }}
-                className="flex items-center gap-3 rounded-xl border border-black/10 bg-white p-4 hover:border-primary hover:bg-primary/5 transition text-left"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-canvas text-ink">
-                  <CategoryIcon slug={c.slug} className="h-5 w-5" />
-                </span>
-                <span className="block font-medium text-ink text-sm">{c.name}</span>
-              </button>
-            ))}
-          </div>
+          <CategoryPicker
+            categories={categories}
+            reformaOnly={reformaOnly}
+            onPick={(c) => {
+              setCategory(c);
+              setStep("detalhes");
+            }}
+          />
         </Card>
       )}
 
@@ -198,8 +186,8 @@ export function SolicitarFlow({
               </div>
             </div>
             <div>
-              <Label>Complemento (apto, bloco, referência)</Label>
-              <Input value={complement} onChange={(e) => setComplement(e.target.value)} placeholder="Ex.: Apto 42, bloco B — portão azul" />
+              <Label>Complemento (apto, bloco, referência) *</Label>
+              <Input value={complement} onChange={(e) => setComplement(e.target.value)} placeholder="Ex.: Apto 42, bloco B (ou 'casa')" />
             </div>
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">

@@ -10,7 +10,12 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage() {
   // todas as categorias cadastradas (leitura pública via RLS cat_read)
   const supabase = await createClient();
-  const { data: cats } = await supabase.from("service_categories").select("name").order("name");
+  const { data: cats } = await supabase
+    .from("service_categories")
+    .select("name")
+    .eq("hidden", false)
+    .order("featured", { ascending: false })
+    .order("name");
   const services = (cats ?? []).map((c) => c.name);
 
   return (

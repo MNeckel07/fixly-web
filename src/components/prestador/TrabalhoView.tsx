@@ -46,7 +46,7 @@ export function TrabalhoView({
   const [convId, setConvId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [quoteValue, setQuoteValue] = useState("");
-  const [advancePct, setAdvancePct] = useState(defaultAdvancePct);
+  const [advancePct, setAdvancePct] = useState(Math.min(defaultAdvancePct, 50));
   const [quoteErr, setQuoteErr] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -215,14 +215,14 @@ export function TrabalhoView({
             </div>
             <div className="mb-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs text-gray-light">Receber adiantado: <b className="text-ink">{advancePct}%</b></label>
+                <label className="text-xs text-gray-light">Receber adiantado: <b className="text-ink">{advancePct}%</b> <span className="text-gray-light">(máx 50%)</span></label>
                 <div className="flex gap-1">
-                  {[0, 30, 50, 100].map((p) => (
+                  {[0, 25, 50].map((p) => (
                     <button key={p} type="button" onClick={() => setAdvancePct(p)} className={`text-[11px] px-2 py-0.5 rounded-full border transition ${advancePct === p ? "border-primary bg-primary/10 text-ink font-medium" : "border-black/10 text-gray"}`}>{p}%</button>
                   ))}
                 </div>
               </div>
-              <input type="range" min={0} max={100} step={5} value={advancePct} onChange={(e) => setAdvancePct(Number(e.target.value))} className="w-full accent-[#FFC107] mt-1" />
+              <input type="range" min={0} max={50} step={5} value={advancePct} onChange={(e) => setAdvancePct(Number(e.target.value))} className="w-full accent-[#FFC107] mt-1" />
               {advancePct > 0 && Number(quoteValue) > 0 && (
                 <p className="text-[11px] text-gray-light">
                   Taxa de adiantamento: <b className="text-ink">- {brl(Math.round((Number(quoteValue) * advancePct / 100) * ADVANCE_FEE_RATE * 100) / 100)}</b> (quanto mais adiantado, menos líquido)

@@ -78,12 +78,42 @@ export function descriptionExample(slug: string | null | undefined): string {
   return (slug && DESCRIPTION_EXAMPLES[slug]) || "Ex.: Descreva o que você precisa, com o máximo de detalhes.";
 }
 
+/**
+ * Termos DECISIVOS: quando aparecem, mandam na categoria mesmo que o texto
+ * também cite palavras de outra (ex.: "fazer um muro no jardim" → Alvenaria,
+ * não Jardinagem). Sempre checados primeiro.
+ */
+const DECISIVE: Record<string, string> = {
+  muro: "alvenaria",
+  murinho: "alvenaria",
+  reboco: "alvenaria",
+  "assentar tijolo": "alvenaria",
+  "quadro de energia": "eletricista",
+  "caixa de gordura": "encanador",
+  "vaso sanitário": "encanador",
+  "forro de gesso": "gesso",
+  drywall: "gesso",
+  porcelanato: "pisos",
+  rejunte: "pisos",
+  "guarda-roupa": "marcenaria",
+  telha: "telhados",
+  infiltração: "impermeabilizacao",
+};
+
 export function routeCategory(text: string): { slug: string; matched: boolean } {
   const t = text.toLowerCase();
+
+  // 1) termo decisivo (o mais longo que casar vence)
+  const decisiveHit = Object.entries(DECISIVE)
+    .filter(([term]) => t.includes(term))
+    .sort((a, b) => b[0].length - a[0].length)[0];
+  if (decisiveHit) return { slug: decisiveHit[1], matched: true };
+
+  // 2) pontuação por palavras-chave (peso maior p/ termo mais específico/longo)
   let best: string | null = null;
   let score = 0;
   for (const [slug, kws] of Object.entries(KEYWORDS)) {
-    const s = kws.reduce((n, k) => n + (t.includes(k) ? 1 : 0), 0);
+    const s = kws.reduce((n, k) => n + (t.includes(k) ? k.length : 0), 0);
     if (s > score) {
       score = s;
       best = slug;
