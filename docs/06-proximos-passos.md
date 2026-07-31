@@ -1,35 +1,51 @@
 # 06 — Próximos passos e instruções para a próxima sessão
 
-# 🔴🔴 COMECE POR AQUI: FALTA O PUSH E A PRODUÇÃO ESTÁ QUEBRADA
+# ✅ v8 + v9 PUBLICADAS (2026-07-30, commit `8a1d207`)
 
-**Situação em 2026-07-30 (fim da sessão da v9):** o trabalho das versões **v8,
-v8.1, v8.2 e v9 está COMMITADO**, mas **não foi publicado** — o dono precisa
-autorizar o push. Enquanto isso, o que roda no `fixly.company` é a **v7**.
+O trabalho das versões **v8, v8.1, v8.2 e v9** foi commitado e **publicado** —
+`86e0a6c..8a1d207`. O Render republicou e a produção saiu da v7.
 
-**Como isso foi descoberto:** o `check-mp.mjs` apontado para produção devolveu
-**404** na rota `/api/pagamentos/webhook`. Rota nova que responde 404 = código
-não subiu (503 seria "subiu e falta variável"). A `docs/06` afirmava, até então,
+**Verificado em produção depois do deploy (não é suposição):**
+- `GET /api/pagamentos/webhook` → **200** (antes era 404);
+- webhook assinado → assinatura **aceita** (não 401 ⇒ `MP_WEBHOOK_SECRET` do
+  Render bate com o painel; não 503 ⇒ `MP_ACCESS_TOKEN` está lá);
+- o MP respondeu `400 payment_id attribute can't be less than or equal to zero`
+  ⇒ a credencial do Render é um **Access Token de verdade**. Se fosse a Public
+  Key trocada, viria `403 At least one policy returned UNAUTHORIZED`;
+- varredura de 877 KB do JS público: **o Access Token não aparece** em nenhum
+  arquivo servido;
+- `/login` e `/cadastro` respondendo 200.
+
+**Como o problema tinha sido descoberto:** o `check-mp.mjs` apontado para
+produção devolveu **404** na rota do webhook. Rota nova que responde 404 = código
+não subiu; 503 seria "subiu e falta variável". A `docs/06` afirmava, até então,
 que a v8 estava "no ar em modo degradado" — **doc não é prova de deploy**.
+
+**Ambiente do MP em produção: TESTE** (credenciais `TEST-`). Nenhum dinheiro real
+entra ainda; a virada para produção é a Parte 5 do plano em `docs/09`.
 
 **Por que é urgente:** a migração **0022 JÁ FOI APLICADA no banco de produção**,
 e ela aperta uma regra — só o contratante pode concluir um serviço. O código que
 está **no ar** ainda conclui pelo prestador, então **"Concluir serviço" está
 quebrado em produção** desde então.
 
-```bash
-cd sistema-web
-npx tsc --noEmit && npm run build     # limpo em 30/07
-git push origin main                  # Render publica sozinho
-# depois: curl -s https://fixly.company/api/pagamentos/webhook  → tem que sair do 404
-```
-O push também é o que ativa a **Brevo** em produção (as variáveis já estão no
-Render, mas o código que fala com ela não subiu).
+## O que falta testar na tela (com credencial de TESTE)
+1. **Selo Fix ponta a ponta** — `contratante@fixly.com.br`: pedir → aceitar →
+   "Seguir sem pagamento" → concluir → aprovar. Conferir que **Admin → Vendas**
+   ignora esse serviço e que a carteira do prestador não muda.
+2. **Cartão de teste** — titular `APRO` aprova, `OTHE` recusa. Conferir os
+   **dois preços** na tela (Pix e cartão com acréscimo) e que o prestador recebe
+   o mesmo nos dois.
+3. **Webhook** — no painel do MP, "simular notificação": tem que dar 200.
 
-> 🔴 **Antes do push, decidir sobre o Mercado Pago.** O Render **não** tem
-> `MP_ACCESS_TOKEN`. Sem ela o `gateway.ts` cai no **modo mock**: o serviço é
-> marcado como pago sem entrar dinheiro nenhum. Com o **Arthur** (única conta
-> real, sem Selo Fix) isso é risco de verdade. Ou sobem as credenciais junto com
-> o push, ou o pagamento em produção fica fingindo.
+> ⚠️ **Pix em modo teste não pode ser pago pelo app do banco** — credencial
+> `TEST-` só aceita conta de teste do MP. Quem valida o Pix de verdade é o teste
+> de R$ 1,00 depois da virada para produção.
+
+> 🔴 **Pendência antes da virada:** existem **14 pagamentos simulados somando
+> R$ 17.103** no banco, do tempo do mock. Quando o dinheiro virar real eles
+> poluem `Admin → Vendas` e a carteira dos prestadores. Limpar **com o ok do
+> dono** — apaga histórico.
 
 ## PONTO DE PARADA EXATO (30/07/2026)
 
