@@ -30,5 +30,7 @@ Todas idempotentes. Rodar com `npm run db:apply` (lista em `scripts/apply-schema
 
 | 0023 | `selo_fix` | **Selo Fix — fluxo sem cobrança.** `profiles.fix_badge` (só admin liga; entrou na lista protegida do `guard_profile_changes`) e `service_requests.no_charge`. `dispatch_request` ganha **isolamento assimétrico**: prestador COM selo não recebe pedido de conta SEM selo, mas conta COM selo continua alcançando prestador real (é assim que o pagamento entra em vigor). Marca todas as contas existentes com selo, **menos o Arthur**. ⚠️ o `update` final precisa de `set_config('fixly.guard_bypass','on',true)` — conexão direta ao banco não tem `auth.uid()` e o guard recusaria |
 
+| 0024 | `cancelamento_e_tempo_real` | `service_requests.cancel_reason` + a tabela **entra na publicação `supabase_realtime`**. É o que faz o pedido novo aparecer NA HORA no quadro do prestador (antes só no `AutoRefresh` de 15 s). O Realtime respeita a RLS: só chega evento de pedido que o prestador já poderia ler |
+
 **Observação:** `pricing_rules` (0009/0012) ficou **sem uso** após o pivô 0015 —
 a aba admin de Precificação foi removida. A tabela permanece (inócua).

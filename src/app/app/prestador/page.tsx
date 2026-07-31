@@ -25,7 +25,7 @@ export default async function PrestadorHome() {
   const { data: open } = await supabase
     .from("service_requests")
     .select(
-      "id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, photos, category_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)",
+      "id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, photos, category_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city, fix_badge)",
     )
     .in("status", ["buscando", "proposta_enviada"])
     .order("created_at", { ascending: false })
@@ -89,6 +89,12 @@ export default async function PrestadorHome() {
   const radius = profile.service_radius_km ?? 10;
   const requests = (open ?? [])
     .filter((r: any) => {
+      // SELO FIX (mesma regra do `dispatch_request`, 0023): prestador COM selo
+      // não enxerga pedido de cliente real — evitaria o cliente receber proposta
+      // de conta de vitrine. O contrário é permitido: conta com selo alcança
+      // prestador real, e aí a cobrança entra em vigor.
+      const cliente = Array.isArray(r.client) ? r.client[0] : r.client;
+      if (profile.fix_badge && !cliente?.fix_badge) return false;
       // só categorias que ele atende
       if (myCategoryIds.size > 0 && r.category_id && !myCategoryIds.has(r.category_id)) return false;
       // respeita o raio de atendimento (quando há coordenadas)

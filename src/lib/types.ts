@@ -49,6 +49,8 @@ export interface Profile {
   reviewed_at: string | null;
   reject_reason: string | null;
   created_at: string;
+  /** Selo Fix (0023): conta roda o fluxo sem gateway. Só admin altera. */
+  fix_badge?: boolean;
   // v2
   active: boolean;
   birth_date: string | null;

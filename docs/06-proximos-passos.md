@@ -116,8 +116,30 @@ Reformas no `SolicitarFlow`).
   assinatura?). Detecta a troca Public Key × Access Token, que é o erro nº 1 e
   devolve um `403` do MP que não explica nada.
 
-## Estado atual (2026-07-30)
-- **Migrações aplicadas:** 0001–**0023**.
+## v9.1 (2026-07-31): cancelamento do prestador + pedidos em tempo real
+
+- **Prestador pode desistir** (`cancelJobAsProvider`). O desfecho é decidido no
+  servidor pelo estado do pagamento: proposta ainda não escolhida → retira a
+  proposta; escolhido e **não pago** → o pedido **volta para a fila**
+  (`provider_id=null`, `buscando`); escolhido e **pago** → **estorna o
+  contratante** e cancela. O estorno vem ANTES de mexer no banco.
+  Antes disso o botão "Recusar" só existia no status `aceito` e fazia um update
+  direto para `cancelado` — matava o pedido do cliente e deixava o dinheiro preso.
+- **Tempo real** (migração 0024): o quadro do prestador assina `postgres_changes`
+  em `service_requests`. Pedido novo aparece na hora; o `AutoRefresh` de 15 s
+  continua como rede de segurança.
+- **Isolamento do Selo Fix na lista do prestador** — faltava. A RPC
+  `dispatch_request` já filtrava, mas a lista "Pedidos disponíveis" é uma query
+  separada e mostrava tudo.
+- ⚠️ **Dado de teste corrigido:** João Mendes e Ana Paula Lima estavam com
+  coordenadas de **São Paulo** (seed) — 337 km do dono. Nenhum pedido de
+  Encanador em Curitiba alcançava ninguém, e parecia bug de dispatch. Foram
+  movidos para Pinhais e Curitiba. **Robson continua com raio de 10 km e fica a
+  11,6 km** do endereço de teste do dono — se ele precisar entrar nos testes, é
+  o raio dele que precisa aumentar, na tela do próprio prestador.
+
+## Estado atual (2026-07-31)
+- **Migrações aplicadas:** 0001–**0024**.
 - Builda limpo (`tsc --noEmit` + `npm run build`).
 - ⚠️ **`npm run db:apply` continua QUEBRADO** (falha no 0004 por dado do 0008).
   Para migração nova use `scripts/apply-migration.mjs <arquivo>` (um arquivo, em

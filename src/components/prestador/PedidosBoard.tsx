@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Inbox, User, MapPin, Check, ArrowRight } from "lucide-react";
+import { Inbox, User, MapPin, Check, ArrowRight, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
+import { cancelJobAsProvider } from "@/app/app/prestador/actions";
 
 /** Job já atribuído a este prestador (orçamento/reforma ou Express aceito). */
 type MyJob = {
@@ -58,6 +60,29 @@ export function PedidosBoard({
 }) {
   const [online, setOnline] = useState(true);
   const available = online && !busy;
+  const router = useRouter();
+
+  /**
+   * Pedido novo aparece NA HORA. Sem isto, o prestador só descobria no
+   * `AutoRefresh` de 15 s — e o dono cobrou que fosse imediato.
+   * O Realtime respeita a RLS: só chega evento de pedido que ele já poderia
+   * ler. O AutoRefresh continua no ar como rede de segurança (aba que dormiu,
+   * wi-fi que caiu, websocket derrubado).
+   */
+  useEffect(() => {
+    const supabase = createClient();
+    const canal = supabase
+      .channel("pedidos-abertos")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "service_requests" },
+        () => router.refresh(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, [router]);
 
   return (
     <div className="space-y-6">
@@ -100,10 +125,10 @@ export function PedidosBoard({
           </div>
           <div className="space-y-3">
             {myJobs.map((j) => (
+              <div key={j.id} className="bg-white rounded-2xl border border-black/5 hover:border-primary/40 transition">
               <Link
-                key={j.id}
                 href="/app/prestador/trabalho"
-                className="block bg-white rounded-2xl border border-black/5 p-5 hover:border-primary/40 transition"
+                className="block p-5"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
@@ -136,7 +161,9 @@ export function PedidosBoard({
                 <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary-dark mt-3">
                   Abrir na aba Trabalho <ArrowRight className="h-4 w-4" />
                 </span>
-              </Link>
+                </Link>
+                <CancelarTrabalho requestId={j.id} />
+              </div>
             ))}
           </div>
         </div>
@@ -263,9 +290,25 @@ function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: numb
               <Check className="h-4 w-4" /> Proposta enviada: {brl(Number(value))}
             </span>
             {counterStatus !== "pendente" && (
-              <button onClick={() => setSent(false)} className="text-xs text-gray hover:text-ink underline">
-                alterar
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setSent(false)} className="text-xs text-gray hover:text-ink underline">
+                  alterar
+                </button>
+                <button
+                  onClick={async () => {
+                    setBusy(true);
+                    const res = await cancelJobAsProvider(r.id);
+                    setBusy(false);
+                    if (!res.ok) return setError(res.error ?? "Não foi possível retirar.");
+                    setSent(false);
+                    setValue("");
+                  }}
+                  disabled={busy}
+                  className="text-xs text-gray hover:text-danger underline disabled:opacity-50"
+                >
+                  retirar proposta
+                </button>
+              </div>
             )}
           </div>
 
@@ -331,6 +374,72 @@ function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: numb
           {error && <p className="text-xs text-danger mt-1">{error}</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Desistir de um serviço já aceito. O desfecho (devolver para a fila x estornar
+ * o cliente) é decidido no SERVIDOR, pelo estado real do pagamento — aqui a
+ * gente só explica antes e mostra o que aconteceu depois.
+ */
+function CancelarTrabalho({ requestId }: { requestId: string }) {
+  const router = useRouter();
+  const [confirmando, setConfirmando] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function confirmar() {
+    setBusy(true);
+    setErro("");
+    const res = await cancelJobAsProvider(requestId, motivo.trim() || undefined);
+    setBusy(false);
+    if (!res.ok) return setErro(res.error ?? "Não foi possível cancelar.");
+    setConfirmando(false);
+    router.refresh();
+  }
+
+  if (!confirmando) {
+    return (
+      <div className="px-5 pb-4 -mt-1">
+        <button
+          onClick={() => setConfirmando(true)}
+          className="inline-flex items-center gap-1.5 text-xs text-gray-light hover:text-danger transition"
+        >
+          <X className="h-3.5 w-3.5 shrink-0" /> Cancelar este trabalho
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 pb-4 -mt-1">
+      <div className="rounded-xl bg-danger/5 border border-danger/20 p-3">
+        <p className="text-xs text-ink">
+          Se o cliente <b>ainda não pagou</b>, o pedido volta para a fila e outro profissional
+          pode pegar. Se <b>já pagou</b>, o valor é estornado para ele e o serviço é cancelado.
+        </p>
+        <input
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="Motivo (opcional) — ajuda o suporte"
+          className="w-full h-9 px-3 mt-2 rounded-lg border border-black/10 text-sm outline-none focus:border-primary"
+        />
+        {erro && <p className="text-xs text-danger mt-2">{erro}</p>}
+        <div className="flex items-center gap-3 mt-2">
+          <Button size="sm" variant="danger" loading={busy} onClick={confirmar}>
+            Confirmar cancelamento
+          </Button>
+          <button
+            onClick={() => setConfirmando(false)}
+            disabled={busy}
+            className="text-xs text-gray hover:text-ink"
+          >
+            voltar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

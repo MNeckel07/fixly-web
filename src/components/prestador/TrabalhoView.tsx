@@ -11,6 +11,7 @@ import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
+import { cancelJobAsProvider } from "@/app/app/prestador/actions";
 
 type Job = {
   id: string;
@@ -45,6 +46,7 @@ export function TrabalhoView({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(job?.status ?? "aceito");
+  const [declineErr, setDeclineErr] = useState("");
   const [doneAt, setDoneAt] = useState<string | null>(job?.provider_done_at ?? null);
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -142,11 +144,19 @@ export function TrabalhoView({
     router.refresh();
   }
 
+  /**
+   * Desistir do serviço. Passa pela server action porque o desfecho depende do
+   * pagamento: sem pagamento o pedido volta para a fila; com pagamento retido, o
+   * contratante é estornado ANTES de qualquer coisa ser marcada no banco.
+   * (Antes daqui isto era um update direto para 'cancelado' — cancelava o pedido
+   * do cliente e deixava o dinheiro preso.)
+   */
   async function decline() {
     setBusy(true);
-    const supabase = createClient();
-    await supabase.from("service_requests").update({ status: "cancelado" }).eq("id", job!.id);
+    setDeclineErr("");
+    const res = await cancelJobAsProvider(job!.id);
     setBusy(false);
+    if (!res.ok) return setDeclineErr(res.error ?? "Não foi possível cancelar.");
     router.push("/app/prestador");
     router.refresh();
   }
@@ -254,10 +264,18 @@ export function TrabalhoView({
             {job.mode === "orcamento" ? "Orçamento enviado" : "Proposta aceita"} — aguardando o pagamento do cliente para iniciar.
           </div>
         )}
-        {status === "aceito" && (
-          <button onClick={decline} disabled={busy} className="w-full text-center text-sm text-gray hover:text-danger transition mt-3">
-            Recusar este pedido
-          </button>
+        {/* Desistir vale enquanto o serviço não terminou — não só no "aceito".
+            Era a reclamação: depois de aceitar, não havia como sair. */}
+        {["aceito", "a_caminho", "em_andamento"].includes(status) && !doneAt && (
+          <div className="mt-3">
+            <button onClick={decline} disabled={busy} className="w-full text-center text-sm text-gray hover:text-danger transition">
+              {status === "aceito" ? "Recusar este pedido" : "Cancelar este trabalho"}
+            </button>
+            <p className="text-[11px] text-gray-light text-center mt-1">
+              Sem pagamento, o pedido volta para a fila. Já pago, o cliente é estornado.
+            </p>
+            {declineErr && <p className="text-xs text-danger text-center mt-1">{declineErr}</p>}
+          </div>
         )}
         {status === "a_caminho" && !arrived && (
           <div className="text-center">
