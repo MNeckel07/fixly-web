@@ -4,6 +4,7 @@ import { useState } from "react";
 import { MapPin, Search, LocateFixed } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { RouteMap } from "@/components/map/RouteMap";
+import { ServiceAreaMap } from "@/components/map/ServiceAreaMap";
 
 export type Loc = { lat: number; lng: number };
 
@@ -20,12 +21,17 @@ export function LocationPicker({
   onAddress,
   height = 220,
   hideGps = false,
+  radiusKm,
+  onRadiusChange,
 }: {
   value: Loc | null;
   onChange: (loc: Loc) => void;
   onAddress?: (addr: string) => void;
   height?: number;
   hideGps?: boolean;
+  /** Com raio informado, o mapa vira o de ÁREA (círculo + slider embaixo). */
+  radiusKm?: number;
+  onRadiusChange?: (km: number) => void;
 }) {
   const [cep, setCep] = useState("");
   const [status, setStatus] = useState("");
@@ -137,7 +143,16 @@ export function LocationPicker({
 
       {status && <p className="text-xs text-gray">{status}</p>}
 
-      <RouteMap target={value ?? DEFAULT} targetKind="home" requestGps={false} showRoute={false} height={height} />
+      {radiusKm != null && onRadiusChange ? (
+        <ServiceAreaMap
+          center={value ?? DEFAULT}
+          radiusKm={radiusKm}
+          onRadiusChange={onRadiusChange}
+          height={height}
+        />
+      ) : (
+        <RouteMap target={value ?? DEFAULT} targetKind="home" requestGps={false} showRoute={false} height={height} />
+      )}
     </div>
   );
 }

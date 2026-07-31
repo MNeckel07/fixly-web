@@ -47,19 +47,14 @@ export function ServiceAreaEditor({
       </p>
 
       <Label>Localização base (GPS ou CEP)</Label>
-      <LocationPicker value={coords} onChange={setCoords} height={200} />
-
-      <div className="mt-4">
-        <Label>Raio de atendimento: {radius} km</Label>
-        <input
-          type="range"
-          min={1}
-          max={50}
-          value={radius}
-          onChange={(e) => setRadius(e.target.value)}
-          className="w-full accent-[#FFC107]"
-        />
-      </div>
+      {/* raio embaixo do mapa, com o círculo desenhado ao vivo */}
+      <LocationPicker
+        value={coords}
+        onChange={setCoords}
+        height={240}
+        radiusKm={Number(radius) || 10}
+        onRadiusChange={(km) => setRadius(String(km))}
+      />
 
       <div className="mt-4 flex items-center gap-3">
         <Button onClick={save} loading={saving} disabled={!coords}>

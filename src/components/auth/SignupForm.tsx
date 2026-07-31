@@ -3,15 +3,16 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Wrench, Home, FileText, Copy, Search, Sparkles } from "lucide-react";
+import { ArrowLeft, Wrench, Home, FileText, Copy, Search, Sparkles, MailCheck, ShieldCheck, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea, Select } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
 import { CategoryIcon } from "@/components/ui/icons";
 import { LocationPicker } from "@/components/map/LocationPicker";
-import { createAccount } from "@/app/cadastro/actions";
+import { createAccount, requestSignupCode, resendSignupCode, confirmSignupCode } from "@/app/cadastro/actions";
 import { PasswordField } from "@/components/auth/PasswordField";
+import { CodeInput } from "@/components/auth/CodeInput";
 import { isPasswordStrong } from "@/lib/password";
 import { geocodeCep } from "@/lib/geo";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
@@ -19,6 +20,9 @@ import { TERMS, TERMS_VERSION, termsPlainText } from "@/lib/terms";
 import type { ServiceCategory } from "@/lib/types";
 
 type DocType = { slug: string; label: string; required: boolean };
+
+/** Etapas: dados de acesso → código do e-mail → o cadastro completo. */
+type Stage = "conta" | "codigo" | "cadastro";
 
 export function SignupForm({
   role,
@@ -30,6 +34,7 @@ export function SignupForm({
   docTypes: DocType[];
 }) {
   const router = useRouter();
+  const [stage, setStage] = useState<Stage>("conta");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showTerms, setShowTerms] = useState(false);
@@ -37,18 +42,25 @@ export function SignupForm({
 
   // dados pessoais
   const [f, setF] = useState({
-    full_name: "", email: "", phone: "", cpf: "", rg: "", birth_date: "", gender: "",
+    first_name: "", last_name: "", email: "", phone: "", cpf: "", rg: "", birth_date: "", gender: "",
     zip_code: "", address: "", address_number: "", complement: "", neighborhood: "",
     city: "", state: "", password: "",
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }));
+  const fullName = `${f.first_name.trim()} ${f.last_name.trim()}`.trim();
+
+  // verificação de e-mail por código
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [code, setCode] = useState("");
+  const [verifiedToken, setVerifiedToken] = useState("");
+  const [devCode, setDevCode] = useState("");
+  const [resent, setResent] = useState(false);
 
   // prestador
   const [categoryIds, setCategoryIds] = useState<string[]>(categories[0] ? [categories[0].id] : []);
   const [catSearch, setCatSearch] = useState("");
   const [specialties, setSpecialties] = useState("");
-  const [basePrice, setBasePrice] = useState(categories[0]?.base_price?.toString() ?? "");
   const shownCats = catSearch.trim()
     ? categories.filter((c) => c.name.toLowerCase().includes(catSearch.trim().toLowerCase()))
     : categories;
@@ -61,12 +73,8 @@ export function SignupForm({
 
   const files = useRef<Record<string, File | null>>({});
 
-  function toggleCategory(id: string, price: number) {
-    setCategoryIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      if (!prev.includes(id) && !basePrice) setBasePrice(String(price));
-      return next;
-    });
+  function toggleCategory(id: string) {
+    setCategoryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
   const primaryCat = useMemo(() => categories.find((c) => c.id === categoryIds[0]), [categories, categoryIds]);
 
@@ -92,6 +100,51 @@ export function SignupForm({
     } catch { /* ignora */ }
   }
 
+  /* ── Etapa 1: dados de acesso → manda o código ───────────── */
+  async function submitConta(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const res = await requestSignupCode({
+      firstName: f.first_name,
+      lastName: f.last_name,
+      email: f.email,
+      phone: f.phone,
+      password: f.password,
+      passwordConfirm,
+    });
+    setLoading(false);
+    if (!res.ok) return setError(res.error ?? "Não foi possível enviar o código.");
+    setDevCode(res.devCode ?? "");
+    setCode("");
+    setStage("codigo");
+  }
+
+  /* ── Etapa 2: confere o código ───────────────────────────── */
+  async function submitCodigo(value?: string) {
+    const c = (value ?? code).replace(/\D/g, "");
+    if (c.length !== 6) return setError("Digite os 6 dígitos do código.");
+    setError("");
+    setLoading(true);
+    const res = await confirmSignupCode(f.email, c);
+    setLoading(false);
+    if (!res.ok || !res.token) return setError(res.error ?? "Código inválido.");
+    setVerifiedToken(res.token);
+    setStage("cadastro");
+  }
+
+  async function resend() {
+    setError("");
+    setLoading(true);
+    const res = await resendSignupCode(f.email);
+    setLoading(false);
+    if (!res.ok) return setError(res.error ?? "Não foi possível reenviar.");
+    setDevCode(res.devCode ?? "");
+    setResent(true);
+    setTimeout(() => setResent(false), 4000);
+  }
+
+  /* ── Etapa 3: cadastro completo ──────────────────────────── */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -106,8 +159,8 @@ export function SignupForm({
     setLoading(true);
     const supabase = createClient();
 
-    // cria a conta já confirmada no servidor (funciona com "Confirm email" ligado)
-    const acc = await createAccount(f.email, f.password, f.full_name);
+    // cria a conta já confirmada (o e-mail foi verificado por código na etapa 2)
+    const acc = await createAccount(f.email, f.password, fullName, verifiedToken);
     if (!acc.ok) { setError(acc.error ?? "Não foi possível criar a conta."); return setLoading(false); }
 
     const { data: si, error: siErr } = await supabase.auth.signInWithPassword({
@@ -121,10 +174,11 @@ export function SignupForm({
 
     const { error: profErr } = await supabase.from("profiles").upsert({
       id: userId, role, status: "pendente",
-      full_name: f.full_name, city: f.city, state: f.state,
+      full_name: fullName, city: f.city, state: f.state,
       terms_accepted_at: new Date().toISOString(), terms_version: TERMS_VERSION,
       ...(role === "prestador" && {
-        category_id: categoryIds[0], base_price: Number(basePrice) || null,
+        // sem preço-base: quem precifica é o prestador, proposta por proposta
+        category_id: categoryIds[0], base_price: null,
         service_radius_km: Number(radius) || 10, bio,
         specialties: specialties.trim() || null,
         lat: coords?.lat, lng: coords?.lng,
@@ -175,30 +229,144 @@ export function SignupForm({
 
   const t = TERMS[role];
 
+  const header = (
+    <>
+      <div className="flex items-center justify-between mb-8">
+        <Logo size={26} variant="dark" />
+        <Link href="/cadastro" className="inline-flex items-center gap-1 text-sm text-gray hover:text-ink">
+          <ArrowLeft className="h-4 w-4" /> Trocar perfil
+        </Link>
+      </div>
+
+      <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary-dark">
+        {role === "prestador" ? <Wrench className="h-4 w-4" /> : <Home className="h-4 w-4" />}
+        Cadastro de {ROLE_LABELS[role]}
+      </div>
+    </>
+  );
+
+  /* ── ETAPA 1: dados de acesso ───────────────────────────── */
+  if (stage === "conta") {
+    return (
+      <div className="flex flex-1 min-h-screen flex-col items-center bg-canvas px-6 py-10">
+        <form onSubmit={submitConta} className="w-full max-w-md">
+          {header}
+          <h1 className="text-2xl font-bold text-ink mt-3">Crie sua conta</h1>
+          <p className="text-gray mt-1">
+            Comece com seus dados básicos. Vamos enviar um código para confirmar seu e-mail.
+          </p>
+
+          <div className="mt-5 bg-white rounded-2xl border border-black/5 p-6 space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Nome"><Input required value={f.first_name} onChange={set("first_name")} placeholder="João" autoComplete="given-name" /></Field>
+              <Field label="Sobrenome"><Input required value={f.last_name} onChange={set("last_name")} placeholder="Silva" autoComplete="family-name" /></Field>
+            </div>
+            <Field label="E-mail">
+              <Input type="email" required value={f.email} onChange={set("email")} placeholder="voce@email.com" autoComplete="email" />
+            </Field>
+            <Field label="Telefone / WhatsApp">
+              <Input required value={f.phone} onChange={set("phone")} placeholder="(00) 00000-0000" autoComplete="tel" />
+            </Field>
+            <Field label="Senha">
+              <PasswordField
+                value={f.password}
+                onChange={(v) => setF((p) => ({ ...p, password: v }))}
+                showStrength
+                autoComplete="new-password"
+                placeholder="crie uma senha forte"
+              />
+            </Field>
+            <Field label="Confirme a senha">
+              <PasswordField
+                value={passwordConfirm}
+                onChange={setPasswordConfirm}
+                autoComplete="new-password"
+                placeholder="repita a senha"
+              />
+              {passwordConfirm.length > 0 && passwordConfirm !== f.password && (
+                <p className="text-xs text-danger mt-1.5">As senhas não são iguais.</p>
+              )}
+            </Field>
+          </div>
+
+          {error && <p className="mt-5 text-sm text-danger bg-danger/5 rounded-lg px-4 py-3">{error}</p>}
+
+          <div className="mt-6">
+            <Button type="submit" size="lg" fullWidth loading={loading}>Continuar</Button>
+          </div>
+          <p className="text-center text-sm text-gray mt-5">
+            Já tem conta? <Link href="/login" className="text-primary-dark font-semibold">Entrar</Link>
+          </p>
+        </form>
+      </div>
+    );
+  }
+
+  /* ── ETAPA 2: código do e-mail ──────────────────────────── */
+  if (stage === "codigo") {
+    return (
+      <div className="flex flex-1 min-h-screen flex-col items-center bg-canvas px-6 py-10">
+        <div className="w-full max-w-md">
+          {header}
+          <div className="mt-5 bg-white rounded-2xl border border-black/5 p-6 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary-dark mx-auto">
+              <MailCheck className="h-7 w-7" strokeWidth={1.75} />
+            </div>
+            <h1 className="text-xl font-bold text-ink mt-4">Confirme seu e-mail</h1>
+            <p className="text-gray text-sm mt-1.5">
+              Enviamos um código de 6 dígitos para <b className="text-ink">{f.email}</b>. Digite-o abaixo.
+            </p>
+
+            <div className="mt-6">
+              <CodeInput value={code} onChange={setCode} onComplete={(v) => submitCodigo(v)} disabled={loading} />
+            </div>
+
+            {devCode && (
+              <p className="mt-4 text-xs text-warning bg-warning/10 rounded-lg px-3 py-2">
+                Modo de teste (e-mail não configurado) — seu código é <b>{devCode}</b>
+              </p>
+            )}
+            {error && <p className="mt-4 text-sm text-danger bg-danger/5 rounded-lg px-4 py-3">{error}</p>}
+            {resent && !error && <p className="mt-4 text-sm text-success">Código reenviado. Confira sua caixa de entrada.</p>}
+
+            <div className="mt-6 space-y-3">
+              <Button size="lg" fullWidth loading={loading} onClick={() => submitCodigo()}>
+                Confirmar e continuar
+              </Button>
+              <div className="flex items-center justify-center gap-4 text-sm">
+                <button type="button" onClick={resend} disabled={loading} className="inline-flex items-center gap-1.5 text-primary-dark font-medium hover:underline disabled:opacity-50">
+                  <RefreshCw className="h-3.5 w-3.5" /> Reenviar código
+                </button>
+                <span className="text-gray-light">·</span>
+                <button type="button" onClick={() => { setStage("conta"); setError(""); }} className="text-gray hover:text-ink">
+                  Corrigir e-mail
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-light mt-5">
+              Não achou? Verifique a caixa de spam. O código vale por 10 minutos.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── ETAPA 3: cadastro completo ─────────────────────────── */
   return (
     <div className="flex flex-1 min-h-screen flex-col items-center bg-canvas px-6 py-10">
       <form onSubmit={handleSubmit} className="w-full max-w-xl">
-        <div className="flex items-center justify-between mb-8">
-          <Logo size={26} variant="dark" />
-          <Link href="/cadastro" className="inline-flex items-center gap-1 text-sm text-gray hover:text-ink">
-            <ArrowLeft className="h-4 w-4" /> Trocar perfil
-          </Link>
-        </div>
-
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary-dark">
-          {role === "prestador" ? <Wrench className="h-4 w-4" /> : <Home className="h-4 w-4" />}
-          Cadastro de {ROLE_LABELS[role]}
-        </div>
-        <h1 className="text-2xl font-bold text-ink mt-3">Crie sua conta</h1>
+        {header}
+        <h1 className="text-2xl font-bold text-ink mt-3">Complete seu cadastro</h1>
         <p className="text-gray mt-1">Preencha seus dados com atenção — eles passam por análise da nossa equipe.</p>
+
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-3 text-sm">
+          <ShieldCheck className="h-4 w-4 shrink-0" />
+          <span>E-mail <b>{f.email}</b> confirmado. Nome: <b>{fullName}</b>.</span>
+        </div>
 
         {/* Dados pessoais */}
         <Section title="Dados pessoais">
-          <Field label="Nome completo"><Input required value={f.full_name} onChange={set("full_name")} /></Field>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="E-mail"><Input type="email" required value={f.email} onChange={set("email")} /></Field>
-            <Field label="Telefone / WhatsApp"><Input required value={f.phone} onChange={set("phone")} placeholder="(00) 00000-0000" /></Field>
-          </div>
           <div className="grid sm:grid-cols-3 gap-4">
             <Field label="CPF"><Input required value={f.cpf} onChange={set("cpf")} placeholder="000.000.000-00" /></Field>
             <Field label="RG"><Input value={f.rg} onChange={set("rg")} /></Field>
@@ -221,7 +389,9 @@ export function SignupForm({
             <Field label="Rua / Logradouro"><Input value={f.address} onChange={set("address")} /></Field>
           </div>
           <div className="grid sm:grid-cols-3 gap-4">
-            <Field label="Número"><Input value={f.address_number} onChange={set("address_number")} /></Field>
+            <Field label={<>Número<span className="text-danger"> *</span></>}>
+              <Input required value={f.address_number} onChange={set("address_number")} placeholder="123" inputMode="numeric" />
+            </Field>
             <Field label="Complemento"><Input value={f.complement} onChange={set("complement")} /></Field>
             <Field label="Bairro"><Input value={f.neighborhood} onChange={set("neighborhood")} /></Field>
           </div>
@@ -258,13 +428,15 @@ export function SignupForm({
                       <button
                         type="button"
                         key={c.id}
-                        onClick={() => toggleCategory(c.id, c.base_price)}
-                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm transition ${
+                        onClick={() => toggleCategory(c.id)}
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm text-left transition ${
                           active ? "border-primary bg-primary/10 text-ink font-medium" : "border-black/10 text-gray hover:bg-black/[0.02]"
                         }`}
                       >
-                        <CategoryIcon slug={c.slug} className="h-4 w-4" />
-                        {c.name}
+                        {/* shrink-0: sem isto, um nome longo ("Impermeabilização") comprime
+                            o SVG a zero e a categoria fica sem ícone. */}
+                        <CategoryIcon slug={c.slug} className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0">{c.name}</span>
                       </button>
                     );
                   })}
@@ -275,21 +447,30 @@ export function SignupForm({
               </Field>
               <Field label="Outros — não achou seu serviço? Descreva aqui">
                 <Input value={specialties} onChange={(e) => setSpecialties(e.target.value)} placeholder="Ex.: Instalação de painéis solares, tratamento de piscina..." />
-              </Field>
-              <Field label="Preço-base da visita (R$)"><Input type="number" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} /></Field>
-              <Field label={`Raio de atendimento: ${radius} km (pedidos fora do raio não chegam para você)`}>
-                <input type="range" min={1} max={50} value={radius} onChange={(e) => setRadius(e.target.value)} className="w-full accent-[#FFC107]" />
+                <p className="text-xs text-gray-light mt-1.5">
+                  Vale a pena detalhar: o que você escreve aqui também é encontrado na busca dos clientes.
+                </p>
               </Field>
               <Field label="Sobre você (experiência, especialidades)">
                 <Textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder={`Ex.: ${primaryCat?.name ?? "Profissional"} com anos de experiência...`} />
               </Field>
-              <Field label="Endereço de atendimento (base para o raio de pedidos)">
+              {/* O raio vive DENTRO do mapa (logo abaixo dele): o círculo é
+                  desenhado ao vivo, então dá para ver quais bairros entram. */}
+              <Field label="Área de atendimento (onde você aceita pedidos)">
                 <div className="mb-2">
                   <Button type="button" variant="outline" size="sm" onClick={useSameAddress} loading={geoBusy}>
                     <Copy className="h-4 w-4" /> Usar o mesmo endereço do cadastro
                   </Button>
                 </div>
-                <LocationPicker value={coords} onChange={setCoords} onAddress={() => {}} height={180} hideGps />
+                <LocationPicker
+                  value={coords}
+                  onChange={setCoords}
+                  onAddress={() => {}}
+                  height={260}
+                  hideGps
+                  radiusKm={Number(radius) || 10}
+                  onRadiusChange={(km) => setRadius(String(km))}
+                />
               </Field>
             </Section>
 
@@ -307,7 +488,9 @@ export function SignupForm({
                 <Field label="Agência"><Input value={bank.bank_agency} onChange={setB("bank_agency")} /></Field>
                 <Field label="Conta (com dígito)"><Input value={bank.bank_account} onChange={setB("bank_account")} /></Field>
               </div>
-              <Field label="Chave PIX (opcional)"><Input value={bank.pix_key} onChange={setB("pix_key")} placeholder="CPF, e-mail, telefone ou aleatória" /></Field>
+              <Field label="Chave PIX (é para lá que vai o seu saque)">
+                <Input value={bank.pix_key} onChange={setB("pix_key")} placeholder="CPF, e-mail, telefone ou aleatória" />
+              </Field>
             </Section>
           </>
         )}
@@ -324,19 +507,6 @@ export function SignupForm({
               />
             </Field>
           ))}
-        </Section>
-
-        {/* Senha */}
-        <Section title="Acesso">
-          <Field label="Senha">
-            <PasswordField
-              value={f.password}
-              onChange={(v) => setF((p) => ({ ...p, password: v }))}
-              showStrength
-              autoComplete="new-password"
-              placeholder="crie uma senha forte"
-            />
-          </Field>
         </Section>
 
         {/* Termos */}

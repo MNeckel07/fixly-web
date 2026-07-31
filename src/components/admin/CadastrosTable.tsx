@@ -2,12 +2,12 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Search, MessageSquare, Ban, CheckCircle2, Trash2 } from "lucide-react";
+import { Search, MessageSquare, Ban, CheckCircle2, Trash2, BadgeCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
-import { setUserActive, deleteUser } from "@/app/admin/usuarios/actions";
+import { setUserActive, deleteUser, setFixBadge } from "@/app/admin/usuarios/actions";
 
 type U = {
   id: string;
@@ -18,6 +18,7 @@ type U = {
   status: string;
   city: string | null;
   active: boolean;
+  fix_badge?: boolean;
   category: string | null;
   created_at: string;
 };
@@ -55,6 +56,17 @@ export function CadastrosTable({ users }: { users: U[] }) {
     const supabase = createClient();
     const { data } = await supabase.rpc("start_approval_chat", { p_applicant: u.id });
     if (data) router.push(`/admin/mensagens?c=${data}`);
+  }
+
+  /** Liga/desliga o Selo Fix — conta com selo roda o fluxo sem cobrança. */
+  function toggleBadge(u: U) {
+    const fd = new FormData();
+    fd.set("id", u.id);
+    fd.set("on", String(!u.fix_badge));
+    startTransition(async () => {
+      await setFixBadge(fd);
+      router.refresh();
+    });
   }
 
   function doConfirm() {
@@ -121,6 +133,7 @@ export function CadastrosTable({ users }: { users: U[] }) {
               <th className="px-5 py-3 font-medium">Perfil</th>
               <th className="px-5 py-3 font-medium">Contato</th>
               <th className="px-5 py-3 font-medium">Status</th>
+              <th className="px-5 py-3 font-medium">Selo Fix</th>
               <th className="px-5 py-3 font-medium text-right">Ações</th>
             </tr>
           </thead>
@@ -143,6 +156,25 @@ export function CadastrosTable({ users }: { users: U[] }) {
                   {u.active ? <Badge status={u.status} /> : <span className="text-xs font-semibold text-gray bg-black/[0.06] px-2.5 py-1 rounded-full">Inativo</span>}
                 </td>
                 <td className="px-5 py-3">
+                  <button
+                    onClick={() => toggleBadge(u)}
+                    disabled={pending}
+                    title={
+                      u.fix_badge
+                        ? "Com Selo Fix: roda o fluxo sem cobrança. Clique para tirar."
+                        : "Sem selo: paga normalmente. Clique para dar o Selo Fix."
+                    }
+                    className={`inline-flex items-center gap-1.5 h-7 pl-1.5 pr-2.5 rounded-full text-xs font-semibold transition disabled:opacity-50 ${
+                      u.fix_badge
+                        ? "bg-primary/15 text-ink hover:bg-primary/25"
+                        : "bg-black/[0.05] text-gray-light hover:bg-black/[0.09]"
+                    }`}
+                  >
+                    <BadgeCheck className="h-4 w-4 shrink-0" strokeWidth={2} />
+                    {u.fix_badge ? "Com selo" : "Sem selo"}
+                  </button>
+                </td>
+                <td className="px-5 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button onClick={() => message(u)} title="Enviar mensagem" className="p-2 text-gray hover:text-info rounded-lg hover:bg-black/[0.04]">
                       <MessageSquare className="h-4 w-4" />
@@ -162,7 +194,7 @@ export function CadastrosTable({ users }: { users: U[] }) {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={5} className="px-5 py-10 text-center text-gray">Nenhum cadastro no filtro.</td></tr>
+              <tr><td colSpan={6} className="px-5 py-10 text-center text-gray">Nenhum cadastro no filtro.</td></tr>
             )}
           </tbody>
         </table>

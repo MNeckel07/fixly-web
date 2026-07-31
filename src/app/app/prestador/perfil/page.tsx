@@ -2,6 +2,7 @@ import { getProfile } from "@/lib/auth";
 import { ProfileCard } from "@/components/shell/ProfileCard";
 import { ProfileEditor } from "@/components/shell/ProfileEditor";
 import { ServiceAreaEditor } from "@/components/prestador/ServiceAreaEditor";
+import { ChangePassword } from "@/components/shell/ChangePassword";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function PerfilPrestador() {
           city: profile.city ?? "",
           phone: profile.phone ?? "",
           bio: profile.bio ?? "",
-          base_price: profile.base_price != null ? String(profile.base_price) : "",
+          pix_key: profile.pix_key ?? "",
         }}
       />
       <ServiceAreaEditor
@@ -28,6 +29,7 @@ export default async function PerfilPrestador() {
         initialLng={profile.lng}
         initialRadius={profile.service_radius_km}
       />
+      <ChangePassword />
     </div>
   );
 }

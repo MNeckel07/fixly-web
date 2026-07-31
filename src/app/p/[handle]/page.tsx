@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Star, ShieldCheck, BadgeCheck, Users, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CategoryIcon } from "@/components/ui/icons";
+import { Logo } from "@/components/ui/Logo";
 import { QrCard } from "@/components/profiler/QrCard";
 import { FollowButton } from "@/components/profiler/FollowButton";
 import { providerReputation } from "@/lib/reputation";
@@ -15,7 +16,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
 
   const { data: prov } = await supabase
     .from("profiles")
-    .select("id, full_name, handle, headline, bio, city, rating, jobs_done, avatar_path, category:service_categories!profiles_category_id_fkey(name, slug)")
+    .select("id, full_name, handle, headline, bio, city, rating, jobs_done, avatar_path, specialties, card_category_id, card_headline, category:service_categories!profiles_category_id_fkey(name, slug)")
     .ilike("handle", handle)
     .eq("role", "prestador")
     .eq("status", "aprovado")
@@ -24,6 +25,25 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
   if (!prov) notFound();
 
   const category = Array.isArray(prov.category) ? prov.category[0] : prov.category;
+
+  // TODOS os serviços que ele presta (antes só aparecia a categoria principal —
+  // "coloquei vários serviços aqui e só aparece um").
+  const { data: pcs } = await supabase
+    .from("provider_categories")
+    .select("category:service_categories(id, name, slug)")
+    .eq("provider_id", prov.id);
+  const allCats = (pcs ?? [])
+    .map((r: any) => (Array.isArray(r.category) ? r.category[0] : r.category))
+    .filter(Boolean) as { id: string; name: string; slug: string }[];
+  if (category && !allCats.some((c) => c.slug === category.slug)) {
+    allCats.unshift({ id: "primary", name: category.name, slug: category.slug });
+  }
+  allCats.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+  // categoria escolhida por ele para o cartão (cai na principal se não escolheu)
+  const cardCat = prov.card_category_id
+    ? allCats.find((c) => c.id === prov.card_category_id) ?? null
+    : null;
   const rep = providerReputation(prov.rating, prov.jobs_done);
   const elite = rep.elite;
   const avatarUrl = prov.avatar_path
@@ -59,8 +79,8 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
       {/* topo */}
       <header className="bg-ink text-white">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
-          <Link href="/" className="text-xl font-bold">
-            Fi<span style={{ color: "#FFC107" }}>x</span>ly
+          <Link href="/" aria-label="Fixly">
+            <Logo size={22} />
           </Link>
           <Link href="/login" className="text-sm bg-primary text-ink font-semibold rounded-lg px-3 py-1.5">
             Abrir o Fixly
@@ -100,6 +120,20 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
             </div>
           </div>
 
+          {/* Todos os serviços que ele presta */}
+          {allCats.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4">
+              {allCats.map((c) => (
+                <span key={c.slug} className="inline-flex items-center gap-1.5 text-xs font-medium text-ink bg-canvas rounded-full px-3 py-1.5">
+                  <CategoryIcon slug={c.slug} className="h-3.5 w-3.5 shrink-0" /> {c.name}
+                </span>
+              ))}
+            </div>
+          )}
+          {prov.specialties && (
+            <p className="text-xs text-gray-light mt-2">Também faz: {prov.specialties}</p>
+          )}
+
           {prov.bio && <p className="text-sm text-gray mt-4 leading-relaxed">{prov.bio}</p>}
 
           {elite ? (
@@ -114,7 +148,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
 
           <div className="flex flex-wrap gap-2 mt-5">
             <Link
-              href={`/app/contratante/solicitar?cat=${category?.slug ?? ""}`}
+              href={`/app/contratante/solicitar?modo=orcamento&prestador=${prov.id}${category?.slug ? `&cat=${category.slug}` : ""}`}
               className="inline-flex items-center justify-center rounded-xl bg-primary text-ink px-5 h-11 font-semibold hover:bg-primary-dark transition"
             >
               Solicitar serviço
@@ -124,8 +158,8 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
               url={pageUrl}
               name={prov.full_name}
               handle={prov.handle}
-              category={category?.name}
-              headline={prov.headline}
+              category={cardCat?.name ?? category?.name}
+              headline={prov.card_headline || prov.headline}
               avatarUrl={avatarUrl}
               elite={elite}
               ratingLabel={rep.label}

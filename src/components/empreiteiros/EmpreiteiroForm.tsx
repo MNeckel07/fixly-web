@@ -75,11 +75,30 @@ export function EmpreiteiroForm({
     }));
   }
 
+  /** Gera um @ a partir do nome da empresa (sem acento, só a-z0-9.-_). */
+  function slugify(text: string) {
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, ".")
+      .replace(/^\.+|\.+$/g, "")
+      .slice(0, 30);
+  }
+
   async function save() {
     if (!f.company_name.trim()) return setError("Informe o nome da empresa.");
+    // telefone obrigatório: sem contato o anúncio não serve para nada
+    if (!f.phone.replace(/\D/g, "") && !f.whatsapp.replace(/\D/g, "")) {
+      return setError("Informe um telefone ou WhatsApp para o cliente falar com você.");
+    }
     setError("");
     setSaving(true);
-    const handle = f.handle.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
+    // Todo anúncio ganha um @, para ter a página pública /e/<handle> igual à do
+    // profissional (antes, sem @, o anúncio ficava sem perfil nenhum).
+    const handle = (f.handle.trim() ? f.handle.trim() : slugify(f.company_name))
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, "");
     const { data, error } = await supabase
       .from("empreiteiros")
       .upsert(
@@ -208,16 +227,20 @@ export function EmpreiteiroForm({
             <input
               value={f.handle}
               onChange={(e) => setF((p) => ({ ...p, handle: e.target.value }))}
-              placeholder="minha.empresa"
+              placeholder={slugify(f.company_name) || "minha.empresa"}
               className="flex-1 py-2.5 px-1 outline-none text-[15px]"
             />
           </div>
+          <p className="text-xs text-gray-light mt-1.5">
+            É o perfil da sua empresa (igual ao do profissional): fotos das obras, especialidades e
+            cartão com QR. Se deixar em branco, criamos a partir do nome da empresa.
+          </p>
         </Field>
 
         <Field label="Descrição"><Textarea rows={3} value={f.description} onChange={set("description")} placeholder="Conte sobre a sua equipe e experiência" /></Field>
         <div className="grid sm:grid-cols-3 gap-4">
           <Field label="Cidade"><Input value={f.city} onChange={set("city")} /></Field>
-          <Field label="Telefone"><Input value={f.phone} onChange={set("phone")} placeholder="(11) 90000-0000" /></Field>
+          <Field label="Telefone *"><Input required value={f.phone} onChange={set("phone")} placeholder="(11) 90000-0000" /></Field>
           <Field label="WhatsApp"><Input value={f.whatsapp} onChange={set("whatsapp")} placeholder="(11) 90000-0000" /></Field>
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}

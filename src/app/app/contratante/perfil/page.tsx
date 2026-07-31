@@ -1,6 +1,7 @@
 import { getProfile } from "@/lib/auth";
 import { ProfileCard } from "@/components/shell/ProfileCard";
 import { ProfileEditor } from "@/components/shell/ProfileEditor";
+import { ChangePassword } from "@/components/shell/ChangePassword";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +19,10 @@ export default async function PerfilContratante() {
           city: profile.city ?? "",
           phone: profile.phone ?? "",
           bio: "",
-          base_price: "",
+          pix_key: "",
         }}
       />
+      <ChangePassword />
     </div>
   );
 }

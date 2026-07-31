@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { signRequestPhotos } from "@/lib/uploads";
 import { ServiceDetail } from "@/components/contratante/ServiceDetail";
+import { AutoRefresh } from "@/components/ui/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
   const { data: svc } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, urgent, address, lat, lng, estimated_price, final_price, mode, rating, review, provider_id, photos, advance_pct, advance_approved, created_at, category:service_categories(name, slug), provider:profiles!service_requests_provider_id_fkey(full_name, rating, jobs_done, avatar_path, lat, lng), payment:payments(amount, fee, gateway_fee, provider_net, method, status, advance_pct, advance_amount, advance_fee)",
+      "id, description, status, urgent, address, lat, lng, estimated_price, final_price, mode, rating, review, provider_id, photos, advance_pct, advance_approved, provider_done_at, no_charge, created_at, category:service_categories(name, slug), provider:profiles!service_requests_provider_id_fkey(full_name, rating, jobs_done, avatar_path, lat, lng, fix_badge), payment:payments(amount, fee, gateway_fee, provider_net, method, status, advance_pct, advance_amount, advance_fee, available_at)",
     )
     .eq("id", id)
     .eq("client_id", userId)
@@ -50,6 +51,13 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
 
   const photoUrls = await signRequestPhotos(supabase, (svc.photos as string[]) ?? []);
 
+  // SELO FIX: pular o pagamento exige selo nos DOIS lados. Aqui é só para a
+  // tela decidir se mostra o botão — quem manda é a checagem em `skipPayment`.
+  const { data: me } = await supabase.from("profiles").select("fix_badge").eq("id", userId).single();
+  const provider = Array.isArray(svc.provider) ? svc.provider[0] : svc.provider;
+  const canSkipPayment =
+    !!me?.fix_badge && (!svc.provider_id || !!(provider as { fix_badge?: boolean } | null)?.fix_badge);
+
   const norm = {
     ...svc,
     photos: photoUrls,
@@ -58,5 +66,11 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
     payment: Array.isArray(svc.payment) ? svc.payment[0] : svc.payment,
   };
 
-  return <ServiceDetail service={norm as any} currentUserId={userId} conversationId={conversationId} proposals={proposals} />;
+  return (
+    <>
+      {/* propostas, contra-propostas e confirmação de pagamento chegam sozinhas */}
+      <AutoRefresh seconds={12} />
+      <ServiceDetail service={norm as any} currentUserId={userId} conversationId={conversationId} proposals={proposals} canSkipPayment={canSkipPayment} />
+    </>
+  );
 }

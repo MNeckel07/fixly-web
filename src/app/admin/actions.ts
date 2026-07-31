@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   approvalEmailHtml,
   rejectionEmailHtml,
-  sendEmail,
+  sendEmailBestEffort,
 } from "@/lib/email";
 import type { Role } from "@/lib/brand";
 
@@ -48,7 +48,7 @@ export async function approveProfile(formData: FormData) {
 
   const { data: priv } = await supabase.from("profiles_private").select("email").eq("id", id).single();
   if (priv?.email) {
-    await sendEmail({
+    await sendEmailBestEffort({
       to: priv.email,
       subject: "Seu cadastro no Fixly foi aprovado!",
       html: approvalEmailHtml(profile.full_name, profile.role as Role),
@@ -79,7 +79,7 @@ export async function rejectProfile(formData: FormData) {
 
   const { data: priv } = await supabase.from("profiles_private").select("email").eq("id", id).single();
   if (priv?.email) {
-    await sendEmail({
+    await sendEmailBestEffort({
       to: priv.email,
       subject: "Sobre o seu cadastro no Fixly",
       html: rejectionEmailHtml(profile.full_name, profile.role as Role, reason),

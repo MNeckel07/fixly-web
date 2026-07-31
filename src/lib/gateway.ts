@@ -4,59 +4,99 @@ import { paymentBreakdown, type PayMethod, type PaymentBreakdown } from "./prici
 /**
  * Camada de gateway de pagamento (server-only).
  *
- * Suporta Mercado Pago quando MP_ACCESS_TOKEN está configurado; caso
- * contrário, opera em modo simulado (mock) para desenvolvimento local.
+ * Com MP_ACCESS_TOKEN configurado, fala com o Mercado Pago de verdade; sem ela,
+ * opera em modo simulado (mock) para desenvolvimento local — as telas e o banco
+ * funcionam igual, só não há dinheiro real.
  *
- * Modelo de repasse (escrow + split):
- *  - o contratante paga o valor total;
- *  - o Fixly retém comissão (15%) + tarifa do gateway;
- *  - o líquido é repassado ao prestador após a conclusão do serviço.
+ * MODELO DE REPASSE
+ *   1. o contratante paga o valor total;
+ *   2. descontos, na ordem em que o MP aplica:
+ *        tarifa do gateway  →  comissão Fixly (15%)  →  taxa de adiantamento;
+ *   3. o líquido do prestador fica RETIDO até o contratante aprovar;
+ *   4. aprovado, entra no saldo dele e fica sacável após o prazo do meio de
+ *      pagamento (`available_at`);
+ *   5. o saque vai para a chave PIX do cadastro (fila em `withdrawals`).
+ *
+ * Quando o prestador conecta a conta Mercado Pago dele (OAuth), o passo 3/4
+ * é feito pelo próprio MP via `application_fee` (modo "split").
  */
 
 export interface ChargeResult {
   id: string;
   gateway: "mercadopago" | "mock";
-  status: "retido" | "pendente";
+  status: "retido" | "pendente" | "recusado";
   method: PayMethod;
   breakdown: PaymentBreakdown;
-  pixQrCode?: string; // base64/copia-e-cola quando PIX
+  splitMode: "escrow" | "split";
+  /** PIX: copia-e-cola e imagem do QR. */
+  pixQrCode?: string;
+  pixQrCodeBase64?: string;
+  pixExpiresAt?: string;
+  gatewayStatusDetail?: string;
 }
 
 export function isMercadoPagoConfigured() {
   return !!process.env.MP_ACCESS_TOKEN;
 }
 
-/**
- * Cria uma cobrança e RETÉM o valor (escrow). Em produção com Mercado Pago,
- * aqui entra a criação da preferência/pagamento via API do MP.
- */
-export async function createEscrowCharge(input: {
+export interface ChargeInput {
   amount: number;
   method: PayMethod;
   description: string;
   payerEmail?: string;
+  payerDocument?: string;
   advancePct?: number;
-}): Promise<ChargeResult> {
+  /** id do pedido — volta no webhook para conciliar. */
+  externalReference?: string;
+  /** Cartão/carteiras: token do Checkout Bricks. */
+  cardToken?: string;
+  installments?: number;
+  paymentMethodId?: string;
+  issuerId?: string;
+  /** Presente = prestador conectou a conta dele; o MP faz o split. */
+  providerAccessToken?: string;
+}
+
+/**
+ * Cria a cobrança. PIX volta `pendente` (confirma no webhook); cartão
+ * aprovado volta `retido` na hora.
+ */
+export async function createEscrowCharge(input: ChargeInput): Promise<ChargeResult> {
   const breakdown = paymentBreakdown(input.amount, input.method, input.advancePct ?? 0);
 
   if (isMercadoPagoConfigured()) {
-    // TODO(produção): criar pagamento no Mercado Pago.
-    //   - Cartão/Wallets: Checkout Bricks (token do cartão vindo do cliente).
-    //   - PIX: cria pagamento e retorna QR Code; confirmação via webhook.
-    //   O marketplace_fee do MP recebe a comissão da plataforma.
     const mp = await import("./mercadopago");
     return mp.createMercadoPagoCharge(input, breakdown);
   }
 
-  // Modo simulado (local)
-  await new Promise((r) => setTimeout(r, 1200));
+  // Modo simulado (local): PIX finge um QR, cartão aprova na hora.
+  await new Promise((r) => setTimeout(r, 900));
+  const id = `mock_${Math.random().toString(36).slice(2, 10)}`;
   return {
-    id: `mock_${Math.random().toString(36).slice(2, 10)}`,
+    id,
     gateway: "mock",
     status: "retido",
     method: input.method,
     breakdown,
+    splitMode: "escrow",
+    ...(input.method === "pix"
+      ? { pixQrCode: `00020126_MOCK_FIXLY_${id}_${breakdown.amount.toFixed(2)}` }
+      : {}),
   };
+}
+
+/** Estado atual da cobrança no gateway (tela do PIX faz polling nisto). */
+export async function fetchChargeStatus(
+  chargeId: string,
+): Promise<{ status: ChargeResult["status"]; detail?: string } | null> {
+  if (!isMercadoPagoConfigured()) return { status: "retido" };
+  const mp = await import("./mercadopago");
+  try {
+    const p = await mp.getMercadoPagoPayment(chargeId);
+    return { status: p.mapped, detail: p.statusDetail };
+  } catch {
+    return null;
+  }
 }
 
 /** Libera o valor retido ao prestador após a aprovação do contratante. */
@@ -66,5 +106,25 @@ export async function releaseEscrow(chargeId: string): Promise<void> {
     await mp.releaseMercadoPago(chargeId);
     return;
   }
-  await new Promise((r) => setTimeout(r, 400));
+  await new Promise((r) => setTimeout(r, 200));
+}
+
+/** Libera só a parte adiantada (o contratante aprovou o adiantamento). */
+export async function releaseAdvance(chargeId: string, amount: number): Promise<void> {
+  if (isMercadoPagoConfigured()) {
+    const mp = await import("./mercadopago");
+    await mp.releaseMercadoPagoAdvance(chargeId, amount);
+    return;
+  }
+  await new Promise((r) => setTimeout(r, 200));
+}
+
+/** Reembolsa (cancelamento do serviço). */
+export async function refundCharge(chargeId: string, amount?: number): Promise<void> {
+  if (isMercadoPagoConfigured()) {
+    const mp = await import("./mercadopago");
+    await mp.refundMercadoPago(chargeId, amount);
+    return;
+  }
+  await new Promise((r) => setTimeout(r, 200));
 }

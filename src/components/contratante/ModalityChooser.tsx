@@ -1,12 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Zap, ClipboardList, HardHat, type LucideIcon } from "lucide-react";
+import { Zap, HardHat, type LucideIcon } from "lucide-react";
 
+/**
+ * Duas modalidades. "Orçamento" e "Reforma" eram a mesma coisa com nomes
+ * diferentes e só confundiam — viraram "Solicitar serviço".
+ */
 const MODES: { href: string; icon: LucideIcon; title: string; desc: string; tone: string }[] = [
-  { href: "/app/contratante/solicitar?modo=express", icon: Zap, title: "Express", desc: "Preciso agora — os profissionais disponíveis enviam o preço", tone: "bg-primary/10 text-primary-dark" },
-  { href: "/app/contratante/solicitar?modo=orcamento", icon: ClipboardList, title: "Orçamento", desc: "Serviço com visita técnica — escolha o profissional e combine", tone: "bg-info/10 text-info" },
-  { href: "/app/contratante/solicitar?modo=orcamento&reforma=1", icon: HardHat, title: "Reforma", desc: "Obra em casa — visita técnica e orçamento", tone: "bg-warning/10 text-warning" },
+  { href: "/app/contratante/solicitar?modo=express", icon: Zap, title: "Express", desc: "Preciso agora — um profissional vai em minutos para resolver", tone: "bg-primary/10 text-primary-dark" },
+  { href: "/app/contratante/solicitar?modo=orcamento", icon: HardHat, title: "Solicitar serviço", desc: "Reforma ou orçamento com visita técnica — compare as propostas", tone: "bg-warning/10 text-warning" },
 ];
 
 export function ModalityChooser() {
@@ -16,7 +19,7 @@ export function ModalityChooser() {
       <div className="bg-white rounded-2xl border border-black/5 p-6 animate-fade-up">
         <h2 className="text-lg font-bold text-ink">Como você quer resolver?</h2>
         <p className="text-gray text-sm mt-0.5 mb-5">Escolha a modalidade do pedido</p>
-        <div className="grid sm:grid-cols-3 gap-3">
+        <div className="grid sm:grid-cols-2 gap-3">
           {MODES.map((m) => (
             <button
               key={m.title}

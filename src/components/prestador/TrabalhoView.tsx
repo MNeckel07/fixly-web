@@ -24,6 +24,10 @@ type Job = {
   mode: string | null;
   urgent: boolean;
   photos: string[] | null;
+  /** Preenchido quando o prestador sinaliza o término (aguarda aprovação). */
+  provider_done_at: string | null;
+  /** Fluxo de teste do Selo Fix: roda igual, mas não gera pagamento nenhum. */
+  no_charge: boolean | null;
   category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
 };
@@ -41,6 +45,7 @@ export function TrabalhoView({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(job?.status ?? "aceito");
+  const [doneAt, setDoneAt] = useState<string | null>(job?.provider_done_at ?? null);
   const [progress, setProgress] = useState(0);
   const [busy, setBusy] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
@@ -105,12 +110,7 @@ export function TrabalhoView({
     await supabase.from("service_requests").update({ status: newStatus }).eq("id", job!.id);
     if (extra) await extra();
     setBusy(false);
-    if (newStatus === "concluido") {
-      router.push("/app/prestador/ganhos");
-      router.refresh();
-    } else {
-      setStatus(newStatus as Job["status"]);
-    }
+    setStatus(newStatus as Job["status"]);
   }
 
   // prefetch da conversa (para o badge de não lidas)
@@ -124,10 +124,22 @@ export function TrabalhoView({
     setShowChat((v) => !v);
   }
 
+  /**
+   * Sinaliza que o serviço terminou. NÃO conclui o pedido: o status só vira
+   * 'concluido' quando o CONTRATANTE aprova — é a aprovação que libera o
+   * pagamento e faz o valor entrar em Ganhos. (Antes o dinheiro caía aqui.)
+   */
   async function conclude() {
-    // marca como concluído; a contagem de serviços é atualizada por trigger
-    // confiável no banco, e a liberação do pagamento é feita pelo contratante.
-    await update("concluido");
+    setBusy(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("service_requests")
+      .update({ provider_done_at: new Date().toISOString() })
+      .eq("id", job!.id);
+    setBusy(false);
+    if (error) return setQuoteErr(error.message);
+    setDoneAt(new Date().toISOString());
+    router.refresh();
   }
 
   async function decline() {
@@ -162,7 +174,11 @@ export function TrabalhoView({
             ) : (
               <>
                 <p className="font-bold text-ink">{brl(price)}</p>
-                <p className="text-[11px] text-success">recebe {brl(providerNet(price))}</p>
+                {job.no_charge ? (
+                  <p className="text-[11px] text-gray-light">Selo Fix · sem cobrança</p>
+                ) : (
+                  <p className="text-[11px] text-success">recebe {brl(providerNet(price))}</p>
+                )}
               </>
             )}
           </div>
@@ -259,10 +275,32 @@ export function TrabalhoView({
             <MapPin className="h-5 w-5" /> Cheguei — iniciar serviço
           </Button>
         )}
-        {status === "em_andamento" && (
-          <Button fullWidth size="lg" loading={busy} onClick={conclude}>
-            <Check className="h-5 w-5" /> Concluir serviço
-          </Button>
+        {status === "em_andamento" && !doneAt && (
+          <>
+            <Button fullWidth size="lg" loading={busy} onClick={conclude}>
+              <Check className="h-5 w-5" /> Concluir serviço
+            </Button>
+            <p className="text-xs text-gray-light text-center mt-2">
+              Ao concluir, o cliente é avisado para aprovar. O pagamento entra nos seus
+              Ganhos assim que ele aprovar.
+            </p>
+          </>
+        )}
+        {doneAt && (
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-2 rounded-xl bg-success/5 text-success px-4 py-3 text-sm">
+              <Check className="h-4 w-4 shrink-0" />
+              <span>Serviço concluído — aguardando a aprovação do cliente.</span>
+            </div>
+            <p className="text-xs text-gray-light mt-2">
+              {job.no_charge
+                ? "Serviço com Selo Fix: é um fluxo de teste, nenhum valor entra na sua carteira."
+                : `Assim que ele aprovar, o valor de ${brl(providerNet(price))} entra na sua carteira.`}
+            </p>
+            <Link href="/app/prestador/ganhos" className="inline-flex items-center gap-1 text-sm font-semibold text-primary-dark mt-3">
+              Ver meus ganhos <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         )}
       </div>
     </div>

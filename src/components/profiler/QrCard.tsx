@@ -78,17 +78,27 @@ export function QrCard({ url, name, handle, category, headline, avatarUrl, elite
 
     const padX = 72, top = 88;
 
-    // logo Fixly (topo-esquerda)
+    // logo Fixly (topo-esquerda): símbolo + nome, com o símbolo ~30% mais alto
+    // que a fonte (mesma proporção do componente Logo do site)
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
-    ctx.font = "800 44px Poppins, system-ui, sans-serif";
+    const logoFont = 44;
+    const symH = logoFont * 1.3;
+    const symbol = await loadImage("/fixly-symbol.png");
+    let textX = padX;
+    if (symbol) {
+      const symW = (symbol.width / symbol.height) * symH;
+      ctx.drawImage(symbol, padX, top - symH * 0.78, symW, symH);
+      textX = padX + symW + 12;
+    }
+    ctx.font = `800 ${logoFont}px Poppins, system-ui, sans-serif`;
     ctx.fillStyle = "#FFFFFF";
-    ctx.fillText("Fi", padX, top);
+    ctx.fillText("Fi", textX, top);
     const fi = ctx.measureText("Fi").width;
     ctx.fillStyle = AMBER;
-    ctx.fillText("x", padX + fi, top);
+    ctx.fillText("x", textX + fi, top);
     ctx.fillStyle = "#FFFFFF";
-    ctx.fillText("ly", padX + fi + ctx.measureText("x").width, top);
+    ctx.fillText("ly", textX + fi + ctx.measureText("x").width, top);
 
     // badge da categoria (topo-direita), pílula amber
     if (category) {

@@ -20,6 +20,23 @@ export async function setUserActive(formData: FormData) {
   revalidatePath("/admin/usuarios");
 }
 
+/**
+ * Liga/desliga o **Selo Fix** de uma conta (fluxo sem cobrança).
+ *
+ * Usa o client da SESSÃO do admin de propósito, não a chave de serviço: o
+ * trigger `guard_profile_changes` só libera `fix_badge` quando `is_admin()` é
+ * verdadeiro, e com a chave de serviço não existe `auth.uid()` para o guard
+ * avaliar. Passar pela sessão é o que mantém a proteção valendo.
+ */
+export async function setFixBadge(formData: FormData) {
+  const id = String(formData.get("id"));
+  const on = formData.get("on") === "true";
+  const { supabase } = await assertAdmin();
+  const { error } = await supabase.from("profiles").update({ fix_badge: on }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/usuarios");
+}
+
 export async function deleteUser(formData: FormData) {
   const id = String(formData.get("id"));
   const { adminId } = await assertAdmin();

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Building2, MapPin, Phone, MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CategoryIcon } from "@/components/ui/icons";
+import { Logo } from "@/components/ui/Logo";
 import { QrCard } from "@/components/profiler/QrCard";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +42,8 @@ export default async function EmpreiteiroPublicPage({ params }: { params: Promis
     <div className="min-h-screen bg-canvas overflow-x-hidden">
       <header className="bg-ink text-white">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 py-3">
-          <Link href="/" className="text-xl font-bold">
-            Fi<span style={{ color: "#FFC107" }}>x</span>ly
+          <Link href="/" aria-label="Fixly">
+            <Logo size={22} />
           </Link>
           <Link href="/login" className="text-sm bg-primary text-ink font-semibold rounded-lg px-3 py-1.5">
             Abrir o Fixly

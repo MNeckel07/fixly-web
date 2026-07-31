@@ -10,6 +10,13 @@ type Row = {
   id: string;
   status: string;
   price: number;
+  /** Valores REAIS do pagamento (null = pedido sem pagamento registrado). */
+  fee: number | null;
+  gatewayFee: number | null;
+  providerNet: number | null;
+  paid: boolean;
+  payStatus: string | null;
+  method: string | null;
   created_at: string;
   urgent: boolean;
   category: string;
@@ -41,8 +48,15 @@ export function VendasDashboard({ rows }: { rows: Row[] }) {
 
   const concluded = filtered.filter((r) => r.status === "concluido");
   const gmv = concluded.reduce((s, r) => s + r.price, 0);
-  const receita = concluded.reduce((s, r) => s + platformFee(r.price), 0);
+  // receita = comissão REAL cobrada (payments.fee); sem pagamento, estima
+  const receita = concluded.reduce((s, r) => s + (r.fee ?? platformFee(r.price)), 0);
   const ticket = concluded.length ? gmv / concluded.length : 0;
+
+  // dinheiro em trânsito: pago e retido em serviços que ainda não terminaram
+  const retido = filtered
+    .filter((r) => r.payStatus === "retido")
+    .reduce((s, r) => s + r.price, 0);
+  const semPagamento = concluded.filter((r) => r.fee === null).length;
 
   // GMV por dia
   const byDay = useMemo(() => {
@@ -90,6 +104,27 @@ export function VendasDashboard({ rows }: { rows: Row[] }) {
         <StatCard label="Receita (comissão)" value={brl(receita)} icon={TrendingUp} accent="success" />
         <StatCard label="Serviços concluídos" value={concluded.length} icon={ClipboardCheck} accent="info" />
         <StatCard label="Ticket médio" value={brl(ticket)} icon={Receipt} accent="warning" />
+      </div>
+
+      {/* De onde vêm os números — evita achar que "R$ 0,00" é bug de query */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-xs text-gray">
+        <span>
+          Base: <b className="text-ink">{filtered.length}</b> pedido(s) no período
+          {period !== "all" ? ` (últimos ${period} dias)` : ""}.
+        </span>
+        <span>
+          Retido em serviços em andamento: <b className="text-ink">{brl(retido)}</b>
+        </span>
+        {semPagamento > 0 && (
+          <span className="text-warning">
+            {semPagamento} concluído(s) sem pagamento registrado (comissão estimada).
+          </span>
+        )}
+        {filtered.length > 0 && concluded.length === 0 && (
+          <span className="text-warning">
+            Há pedidos no período, mas nenhum <b>concluído</b> — GMV e receita só contam concluídos.
+          </span>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 mt-6">

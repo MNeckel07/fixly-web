@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { ProfilerEditor } from "@/components/prestador/ProfilerEditor";
 import { ProfilerTabs } from "@/components/profiler/ProfilerTabs";
+import { providerReputation } from "@/lib/reputation";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,8 @@ export default async function MeuProfilerPage() {
   const { profile } = await getProfile();
   if (!profile) redirect("/login");
 
+  const rep = providerReputation(profile.rating, profile.jobs_done);
+
   const publicUrlBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/portfolio/`;
 
   const { data: items } = await supabase
@@ -18,6 +21,24 @@ export default async function MeuProfilerPage() {
     .select("id, image_path, caption")
     .eq("provider_id", profile.id)
     .order("created_at", { ascending: false });
+
+  // Serviços que ELE cadastrou (multi) — é entre estes que escolhe o do cartão.
+  const { data: pcs } = await supabase
+    .from("provider_categories")
+    .select("category:service_categories(id, name, slug)")
+    .eq("provider_id", profile.id);
+  const myCats = (pcs ?? [])
+    .map((r: any) => (Array.isArray(r.category) ? r.category[0] : r.category))
+    .filter(Boolean);
+  if (profile.category_id && !myCats.some((c: any) => c.id === profile.category_id)) {
+    const { data: primary } = await supabase
+      .from("service_categories")
+      .select("id, name, slug")
+      .eq("id", profile.category_id)
+      .maybeSingle();
+    if (primary) myCats.unshift(primary);
+  }
+  myCats.sort((a: any, b: any) => a.name.localeCompare(b.name, "pt-BR"));
 
   // comunidade: descobrir e seguir outros profissionais
   const { data: others } = await supabase
@@ -58,10 +79,18 @@ export default async function MeuProfilerPage() {
             bio: profile.bio ?? "",
             avatar_path: (profile as any).avatar_path ?? null,
             advance_pct: (profile as any).advance_pct ?? 0,
+            card_category_id: (profile as any).card_category_id ?? null,
+            card_headline: (profile as any).card_headline ?? "",
           }}
           items={(items as any) ?? []}
+          categories={myCats as any}
           publicUrlBase={publicUrlBase}
           avatarUrlBase={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/`}
+          providerName={profile.full_name}
+          ratingLabel={rep.label}
+          jobsDone={profile.jobs_done ?? 0}
+          elite={rep.elite}
+          appUrl={process.env.NEXT_PUBLIC_APP_URL ?? "https://fixly.company"}
         />
       </div>
 

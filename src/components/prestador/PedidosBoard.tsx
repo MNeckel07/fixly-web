@@ -1,11 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { Inbox, User, MapPin, Check } from "lucide-react";
+import Link from "next/link";
+import { Inbox, User, MapPin, Check, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
+
+/** Job já atribuído a este prestador (orçamento/reforma ou Express aceito). */
+type MyJob = {
+  id: string;
+  description: string;
+  status: string;
+  address: string | null;
+  mode: string | null;
+  final_price: number | null;
+  category: { name: string; slug: string } | null;
+  client: { full_name: string; city: string | null } | null;
+};
 
 type Req = {
   id: string;
@@ -25,18 +39,20 @@ type Req = {
 
 export function PedidosBoard({
   requests,
+  myJobs = [],
   providerName,
   rating,
   jobsDone,
-  basePrice,
+  monthNet,
   defaultAdvancePct = 0,
   busy = false,
 }: {
   requests: Req[];
+  myJobs?: MyJob[];
   providerName: string;
   rating: number;
   jobsDone: number;
-  basePrice: number;
+  monthNet: number;
   defaultAdvancePct?: number;
   busy?: boolean;
 }) {
@@ -71,9 +87,60 @@ export function PedidosBoard({
         <div className="grid grid-cols-3 gap-3 mt-5 relative">
           <Stat label="Avaliação" value={jobsDone > 0 ? rating.toFixed(1) : "Novo"} />
           <Stat label="Serviços" value={String(jobsDone)} />
-          <Stat label="Preço-base" value={brl(basePrice)} />
+          <Stat label="Ganhos no mês" value={brl(monthNet)} />
         </div>
       </div>
+
+      {/* Orçamentos / reformas e serviços já seus — o contratante escolheu você direto */}
+      {myJobs.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-ink">Seus serviços e orçamentos</h2>
+            <span className="text-sm text-gray-light">{myJobs.length} em aberto</span>
+          </div>
+          <div className="space-y-3">
+            {myJobs.map((j) => (
+              <Link
+                key={j.id}
+                href="/app/prestador/trabalho"
+                className="block bg-white rounded-2xl border border-black/5 p-5 hover:border-primary/40 transition"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-canvas text-ink">
+                      <CategoryIcon slug={j.category?.slug} className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-ink">{j.category?.name ?? "Serviço"}</p>
+                        {j.mode === "orcamento" && (
+                          <span className="text-[11px] font-bold text-info bg-info/10 px-2 py-0.5 rounded-full">ORÇAMENTO</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray mt-0.5">{j.description}</p>
+                      <p className="flex items-center gap-1 text-xs text-gray-light mt-1">
+                        <User className="h-3.5 w-3.5" /> {j.client?.full_name ?? "Cliente"}
+                        <MapPin className="h-3.5 w-3.5 ml-1" /> {j.address || j.client?.city || "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <Badge status={j.status} />
+                    {j.final_price ? (
+                      <p className="text-sm font-semibold text-ink mt-1">{brl(j.final_price)}</p>
+                    ) : (
+                      <p className="text-[11px] text-info mt-1">enviar valor</p>
+                    )}
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary-dark mt-3">
+                  Abrir na aba Trabalho <ArrowRight className="h-4 w-4" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -100,7 +167,7 @@ export function PedidosBoard({
         ) : (
           <div className="space-y-3">
             {requests.map((r) => (
-              <RequestCard key={r.id} r={r} basePrice={basePrice} defaultAdvancePct={defaultAdvancePct} />
+              <RequestCard key={r.id} r={r} defaultAdvancePct={defaultAdvancePct} />
             ))}
           </div>
         )}
@@ -109,8 +176,9 @@ export function PedidosBoard({
   );
 }
 
-function RequestCard({ r, basePrice, defaultAdvancePct }: { r: Req; basePrice: number; defaultAdvancePct: number }) {
-  const [value, setValue] = useState<string>(String(r.myProposal?.price ?? basePrice));
+function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: number }) {
+  // sem preço-base: o prestador digita o valor de cada serviço
+  const [value, setValue] = useState<string>(r.myProposal ? String(r.myProposal.price) : "");
   const [advancePct, setAdvancePct] = useState<number>(Math.min(defaultAdvancePct, 50));
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(!!r.myProposal);
@@ -135,7 +203,7 @@ function RequestCard({ r, basePrice, defaultAdvancePct }: { r: Req; basePrice: n
 
   const price = Number(value) || 0;
   const advanceFee = Math.round(((price * advancePct) / 100) * ADVANCE_FEE_RATE * 100) / 100;
-  const net = Math.max(providerNet(price || basePrice) - advanceFee, 0);
+  const net = Math.max(providerNet(price) - advanceFee, 0);
 
   async function submit() {
     if (!price || price <= 0) return setError("Informe um valor válido.");
@@ -231,6 +299,7 @@ function RequestCard({ r, basePrice, defaultAdvancePct }: { r: Req; basePrice: n
                   type="number"
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
+                  placeholder="0,00"
                   className="w-full py-2.5 px-2 outline-none"
                 />
               </div>

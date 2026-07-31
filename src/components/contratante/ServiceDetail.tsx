@@ -12,8 +12,10 @@ import { RouteMap } from "@/components/map/RouteMap";
 import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { approveService, approveAdvance, processPayment, cancelService } from "@/app/app/contratante/pay.actions";
-import { brl, paymentBreakdown, type PayMethod } from "@/lib/pricing";
+import { approveService, approveAdvance, processPayment, skipPayment, cancelService, type CardPayload } from "@/app/app/contratante/pay.actions";
+import { CardForm } from "@/components/contratante/CardForm";
+import { PixPanel } from "@/components/contratante/PixPanel";
+import { brl, paymentBreakdown, chargedTotal, type PayMethod } from "@/lib/pricing";
 import { providerReputation } from "@/lib/reputation";
 
 type Service = {
@@ -33,6 +35,10 @@ type Service = {
   photos: string[] | null;
   advance_pct: number | null;
   advance_approved: boolean | null;
+  /** Preenchido quando o profissional sinaliza que terminou (falta aprovar). */
+  provider_done_at: string | null;
+  /** Serviço que correu sem cobrança (Selo Fix nos dois lados). */
+  no_charge: boolean | null;
   category: { name: string; slug: string } | null;
   provider: { full_name: string; rating: number | null; jobs_done: number | null; avatar_path: string | null; lat: number | null; lng: number | null } | null;
   payment: { amount: number; fee: number; gateway_fee: number; provider_net: number; method: string; status: string; advance_pct: number | null; advance_amount: number | null; advance_fee: number | null } | null;
@@ -73,11 +79,14 @@ export function ServiceDetail({
   currentUserId,
   conversationId,
   proposals = [],
+  canSkipPayment = false,
 }: {
   service: Service;
   currentUserId: string;
   conversationId: string | null;
   proposals?: Proposal[];
+  /** Selo Fix nos dois lados — libera seguir sem passar pelo gateway. */
+  canSkipPayment?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -88,9 +97,11 @@ export function ServiceDetail({
   const [showChat, setShowChat] = useState(false);
   const [method, setMethod] = useState<PayMethod>("pix");
   const [payErr, setPayErr] = useState("");
+  const [pix, setPix] = useState<{ code: string; base64?: string; expiresAt?: string } | null>(null);
   const [showCancel, setShowCancel] = useState(false);
   const [counterFor, setCounterFor] = useState<string | null>(null);
   const [counterValue, setCounterValue] = useState("");
+  const [acceptErr, setAcceptErr] = useState("");
 
   async function sendCounter(p: Proposal) {
     const v = Number(counterValue);
@@ -126,25 +137,45 @@ export function ServiceDetail({
   const awaitingQuote = service.mode === "orcamento" && !!service.provider_id && !service.final_price && service.status !== "concluido";
   const toPay = service.status === "aceito" && !!service.final_price;
 
-  async function choose(p: Proposal) {
+  /**
+   * Aceita a proposta. Vai pelo `accept_proposal` no banco, que:
+   *  - recusa aceitar enquanto houver contra-proposta PENDENTE (era o bug de
+   *    "mandei contraproposta e ele pulou pro pagamento com o valor antigo");
+   *  - usa o preço da proposta (já negociado), não um valor vindo do cliente;
+   *  - recusa as outras propostas do mesmo pedido.
+   */
+  async function accept(p: Proposal) {
     if (!p.provider) return;
     setBusy(true);
+    setAcceptErr("");
     const supabase = createClient();
-    await supabase.from("proposals").update({ status: "aceita" }).eq("id", p.id);
-    await supabase
-      .from("service_requests")
-      .update({ provider_id: p.provider.id, final_price: p.price, status: "aceito", advance_pct: p.advance_pct ?? 0 })
-      .eq("id", service.id);
+    const { error } = await supabase.rpc("accept_proposal", { p_proposal_id: p.id });
     setBusy(false);
+    if (error) return setAcceptErr(error.message);
     router.refresh();
   }
 
-  async function pay() {
+  async function pay(card?: CardPayload) {
     setBusy(true);
     setPayErr("");
-    const res = await processPayment(service.id, method);
+    const res = await processPayment(service.id, method, card);
     setBusy(false);
-    if (!res.ok) return setPayErr(res.error ?? "Falha no pagamento.");
+    if (!res.ok) return setPayErr([res.error, res.detail].filter(Boolean).join(" — ") || "Falha no pagamento.");
+    // PIX volta pendente com QR: mostra o QR e espera a confirmação
+    if (res.status === "pendente" && res.pixQrCode) {
+      setPix({ code: res.pixQrCode, base64: res.pixQrCodeBase64, expiresAt: res.pixExpiresAt });
+      return;
+    }
+    router.refresh();
+  }
+
+  /** Selo Fix: segue o fluxo sem gateway. O servidor reconfere os dois selos. */
+  async function skip() {
+    setBusy(true);
+    setPayErr("");
+    const res = await skipPayment(service.id);
+    setBusy(false);
+    if (!res.ok) return setPayErr(res.error ?? "Não foi possível seguir sem pagamento.");
     router.refresh();
   }
 
@@ -216,6 +247,17 @@ export function ServiceDetail({
         )}
       </div>
 
+      {/* Selo Fix — deixa explícito que este serviço não movimentou dinheiro */}
+      {service.no_charge && (
+        <div className="flex items-start gap-2 rounded-2xl bg-primary/10 text-ink px-4 py-3 text-sm">
+          <BadgeCheck className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>
+            <b>Selo Fix — serviço sem cobrança.</b> Este é um fluxo de teste: nada foi cobrado
+            de você e o profissional não recebe valor nenhum por ele.
+          </span>
+        </div>
+      )}
+
       {/* Orçamento — aguardando o profissional enviar o valor */}
       {awaitingQuote && (
         <div className="flex items-start gap-2 rounded-2xl bg-info/5 text-info px-4 py-3 text-sm">
@@ -234,9 +276,10 @@ export function ServiceDetail({
             <h2 className="font-semibold text-ink">Propostas recebidas</h2>
             <span className="text-sm text-gray-light">{proposals.length} proposta(s)</span>
           </div>
+          {acceptErr && <p className="text-sm text-danger bg-danger/5 rounded-lg px-4 py-3 mb-3">{acceptErr}</p>}
           {proposals.length === 0 ? (
             <div className="bg-white rounded-2xl border border-black/5 p-8 text-center text-gray">
-              Aguardando os profissionais enviarem propostas. Atualize em instantes.
+              Aguardando os profissionais enviarem propostas — esta página se atualiza sozinha.
             </div>
           ) : (
             <div className="space-y-3">
@@ -310,7 +353,17 @@ export function ServiceDetail({
                           Negociar
                         </button>
                       )}
-                      <Button className="flex-1" loading={busy} onClick={() => choose(p)}>Escolher</Button>
+                      {/* Com contra-proposta pendente NÃO se fecha o serviço:
+                          o valor ainda está em negociação com o profissional. */}
+                      {p.counter_status === "pendente" ? (
+                        <span className="flex-1 inline-flex items-center justify-center h-10 rounded-xl bg-black/[0.04] text-gray-light text-sm font-medium">
+                          Em negociação
+                        </span>
+                      ) : (
+                        <Button className="flex-1" loading={busy} onClick={() => accept(p)}>
+                          Aceitar proposta
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -320,8 +373,18 @@ export function ServiceDetail({
         </div>
       )}
 
+      {/* PIX gerado — aguardando o pagamento cair */}
+      {toPay && pix && (
+        <PixPanel
+          requestId={service.id}
+          qrCode={pix.code}
+          qrCodeBase64={pix.base64}
+          expiresAt={pix.expiresAt}
+        />
+      )}
+
       {/* Pagamento — após escolher o profissional */}
-      {toPay && (
+      {toPay && !pix && (
         <div className="bg-white rounded-2xl border border-black/5 p-5">
           <h2 className="font-semibold text-ink mb-1">Pagamento protegido</h2>
           <p className="text-sm text-gray-light mb-4">Você paga agora; o profissional só recebe após sua aprovação.</p>
@@ -345,28 +408,58 @@ export function ServiceDetail({
             return (
               <div className="rounded-xl bg-canvas p-4 text-sm space-y-1.5 mb-4">
                 <Row label="Profissional" value={service.provider?.full_name ?? "—"} />
-                <Row label="Valor do serviço" value={brl(bd.amount)} />
+                <Row label="Valor do serviço" value={brl(bd.serviceAmount)} />
+                {bd.surcharge > 0 && (
+                  <Row label="Acréscimo do cartão" value={`+ ${brl(bd.surcharge)}`} muted />
+                )}
+                <div className="border-t border-black/10 my-1" />
+                <Row label="Total a pagar" value={brl(bd.amount)} bold />
+                <div className="border-t border-black/10 my-1" />
                 <Row label="Comissão Fixly (15%)" value={`- ${brl(bd.platformFee)}`} muted />
-                <Row label="Tarifa do pagamento" value={`- ${brl(bd.gatewayFee)}`} muted />
                 {bd.advancePct > 0 && (
                   <>
                     <Row label={`Taxa de adiantamento (${bd.advancePct}%)`} value={`- ${brl(bd.advanceFee)}`} muted />
-                    <div className="border-t border-black/10 my-1" />
                     <Row label="Prestador recebe ao contratar" value={brl(bd.providerUpfront)} />
                     <Row label="Prestador recebe ao aprovar" value={brl(bd.providerOnApproval)} />
                   </>
                 )}
                 <Row label="Prestador recebe (total)" value={brl(bd.providerNet)} />
-                <div className="border-t border-black/10 my-1" />
-                <Row label="Total a pagar" value={brl(bd.amount)} bold />
+                {bd.surcharge > 0 && (
+                  <p className="text-[11px] text-gray-light pt-1">
+                    No Pix o total seria {brl(bd.serviceAmount)}. O acréscimo é a tarifa da
+                    operadora do cartão — o profissional recebe o mesmo nos dois meios.
+                  </p>
+                )}
               </div>
             );
           })()}
 
           {payErr && <p className="text-sm text-danger mb-3">{payErr}</p>}
-          <Button fullWidth size="lg" loading={busy} onClick={pay}>
-            <Lock className="h-4 w-4" /> Pagar {brl(service.final_price ?? val)} e contratar
-          </Button>
+
+          {method === "pix" ? (
+            <Button fullWidth size="lg" loading={busy} onClick={() => pay()}>
+              <Lock className="h-4 w-4" /> Pagar {brl(service.final_price ?? val)} com Pix
+            </Button>
+          ) : (
+            <CardForm amount={chargedTotal(service.final_price ?? val, method)} busy={busy} onPay={(card) => pay(card)} />
+          )}
+
+          {/* SELO FIX — só aparece com selo nos dois lados (o servidor reconfere) */}
+          {canSkipPayment && (
+            <div className="mt-4 pt-4 border-t border-dashed border-black/10">
+              <button
+                onClick={skip}
+                disabled={busy}
+                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl border border-black/10 text-sm font-medium text-gray hover:text-ink hover:bg-black/[0.03] transition disabled:opacity-50"
+              >
+                <BadgeCheck className="h-4 w-4 shrink-0" />
+                Seguir sem pagamento (Selo Fix)
+              </button>
+              <p className="text-[11px] text-gray-light text-center mt-2">
+                Ambiente de teste: nenhum valor é cobrado e ninguém recebe.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -410,6 +503,16 @@ export function ServiceDetail({
       {["a_caminho", "em_andamento"].includes(service.status) && (
         <div className="flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-3 text-sm">
           <Lock className="h-4 w-4 shrink-0" /> Pagamento protegido — o profissional só recebe após sua aprovação.
+        </div>
+      )}
+      {/* O profissional sinalizou que terminou: falta a sua aprovação */}
+      {canApprove && service.provider_done_at && (
+        <div className="rounded-2xl border border-primary/40 bg-primary/5 p-5">
+          <p className="font-semibold text-ink">O profissional concluiu o serviço</p>
+          <p className="text-sm text-gray mt-1">
+            Confira se está tudo certo e aprove para liberar o pagamento. Se algo ficou pendente,
+            fale com ele pelo chat antes de aprovar.
+          </p>
         </div>
       )}
       {canApprove && (

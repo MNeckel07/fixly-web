@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Zap, ClipboardList, HardHat, UsersRound, Building2 } from "lucide-react";
+import { Zap, HardHat, UsersRound, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { CategoryBrowser } from "@/components/contratante/CategoryBrowser";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
+import { AutoRefresh } from "@/components/ui/AutoRefresh";
 import { brl } from "@/lib/pricing";
 import type { ServiceCategory } from "@/lib/types";
 
@@ -48,6 +49,9 @@ export default async function ContratanteHome() {
 
   return (
     <div className="space-y-8">
+      {/* o andamento do serviço ativo se atualiza sozinho */}
+      <AutoRefresh seconds={20} />
+
       {/* Hero */}
       <section className="rounded-3xl bg-ink text-white p-7 relative overflow-hidden">
         <div className="absolute -top-16 -right-10 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
@@ -59,9 +63,8 @@ export default async function ContratanteHome() {
 
       {/* Pontos de entrada */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <EntryCard href="/app/contratante/solicitar?modo=express" icon={Zap} title="Express" desc="Preciso agora — envia para profissionais disponíveis" tone="bg-primary/10 text-primary-dark" />
-        <EntryCard href="/app/contratante/solicitar?modo=orcamento" icon={ClipboardList} title="Solicitar orçamento" desc="Serviço com visita técnica — receba propostas" tone="bg-info/10 text-info" />
-        <EntryCard href="/app/contratante/solicitar?modo=orcamento&reforma=1" icon={HardHat} title="Reformas" desc="Quero reformar minha casa — visita técnica e orçamento" tone="bg-warning/10 text-warning" />
+        <EntryCard href="/app/contratante/solicitar?modo=express" icon={Zap} title="Express" desc="Preciso agora — um profissional vai em minutos para resolver" tone="bg-primary/10 text-primary-dark" />
+        <EntryCard href="/app/contratante/solicitar?modo=orcamento" icon={HardHat} title="Solicitar serviço" desc="Reforma ou orçamento com visita técnica — receba propostas" tone="bg-warning/10 text-warning" />
         <EntryCard href="/app/contratante/profiler" icon={UsersRound} title="Pesquisar Profiler" desc="Veja o portfólio dos profissionais" tone="bg-success/10 text-success" />
         <EntryCard href="/app/contratante/empreiteiros" icon={Building2} title="Empreiteiros" desc="Quero achar um empreiteiro para minha obra" tone="bg-ink/5 text-ink" />
       </section>

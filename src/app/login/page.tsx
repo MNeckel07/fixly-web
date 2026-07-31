@@ -1,13 +1,32 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { ServiceTypewriter } from "@/components/auth/ServiceTypewriter";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth";
+import { ROLE_HOME } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ erro?: string; next?: string }>;
+}) {
+  const { erro } = await searchParams;
+
+  // "Ficar conectado": quem já tem sessão válida entra direto, sem passar pelo
+  // formulário. Não vale quando vem com `?erro=` (papel errado / conta inativa),
+  // senão o aviso nunca aparece.
+  if (!erro) {
+    const { profile } = await getProfile();
+    if (profile && profile.active !== false && profile.status === "aprovado") {
+      redirect(ROLE_HOME[profile.role]);
+    }
+  }
+
   // todas as categorias cadastradas (leitura pública via RLS cat_read)
   const supabase = await createClient();
   const { data: cats } = await supabase
@@ -24,14 +43,14 @@ export default async function LoginPage() {
       <aside className="hidden lg:flex w-[44%] flex-col justify-between bg-ink p-12 relative overflow-hidden">
         <div className="absolute -top-24 -right-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
         <div className="absolute bottom-0 -left-16 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-        <Logo size={30} />
-        <div className="relative">
+        <Logo size={34} />
+        <div className="relative max-w-xl">
           <h1 className="text-white text-4xl font-bold leading-tight">
             Serviços da sua casa,
             <br />
             resolvidos em minutos.
           </h1>
-          <p className="text-white/60 mt-4 text-lg max-w-md">
+          <p className="text-white/60 mt-4 text-lg">
             Uma plataforma, três experiências: quem contrata, quem executa e
             quem administra.
           </p>

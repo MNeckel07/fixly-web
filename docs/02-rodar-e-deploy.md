@@ -18,10 +18,28 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...   # pública (browser)
 SUPABASE_SECRET_KEY=sb_secret_...                          # server-only (server actions)
 SUPABASE_DB_URL=postgresql://postgres.rndtmsjzwqahnwiddzcf:<senha%40cod>@aws-1-ca-central-1.pooler.supabase.com:5432/postgres
 NEXT_PUBLIC_APP_URL=http://localhost:3000                  # em prod: https://fixly.company
-MP_ACCESS_TOKEN=                                           # vazio = Mercado Pago mock
-NEXT_PUBLIC_MP_PUBLIC_KEY=
-RESEND_API_KEY=                                            # vazio = e-mail vira preview no log
+
+# ── E-mail — OBRIGATÓRIO para cadastro e recuperação de senha ──
+# Brevo (recomendada: conta já existe na DVN, 300/dia) OU Resend (100/dia).
+BREVO_API_KEY=                     # xkeysib-... (tem precedência sobre a Resend)
+RESEND_API_KEY=                    # alternativa
+EMAIL_FROM=Fixly <nao-responda@fixly.company>   # precisa ser remetente VERIFICADO
+EMAIL_DEV_CODES=                   # "1" mostra o código NA TELA (só para testar sem Resend)
+AUTH_TOKEN_SECRET=                 # opcional; sem ela usa SUPABASE_SECRET_KEY
+
+# ── Mercado Pago ──
+MP_ACCESS_TOKEN=                   # vazio = gateway em modo simulado (mock)
+NEXT_PUBLIC_MP_PUBLIC_KEY=         # Checkout Transparente (cartão, no browser)
+MP_WEBHOOK_SECRET=                 # assinatura secreta do webhook (sem ela o webhook RECUSA)
+MP_CLIENT_ID=                      # só para o split (OAuth do prestador)
+MP_CLIENT_SECRET=
 ```
+⚠️ **Sem `BREVO_API_KEY`/`RESEND_API_KEY` o cadastro NÃO conclui em produção** —
+o envio falha com erro na tela (de propósito: melhor erro que espera eterna).
+⚠️ **Nunca SMTP no Render:** portas 25/465/587 são bloqueadas no plano free — só
+API HTTPS (é por isso que `lib/email.ts` usa a API da Brevo, não SMTP).
+Para testar antes de configurar o provedor, use `EMAIL_DEV_CODES=1` (mostra o
+código na tela) e **remova depois**. Passo a passo completo: arquivo **07**.
 As **mesmas** chaves (menos DB_URL) precisam existir no **Render** (Environment).
 Se `SUPABASE_SECRET_KEY` faltar no Render, as **server actions quebram** em produção
 (criar conta, criar admin, forçar etapa, cancelar com reembolso, etc.).
@@ -44,9 +62,11 @@ npm run seed         # cria usuários de teste (precisa SUPABASE_SECRET_KEY)
 ```
 - `scripts/apply-schema.mjs` — lista de migrações no topo; adicione a nova lá.
 - `scripts/seed.sql` — seed via SQL (auth.users + identities + profiles + private).
-- Também dá pra aplicar uma migração avulsa com um one-liner `pg`:
+- ⚠️ **`db:apply` está QUEBRADO** para re-execução (falha no 0004). Para migração
+  **nova**, use o script dedicado — aplica **só um arquivo**, em transação própria
+  (falha no meio = rollback, banco não fica pela metade):
   ```bash
-  node --env-file=.env.local -e "const fs=require('fs'),pg=require('pg');const c=new pg.Client({connectionString:process.env.SUPABASE_DB_URL,ssl:{rejectUnauthorized:false}});(async()=>{await c.connect();await c.query(fs.readFileSync('supabase/migrations/00XX.sql','utf8'));console.log('ok');await c.end();})()"
+  node --env-file=.env.local scripts/apply-migration.mjs 0022_melhoras_p6.sql
   ```
 
 ## Deploy (Render + domínio)

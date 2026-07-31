@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
 /**
@@ -11,7 +11,12 @@ import { Search } from "lucide-react";
  * não adicionar dependência — controle total do cursor/marca e CSP-safe.
  */
 export function ServiceTypewriter({ services }: { services: string[] }) {
-  const list = services.length ? services : ["Eletricista", "Encanador", "Diarista", "Pintor"];
+  // memoizado: sem isso o array literal do fallback é novo a cada render e
+  // reinicia o efeito (a digitação ficava travando)
+  const list = useMemo(
+    () => (services.length ? services : ["Eletricista", "Encanador", "Diarista", "Pintor"]),
+    [services],
+  );
   const [text, setText] = useState("");
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<"typing" | "pausing" | "deleting">("typing");
@@ -45,12 +50,14 @@ export function ServiceTypewriter({ services }: { services: string[] }) {
   const idle = phase === "pausing"; // cursor pisca parado, fica sólido enquanto digita
 
   return (
-    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/10 px-4 h-10 min-w-[150px] text-white">
-      <Search className="h-4 w-4 text-primary shrink-0" strokeWidth={2} />
-      <span className="text-[15px] font-medium whitespace-nowrap leading-none">
+    // ocupa a mesma largura do título/parágrafo acima (max-w-xl), como uma
+    // barra de busca de verdade — em vez da pílula pequena de antes
+    <span className="flex w-full max-w-xl items-center gap-3 rounded-2xl bg-white/10 border border-white/15 px-5 h-16 text-white">
+      <Search className="h-6 w-6 text-primary shrink-0" strokeWidth={2} />
+      <span className="text-2xl font-medium whitespace-nowrap leading-none truncate">
         {text}
         <span
-          className={`inline-block w-[2px] h-[1.05em] translate-y-[2px] ml-[3px] bg-primary ${idle ? "animate-cursor-blink" : ""}`}
+          className={`inline-block w-[3px] h-[1.05em] translate-y-[3px] ml-[4px] bg-primary ${idle ? "animate-cursor-blink" : ""}`}
           aria-hidden
         />
       </span>

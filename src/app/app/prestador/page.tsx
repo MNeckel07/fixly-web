@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
-import { haversineKm } from "@/lib/pricing";
+import { haversineKm, providerNet } from "@/lib/pricing";
 import { signRequestPhotoMap } from "@/lib/uploads";
 import { PedidosBoard } from "@/components/prestador/PedidosBoard";
+import { AutoRefresh } from "@/components/ui/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +41,50 @@ export default async function PrestadorHome() {
     propMap[p.request_id] = { price: p.price, eta: p.eta_minutes, advance_pct: p.advance_pct ?? 0, counter_price: p.counter_price, counter_status: p.counter_status };
   });
 
-  // prestador ocupado = já tem um serviço em andamento
+  // Prestador ocupado = tem serviço em execução AINDA não sinalizado como pronto.
+  // Depois de concluir, ele volta a receber pedidos mesmo que a aprovação do
+  // contratante (que libera o pagamento) ainda não tenha saído.
   const { count: activeCount } = await supabase
     .from("service_requests")
     .select("*", { count: "exact", head: true })
     .eq("provider_id", profile.id)
-    .in("status", ["a_caminho", "em_andamento"]);
+    .in("status", ["a_caminho", "em_andamento"])
+    .is("provider_done_at", null);
   const busy = (activeCount ?? 0) > 0;
+
+  // Orçamentos / reformas já atribuídos a ele (o contratante escolheu o profissional
+  // direto). Aparecem aqui também, além da aba Trabalho.
+  const { data: mine } = await supabase
+    .from("service_requests")
+    .select("id, description, status, address, mode, final_price, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)")
+    .eq("provider_id", profile.id)
+    .in("status", ["aceito", "a_caminho", "em_andamento"])
+    .order("created_at", { ascending: false });
+  const myJobs = (mine ?? []).map((j: any) => ({
+    id: j.id,
+    description: j.description,
+    status: j.status,
+    address: j.address,
+    mode: j.mode,
+    final_price: j.final_price,
+    category: Array.isArray(j.category) ? j.category[0] : j.category,
+    client: Array.isArray(j.client) ? j.client[0] : j.client,
+  }));
+
+  // Ganho líquido do mês corrente (substitui o antigo "preço-base" no painel)
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const { data: doneThisMonth } = await supabase
+    .from("service_requests")
+    .select("final_price, estimated_price, payment:payments(provider_net)")
+    .eq("provider_id", profile.id)
+    .eq("status", "concluido")
+    .gte("created_at", monthStart.toISOString());
+  const monthNet = (doneThisMonth ?? []).reduce((sum: number, j: any) => {
+    const pay = Array.isArray(j.payment) ? j.payment[0] : j.payment;
+    return sum + Number(pay?.provider_net ?? providerNet(j.final_price ?? j.estimated_price ?? 0));
+  }, 0);
 
   const radius = profile.service_radius_km ?? 10;
   const requests = (open ?? [])
@@ -81,14 +119,19 @@ export default async function PrestadorHome() {
   for (const r of requests) r.photos = r.photos.map((p: string) => signedMap[p]).filter(Boolean);
 
   return (
-    <PedidosBoard
+    <>
+      {/* pedidos novos e contra-propostas aparecem sem precisar dar F5 */}
+      <AutoRefresh seconds={15} />
+      <PedidosBoard
       requests={requests}
+      myJobs={myJobs as any}
       providerName={profile!.full_name}
       rating={profile!.rating ?? 0}
       jobsDone={profile!.jobs_done ?? 0}
-      basePrice={profile!.base_price ?? 0}
+      monthNet={monthNet}
       defaultAdvancePct={profile!.advance_pct ?? 0}
       busy={busy}
-    />
+      />
+    </>
   );
 }

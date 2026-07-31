@@ -106,8 +106,9 @@ export function ProfilerDirectory({
                     </Link>
                   )}
                   {showRequestButton && (
+                    // `prestador=` direciona o pedido a ELE (combina a visita no chat)
                     <Link
-                      href={`/app/contratante/solicitar?cat=${p.category?.slug ?? ""}`}
+                      href={`/app/contratante/solicitar?modo=orcamento&prestador=${p.id}${p.category?.slug ? `&cat=${p.category.slug}` : ""}`}
                       className="flex-1 inline-flex items-center justify-center h-10 rounded-xl bg-primary text-ink font-semibold text-sm hover:bg-primary-dark transition"
                     >
                       Solicitar

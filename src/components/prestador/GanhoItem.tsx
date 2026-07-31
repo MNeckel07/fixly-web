@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { brl, platformFee, gatewayFee, providerNet, type PayMethod } from "@/lib/pricing";
+import { brl, platformFee, providerNet } from "@/lib/pricing";
 
 type Job = {
   id: string;
@@ -23,10 +23,12 @@ const METHOD_LABEL: Record<string, string> = {
 export function GanhoItem({ job, children }: { job: Job; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
-  const amount = job.pay?.amount ?? job.val;
-  const commission = job.pay?.fee ?? platformFee(amount);
-  const gwFee = job.pay?.gateway_fee ?? gatewayFee(amount, (job.pay?.method as PayMethod) ?? "pix");
-  const net = job.pay?.provider_net ?? providerNet(amount);
+  // `pay.amount` é o TOTAL cobrado do contratante (com o acréscimo do cartão);
+  // o preço do serviço é o que interessa aqui, e a tarifa do gateway não sai
+  // mais do bolso do prestador — por isso ela não aparece neste extrato.
+  const commission = job.pay?.fee ?? platformFee(job.val);
+  const net = job.pay?.provider_net ?? providerNet(job.val);
+  const amount = job.pay ? Number(job.pay.fee) + Number(job.pay.provider_net) : job.val;
 
   return (
     <li>
@@ -51,7 +53,6 @@ export function GanhoItem({ job, children }: { job: Job; children: React.ReactNo
           <div className="rounded-xl bg-canvas p-4 text-sm space-y-1.5">
             <Row label="Valor do serviço" value={brl(amount)} />
             <Row label="Comissão Fixly (15%)" value={`- ${brl(commission)}`} muted />
-            <Row label="Tarifa do pagamento" value={`- ${brl(gwFee)}`} muted />
             <div className="border-t border-black/10 my-1" />
             <Row label="Você recebe" value={brl(net)} bold />
           </div>

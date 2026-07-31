@@ -75,9 +75,41 @@ components/  → ui, auth, shell, admin, contratante, prestador, chat, map, prof
     trigger) — se for usar `createAdminClient` para forçar etapa, tudo bem (o
     trigger libera quando `auth.uid()` é nulo/service-role ou `is_admin()`).
 
+12. **`cookieOptions.maxAge` do `@supabase/ssr` é IGNORADO.** A lib monta
+    `setCookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...cookieOptions, maxAge:
+    DEFAULT_COOKIE_OPTIONS.maxAge }` — ela **sobrescreve** o nosso `maxAge` com o
+    default dela (400 dias). Por isso o "Ficar conectado" grava os cookies à mão,
+    via `cookies.getAll/setAll` em `lib/supabase/client.ts`; o proxy faz o mesmo
+    (tira `maxAge`/`expires` quando a preferência é não ficar conectado). Se
+    mexer nisso, testar as DUAS pontas: marcado = cookie persistente, desmarcado
+    = `expires: -1` (cookie de sessão). E conferir que o **logout** ainda limpa.
+13. **Ícones do app são convenção de arquivo do Next**, não `<link>` na mão:
+    `src/app/favicon.ico`, `src/app/icon.png` e `src/app/apple-icon.png`. O Next
+    injeta as tags e versiona a URL. Gerados a partir de `public/fixly-symbol.png`
+    — o PNG tem "poeira" de alpha 1–2 na borda, então **`getbbox()` devolve a
+    imagem toda**; recortar com limite (`alpha > 40`) antes de escalar, senão o
+    ícone fica minúsculo no meio do quadrado.
+
+14. **NUNCA troque o `className` do `<div>` em que o Leaflet foi inicializado.**
+    O Leaflet escreve as classes dele (`leaflet-container`, `leaflet-touch`…)
+    **nesse mesmo elemento**, de forma imperativa. Se o React reescrever o
+    atributo (porque a prop `className` mudou), todas somem — e o mapa fica
+    **em branco**, sem erro nenhum no console, com os tiles carregados e
+    invisíveis. Aconteceu no `ServiceAreaMap` ao alternar embutido ↔ tela cheia.
+    **Regra:** o div do Leaflet tem className CONSTANTE (`h-full w-full`); quem
+    muda de tamanho é um **wrapper** por fora. Sintoma para reconhecer:
+    `document.querySelector(".leaflet-container")` volta `null` mas
+    `.leaflet-tile` existe.
+    E ao redimensionar, chamar `map.invalidateSize()` **depois** de o CSS
+    aplicar (timeout curto) — senão ele mede o tamanho antigo.
+
 ## Convenções
 - Escrever código no estilo do redor (Tailwind utilitário, `lib/brand` para labels
   de papel/status, `Badge` para status, `CategoryIcon` por slug).
+- **Marca:** usar sempre o componente `Logo` (nunca escrever "Fixly" à mão). Ele
+  garante a proporção definida pelo dono — o símbolo é **1,3× a fonte do nome**
+  (`SYMBOL_RATIO`), sobrando margem acima e abaixo do texto. `size` é a
+  referência do TEXTO; o símbolo é derivado.
 - Sem emojis na UI. Ícones lucide.
 - Commits: mensagem clara + `Co-Authored-By: Claude ...`. Commit/push só quando fizer sentido.
 - Sempre `tsc --noEmit` + `npm run build` antes de commitar mudança não trivial.

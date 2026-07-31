@@ -2,6 +2,80 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v8.2 — Área de atendimento no mapa + e-mail no ar
+- **E-mail FUNCIONANDO** (Brevo). O que libera o envio é o **remetente ativo**,
+  não o domínio autenticado: `fixly.company` seguia `autenticado: false` e o
+  código chegou mesmo assim. Diagnóstico permanente em `scripts/check-email.mjs`
+  (valida chave, remetente e mostra os últimos envios, sem imprimir a chave).
+- **Fix de segurança:** `showDevCode` só checava `RESEND_API_KEY` — com a Brevo
+  configurada, o código continuaria aparecendo **na tela** além de ir por e-mail.
+  Agora usa `emailProvider()`, nos 3 fluxos (cadastro, recuperação, troca).
+- **`sendEmail` falha alto** quando não há provedor (antes fingia sucesso e o
+  usuário esperava um código que nunca chegava). Aviso de aprovação de cadastro
+  virou `sendEmailBestEffort` — não pode derrubar uma ação já gravada no banco.
+- **`ServiceAreaMap`:** o raio de atendimento saiu de cima e virou um mapa
+  interativo — **círculo desenhado ao vivo** enquanto arrasta, reenquadre
+  automático (dá para ler os bairros/cidades cobertos), área em km² e **tela
+  cheia**. Vale no cadastro do prestador e no perfil dele.
+  ⚠️ Ver armadilha 14 (className do Leaflet x React) — custou um mapa em branco.
+
+## v8.1 — Tela de entrada e identidade
+- **Favicon e ícones do app** gerados da marca (`src/app/favicon.ico`, `icon.png`,
+  `apple-icon.png`) — símbolo recortado sobre quadrado branco arredondado, para
+  ficar legível a 16px e em aba clara ou escura.
+- **Proporção da marca:** o símbolo agora é **1,3× a fonte do nome** (`Logo`,
+  `SYMBOL_RATIO`) — valia para todo o site de uma vez. As páginas públicas
+  `/p` e `/e` passaram a usar o componente (antes só o texto "Fixly"), e o
+  **cartão QR** ganhou o símbolo ao lado do nome.
+- **Typewriter do login** virou uma barra de busca de verdade: mesma largura do
+  título (`max-w-xl`, 564px medidos), 64px de altura e fonte `text-2xl`.
+- **"Ficar conectado"** acima do botão Entrar: marcado, os cookies da sessão vão
+  com 1 ano e o usuário **entra direto** (`/login` e `/` redirecionam quem já tem
+  sessão); desmarcado, viram cookie de sessão e morrem ao fechar o navegador.
+  ⚠️ `cookieOptions.maxAge` do `@supabase/ssr` é sobrescrito pela lib — por isso
+  os cookies são gravados à mão. Ver armadilha 12 no arquivo 03.
+- **"Esqueci minha senha"** saiu de cima do campo e foi para baixo do botão,
+  acima do "Cadastre-se".
+
+## v8 — Melhoras (doc "Fixly parte 6", migração 0022)
+- **Autenticação por e-mail (novo subsistema):** código de 6 dígitos em
+  `lib/otp.ts` (guarda só o sha256, validade 10 min, uso único, máx 5 tentativas)
+  + `lib/verifiedEmail.ts` (comprovante HMAC que sobrevive ao formulão do cadastro).
+  Usado em **3 fluxos**: cadastro, "esqueci minha senha" (`/recuperar-senha`) e
+  **troca de senha logado** (exige senha atual + código).
+- **Cadastro em 2 etapas:** nome, sobrenome, e-mail, telefone, senha + confirmação
+  → código no e-mail → resto do cadastro. Sem o comprovante, `createAccount` recusa.
+- **Busca inteligente (`lib/serviceSearch.ts`)**: motor próprio e gratuito — léxico
+  treinado de ~600 termos de obra/manutenção, casamento por **frase**, **radical** e
+  **erro de digitação**, dicas de ambiente, e **categoria oculta nunca é resultado**
+  (era o bug de "trocar o piso do banheiro" → "Encontramos: profissional"). Também
+  procura no **texto livre do prestador** (`specialties`), então "piscina" acha quem
+  faz piscina mesmo sem categoria. 31/31 casos de teste do doc passando.
+- **Dinheiro só depois da aprovação:** o prestador marca `provider_done_at`; o valor
+  entra em Ganhos quando o **contratante aprova** (`guard_request_changes` garante).
+- **Carteira do prestador:** saldo (disponível / a liberar / em serviço), **"Sacar
+  dinheiro"** (RPC valida o saldo), **previsão de crédito** ("cai amanhã (30/07)"),
+  adiantamento liberado aparecendo, e **Admin → Saques** para pagar o PIX.
+- **Contra-proposta corrigida:** `accept_proposal()` no banco — não dá para fechar
+  com contra-proposta pendente, e o preço é o da proposta (não o antigo). Botão
+  virou **"Aceitar proposta"**.
+- **Orçamento + Reforma fundidos** em **"Solicitar serviço"**, com o mesmo método de
+  negociação do Express (propostas + contra-proposta). Pelo Profiler dá para
+  direcionar a um profissional (`?prestador=<id>`). Express com texto estilo Uber.
+- **Gateway de pagamento real:** Mercado Pago com **PIX** (QR + copia-e-cola +
+  confirmação por webhook assinado e polling de segurança), **cartão** por Checkout
+  Transparente (token no browser — o cartão não passa pelo Fixly), **estorno** no
+  cancelamento, e **split** opcional via OAuth (`application_fee`).
+- **Preço-base da visita removido** (cadastro, perfil e painel) — quem precifica é
+  o prestador, serviço por serviço.
+- **Cartão do Profiler configurável:** escolhe qual serviço aparece + frase limitada
+  a 70 caracteres (a frase longa estourava o layout).
+- **Correções do doc:** alinhamento das categorias sempre à esquerda e ícone da
+  "Impermeabilização" (o SVG era comprimido a zero por falta de `shrink-0`); perfil
+  não salvo agora avisa em vez de abrir página de erro; `/p/<handle>` mostra
+  **todos** os serviços; empreiteiro sempre tem profiler; telefone obrigatório;
+  **auto-refresh sem F5**; Admin Vendas usando os valores **reais** do pagamento.
+
 ## v7 — Melhoras (docs "Fixy part 5", migração 0021)
 - **Catálogo curado:** 8 serviços em **destaque** (`featured`) + **busca** + **"Ver
   todos"** nos seletores (Express/Orçamento/Reforma) e no home, com ícones

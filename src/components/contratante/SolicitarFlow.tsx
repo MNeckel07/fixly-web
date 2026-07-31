@@ -35,6 +35,8 @@ export function SolicitarFlow({
   initialDescription = "",
   initialUrgent = false,
   reformaOnly = false,
+  mode = "express",
+  provider = null,
   client,
 }: {
   categories: ServiceCategory[];
@@ -42,6 +44,10 @@ export function SolicitarFlow({
   initialDescription?: string;
   initialUrgent?: boolean;
   reformaOnly?: boolean;
+  /** `orcamento` = serviço com visita técnica (reforma/orçamento). */
+  mode?: "express" | "orcamento";
+  /** Pedido direcionado a um profissional específico (vindo do Profiler). */
+  provider?: { id: string; name: string } | null;
   client: ClientInfo;
 }) {
   const router = useRouter();
@@ -71,7 +77,13 @@ export function SolicitarFlow({
     if (client.lat && client.lng) setLoc({ lat: client.lat, lng: client.lng });
   }
 
-  // Envia o pedido (a plataforma NÃO define preço) e vai acompanhar as propostas
+  /**
+   * Envia o pedido. A plataforma NÃO define preço.
+   *  - sem profissional escolhido → vai para os prestadores da região e o
+   *    contratante compara PROPOSTAS (mesmo método do Express, com negociação);
+   *  - com profissional escolhido (veio do Profiler) → vai direto para ele,
+   *    que combina a visita pelo chat e envia o valor.
+   */
   async function submit() {
     if (!category) return;
     if (!description.trim()) return setError("Descreva o que você precisa.");
@@ -94,7 +106,10 @@ export function SolicitarFlow({
         address: fullAddress,
         lat: loc.lat,
         lng: loc.lng,
-        status: "buscando",
+        ...(mode === "orcamento" ? { mode: "orcamento" } : {}),
+        ...(provider
+          ? { provider_id: provider.id, status: "aceito" }
+          : { status: "buscando" }),
       })
       .select("id")
       .single();
@@ -110,8 +125,13 @@ export function SolicitarFlow({
       if (paths.length > 0) await supabase.from("service_requests").update({ photos: paths }).eq("id", req.id);
     }
 
-    // dispara para prestadores próximos (cada um envia seu preço)
-    await supabase.rpc("dispatch_request", { p_request_id: req.id });
+    if (provider) {
+      // abre a conversa para combinar a visita
+      await supabase.rpc("start_service_chat", { p_request_id: req.id });
+    } else {
+      // dispara para prestadores próximos (cada um envia seu preço)
+      await supabase.rpc("dispatch_request", { p_request_id: req.id });
+    }
 
     router.push(`/app/contratante/servico/${req.id}`);
     router.refresh();
@@ -121,8 +141,18 @@ export function SolicitarFlow({
     <div className="max-w-xl mx-auto">
       <Stepper step={step} />
 
+      {provider && (
+        <div className="flex items-center gap-2 rounded-xl bg-info/5 text-info px-4 py-3 text-sm mb-4">
+          <MapPin className="h-4 w-4 shrink-0" />
+          <span>Pedido direcionado a <b>{provider.name}</b> — vocês combinam a visita pelo chat.</span>
+        </div>
+      )}
+
       {step === "categoria" && (
-        <Card title={reformaOnly ? "Reforma — o que você precisa?" : "O que você precisa?"} subtitle="Escolha a categoria do serviço">
+        <Card
+          title={mode === "orcamento" ? "Solicitar orçamento para reforma" : "O que você precisa?"}
+          subtitle="Escolha a categoria do serviço"
+        >
           <CategoryPicker
             categories={categories}
             reformaOnly={reformaOnly}
@@ -135,7 +165,14 @@ export function SolicitarFlow({
       )}
 
       {step === "detalhes" && category && (
-        <Card title={category.name} subtitle="Conte os detalhes do serviço">
+        <Card
+          title={category.name}
+          subtitle={
+            mode === "orcamento"
+              ? "Conte o que precisa — os profissionais avaliam e mandam o orçamento"
+              : "Conte os detalhes do serviço"
+          }
+        >
           <div className="space-y-4">
             <div>
               <Label>Descreva o que precisa</Label>
@@ -150,20 +187,22 @@ export function SolicitarFlow({
               <Label>Fotos do serviço</Label>
               <PhotoPicker files={photos} onChange={setPhotos} />
             </div>
-            <button
-              onClick={() => setUrgent((v) => !v)}
-              className={`flex w-full items-center justify-between rounded-xl border p-4 transition ${
-                urgent ? "border-danger bg-danger/5" : "border-black/10 bg-white"
-              }`}
-            >
-              <span className="flex items-center gap-2 text-sm font-medium text-ink">
-                <AlertTriangle className={`h-4 w-4 ${urgent ? "text-danger" : "text-gray-light"}`} />
-                É urgente? <span className="text-gray-light font-normal">(prioridade)</span>
-              </span>
-              <span className={`h-6 w-11 rounded-full p-0.5 transition ${urgent ? "bg-danger" : "bg-black/15"}`}>
-                <span className={`block h-5 w-5 rounded-full bg-white transition ${urgent ? "translate-x-5" : ""}`} />
-              </span>
-            </button>
+            {mode === "express" && (
+              <button
+                onClick={() => setUrgent((v) => !v)}
+                className={`flex w-full items-center justify-between rounded-xl border p-4 transition ${
+                  urgent ? "border-danger bg-danger/5" : "border-black/10 bg-white"
+                }`}
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-ink">
+                  <AlertTriangle className={`h-4 w-4 ${urgent ? "text-danger" : "text-gray-light"}`} />
+                  É urgente? <span className="text-gray-light font-normal">(prioridade)</span>
+                </span>
+                <span className={`h-6 w-11 rounded-full p-0.5 transition ${urgent ? "bg-danger" : "bg-black/15"}`}>
+                  <span className={`block h-5 w-5 rounded-full bg-white transition ${urgent ? "translate-x-5" : ""}`} />
+                </span>
+              </button>
+            )}
             <div>
               <div className="flex items-center justify-between">
                 <Label>Onde será o serviço?</Label>
@@ -192,7 +231,13 @@ export function SolicitarFlow({
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
               {!preCat && <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>}
-              <Button fullWidth loading={busy} onClick={submit}>Enviar pedido e ver propostas</Button>
+              <Button fullWidth loading={busy} onClick={submit}>
+                {provider
+                  ? "Enviar pedido e conversar"
+                  : mode === "orcamento"
+                    ? "Enviar e receber orçamentos"
+                    : "Enviar pedido e ver propostas"}
+              </Button>
             </div>
           </div>
         </Card>

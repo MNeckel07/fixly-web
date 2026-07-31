@@ -14,7 +14,7 @@ export function ProfileEditor({
 }: {
   profileId: string;
   role: "contratante" | "prestador" | "admin";
-  initial: { full_name: string; city: string; phone: string; bio: string; base_price: string };
+  initial: { full_name: string; city: string; phone: string; bio: string; pix_key: string };
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -30,13 +30,15 @@ export function ProfileEditor({
     setError("");
     setSaving(true);
 
+    // sem preço-base: quem precifica é o prestador, proposta por proposta
     const profUpdate: any = { full_name: f.full_name, city: f.city };
-    if (role === "prestador") {
-      profUpdate.bio = f.bio;
-      profUpdate.base_price = f.base_price ? Number(f.base_price) : null;
-    }
+    if (role === "prestador") profUpdate.bio = f.bio;
+
+    const privUpdate: any = { phone: f.phone };
+    if (role === "prestador") privUpdate.pix_key = f.pix_key.trim() || null;
+
     const { error: e1 } = await supabase.from("profiles").update(profUpdate).eq("id", profileId);
-    const { error: e2 } = await supabase.from("profiles_private").update({ phone: f.phone }).eq("id", profileId);
+    const { error: e2 } = await supabase.from("profiles_private").update(privUpdate).eq("id", profileId);
     setSaving(false);
     if (e1 || e2) return setError((e1 ?? e2)!.message);
     setSaved(true);
@@ -55,7 +57,9 @@ export function ProfileEditor({
       {role === "prestador" && (
         <>
           <Field label="Sobre você (bio)"><Textarea rows={3} value={f.bio} onChange={set("bio")} /></Field>
-          <Field label="Preço-base da visita (R$)"><Input type="number" value={f.base_price} onChange={set("base_price")} /></Field>
+          <Field label="Chave PIX (é para lá que vai o seu saque)">
+            <Input value={f.pix_key} onChange={set("pix_key")} placeholder="CPF, e-mail, telefone ou aleatória" />
+          </Field>
         </>
       )}
       {error && <p className="text-sm text-danger">{error}</p>}

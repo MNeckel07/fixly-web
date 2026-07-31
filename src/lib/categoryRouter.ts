@@ -1,36 +1,12 @@
 /**
- * Roteamento por palavras-chave: interpreta o texto livre do contratante
- * ("Não encontrou? descreva o que precisa") e sugere a categoria mais provável.
- * (Heurística — pode ser trocada por IA depois sem mudar a interface.)
+ * Catálogo auxiliar: quais categorias entram no atalho de reforma e o exemplo
+ * de descrição de cada uma.
+ *
+ * O roteamento por texto livre ("descreva o que você precisa") saiu daqui —
+ * agora é o motor de busca em `lib/serviceSearch.ts`, com léxico treinado,
+ * casamento por frase, radical e erro de digitação. `routeCategory` continua
+ * exportado abaixo por compatibilidade.
  */
-const KEYWORDS: Record<string, string[]> = {
-  eletricista: ["eletric", "tomada", "disjuntor", "fio", "curto", "lampada", "lâmpada", "luz", "energia", "chuveiro"],
-  encanador: ["vazament", "cano", "encanad", "torneira", "pia", "esgoto", "entupi", "ralo", "registro", "descarga", "água", "agua"],
-  pintor: ["pint", "tinta", "parede", "textura", "verniz", "grafiato"],
-  diarista: ["faxin", "limpez", "diarist", "passar roupa", "organizar"],
-  montador: ["montar", "montagem", "móvel", "movel", "guarda-roupa", "estante"],
-  ar_condicionado: ["ar condicionado", "ar-condicionado", "split", "refriger"],
-  jardinagem: ["jardim", "grama", "poda", "planta", "paisag"],
-  chaveiro: ["chave", "fechadura", "trava", "abrir porta", "cadeado"],
-  alvenaria: ["tijolo", "muro", "pedreiro", "reboco", "alvenaria", "concreto"],
-  carpintaria: ["carpint", "madeira", "forma de concreto"],
-  pisos: ["piso", "porcelanato", "cerâmica", "ceramica", "azulejo", "revestiment", "rejunte", "laminado"],
-  gesso: ["gesso", "drywall", "forro", "sanca"],
-  telhados: ["telhado", "telha", "calha", "goteira"],
-  esquadrias: ["esquadria", "janela", "porta de alumínio", "aluminio", "alumínio"],
-  vidracaria: ["vidro", "box de banheiro", "espelho", "vidrac"],
-  marcenaria: ["marcenaria", "planejado", "sob medida"],
-  serralheria: ["serralh", "portão", "portao", "grade", "solda", "ferro"],
-  impermeabilizacao: ["impermeab", "infiltra", "laje vazando"],
-  fachadas: ["fachada", "pintura predial", "revestimento externo"],
-  banheiros: ["banheiro", "reforma de banheiro"],
-  churrasqueiras: ["churrasqueira", "forno de pizza"],
-  gas: ["gás", "aquecedor", "instalação de gas", "botijão", "botijao"],
-  seguranca: ["câmera", "camera", "cftv", "alarme", "segurança", "cerca elétrica", "interfone"],
-  redes_logica: ["cabeament", "internet", "wifi", "wi-fi", "lógica", "cabo de rede"],
-  automacao: ["automaç", "automac", "casa inteligente", "smart"],
-  marido_aluguel: ["marido de aluguel", "reparo", "conserto", "instalar", "furar", "prateleira"],
-};
 
 /** Categorias associadas a reforma/obra (para o atalho "Quero reformar minha casa"). */
 export const REFORMA_SLUGS = [
@@ -78,46 +54,4 @@ export function descriptionExample(slug: string | null | undefined): string {
   return (slug && DESCRIPTION_EXAMPLES[slug]) || "Ex.: Descreva o que você precisa, com o máximo de detalhes.";
 }
 
-/**
- * Termos DECISIVOS: quando aparecem, mandam na categoria mesmo que o texto
- * também cite palavras de outra (ex.: "fazer um muro no jardim" → Alvenaria,
- * não Jardinagem). Sempre checados primeiro.
- */
-const DECISIVE: Record<string, string> = {
-  muro: "alvenaria",
-  murinho: "alvenaria",
-  reboco: "alvenaria",
-  "assentar tijolo": "alvenaria",
-  "quadro de energia": "eletricista",
-  "caixa de gordura": "encanador",
-  "vaso sanitário": "encanador",
-  "forro de gesso": "gesso",
-  drywall: "gesso",
-  porcelanato: "pisos",
-  rejunte: "pisos",
-  "guarda-roupa": "marcenaria",
-  telha: "telhados",
-  infiltração: "impermeabilizacao",
-};
-
-export function routeCategory(text: string): { slug: string; matched: boolean } {
-  const t = text.toLowerCase();
-
-  // 1) termo decisivo (o mais longo que casar vence)
-  const decisiveHit = Object.entries(DECISIVE)
-    .filter(([term]) => t.includes(term))
-    .sort((a, b) => b[0].length - a[0].length)[0];
-  if (decisiveHit) return { slug: decisiveHit[1], matched: true };
-
-  // 2) pontuação por palavras-chave (peso maior p/ termo mais específico/longo)
-  let best: string | null = null;
-  let score = 0;
-  for (const [slug, kws] of Object.entries(KEYWORDS)) {
-    const s = kws.reduce((n, k) => n + (t.includes(k) ? k.length : 0), 0);
-    if (s > score) {
-      score = s;
-      best = slug;
-    }
-  }
-  return { slug: best ?? "faz_tudo", matched: score > 0 };
-}
+export { routeCategory } from "./serviceSearch";
