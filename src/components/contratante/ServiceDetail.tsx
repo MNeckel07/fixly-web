@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Star, MessageSquare, CheckCircle2, Lock, ShieldCheck, BadgeCheck, ExternalLink, Zap, CreditCard, Smartphone, Wallet } from "lucide-react";
+import { ArrowLeft, Star, MessageSquare, CheckCircle2, Lock, ShieldCheck, BadgeCheck, ExternalLink, Zap, CreditCard } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -67,11 +67,23 @@ function avatarUrl(path: string | null | undefined): string | null {
 }
 // `service.photos` já chega como URLs assinadas (bucket privado `pedidos`).
 
+/**
+ * Apple Pay e Google Pay saíram daqui (31/07/2026).
+ *
+ * Eles estavam listados, mas caíam no MESMO formulário de cartão — o usuário
+ * escolhia "Apple Pay" e recebia campos de número/CVV, que é o contrário do que
+ * a carteira promete (autenticar no aparelho, sem digitar cartão).
+ *
+ * Para valer de verdade, a carteira precisa do **Payment Brick** do Mercado
+ * Pago (o botão é renderizado por eles, o cartão nunca chega ao formulário) e,
+ * no caso do Apple Pay, do domínio registrado na Apple + habilitação na conta
+ * MP. É trabalho próprio, não um item de lista. Enquanto isso não existe, é
+ * mais honesto não oferecer: o tipo `PayMethod` continua aceitando os dois,
+ * então nada quebra quando forem implementados.
+ */
 const METHODS: { key: PayMethod; label: string; Icon: typeof Zap }[] = [
   { key: "pix", label: "Pix", Icon: Zap },
   { key: "cartao", label: "Cartão", Icon: CreditCard },
-  { key: "apple_pay", label: "Apple Pay", Icon: Smartphone },
-  { key: "google_pay", label: "Google Pay", Icon: Wallet },
 ];
 
 export function ServiceDetail({

@@ -40,6 +40,28 @@ components/  → ui, auth, shell, admin, contratante, prestador, chat, map, prof
   `portfolio` (público — é vitrine).
 
 ## ⚠️ ARMADILHAS (já custaram debugging — leia!)
+
+### 🔴 Redefinir função do banco: partir da versão MAIS RECENTE
+`create or replace function` **substitui a definição inteira**. Copiar a versão
+que aparecer primeiro no `grep` reverte, em silêncio, tudo o que migrações
+posteriores fizeram nela — e o Postgres aceita sem reclamar.
+
+Aconteceu em 31/07/2026: a `0023` reescreveu `dispatch_request` a partir da
+`0004`, que **cria proposta automática** com preço calculado. A `0021` havia
+removido isso de propósito (no Express quem digita o preço é o prestador).
+Resultado: pedido novo nascia com proposta de um profissional que não clicou em
+nada, e o dono viu "alguém aceitou sozinho". Consertado na `0025`.
+
+**Antes de redefinir qualquer função:**
+```bash
+grep -rn "function public.<nome>" supabase/migrations/   # use a de MAIOR número
+```
+
+### `notification_url` do Mercado Pago não aceita localhost
+Se `NEXT_PUBLIC_APP_URL` for `http://localhost:3000`, o MP recusa a cobrança
+inteira com `400 notification_url attribute must be url valid`. O
+`mercadopago.ts` só manda o campo quando a URL é https pública; rodando local, a
+tela do Pix confirma pelo polling de 5 s.
 1. **Embed `profiles → service_categories` é AMBÍGUO.** Depois que criamos
    `provider_categories` (many-to-many), o PostgREST vê 2 caminhos e **falha a
    query inteira** (não só o embed). Em queries sobre a tabela **`profiles`**, use

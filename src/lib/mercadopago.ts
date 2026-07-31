@@ -92,11 +92,22 @@ export async function createMercadoPagoCharge(
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://fixly.company";
   const split = !!input.providerAccessToken;
 
+  /**
+   * O MP valida o `notification_url` e RECUSA a cobrança inteira com
+   * `400 notification_url attribute must be url valid` se ele não for uma URL
+   * pública em https — `http://localhost:3000` cai nessa. Rodando local, a
+   * saída é não mandar o campo: a tela do Pix consulta o pagamento a cada 5 s e
+   * confirma do mesmo jeito. Em produção o campo vai normalmente.
+   */
+  const webhookUrl = /^https:\/\//i.test(appUrl) && !/localhost|127\.0\.0\.1|\.local(:|$)/i.test(appUrl)
+    ? `${appUrl}/api/pagamentos/webhook`
+    : null;
+
   const base: Record<string, unknown> = {
     transaction_amount: Number(breakdown.amount.toFixed(2)),
     description: input.description.slice(0, 250),
     external_reference: input.externalReference,
-    notification_url: `${appUrl}/api/pagamentos/webhook`,
+    ...(webhookUrl ? { notification_url: webhookUrl } : {}),
     statement_descriptor: "FIXLY",
     payer: {
       email: input.payerEmail ?? "cliente@fixly.company",
