@@ -45,7 +45,8 @@
 |---|---|---|
 | Decisão do papel + regra de rotas | `src/lib/appRole.ts` | `appRole()` lê `APP_ROLE`; `pathAllowed()` diz o que cada papel serve |
 | Barreira | `src/proxy.ts` | responde **404** (não 403) quando a rota é do outro ambiente |
-| Login | `LoginForm` + `login/page.tsx` | o painel só oferece "Equipe Fixly"; o site não oferece admin. Login na porta errada **encerra a sessão** e explica o endereço certo |
+| Login do painel | `components/auth/AdminLoginForm.tsx` | **tela própria e seca**: caixa central com usuário/e-mail, senha, "ficar conectado" e "esqueci minha senha". Sem painel de marca, sem efeito de digitação, sem "Cadastre-se", sem escolher perfil — o papel é fixo em `admin`. Conta que não é da equipe tem a **sessão encerrada** na hora |
+| Login do site | `LoginForm` + `login/page.tsx` | o site deixou de oferecer o perfil "Administrador"; o painel nem carrega o catálogo de categorias |
 | Marca | `app/layout.tsx` | título próprio e `noindex` quando `APP_ROLE=admin` |
 | Infra | `render.yaml` | os dois serviços, com as variáveis de cada um |
 
@@ -104,12 +105,23 @@ dessa máquina é metade do ganho da separação.
    **hostname do serviço** (algo como `fixly-admin-xxxx.onrender.com`).
 
 ### 3.4 DNS na Hostinger
-**Domínios → `fixly.fun` → Gerenciar → Registros DNS:**
+**Domínios → `fixly.fun` → Gerenciar → Registros DNS.** Valores confirmados na
+tela do Render em 11/08/2026:
 
-| Tipo | Nome | Valor | Observação |
+| Tipo | Nome | Valor | TTL |
 |---|---|---|---|
-| A | `@` | o IP que o Render mostrar | hoje o do site é `216.24.57.1`; **use o que a tela do Render exibir**, não copie daqui |
-| CNAME | `www` | `fixly-admin-xxxx.onrender.com` | o hostname do **serviço novo**, não o do site |
+| **A** | `@` | `216.24.57.1` | 300 |
+| **CNAME** | `www` | `fixly-admin.onrender.com` | 300 |
+
+> O Render sugere CNAME também na raiz, mas a **Hostinger não aceita CNAME em
+> `@`** (nem ANAME/ALIAS) — por isso a raiz vai como **A**. A própria tela do
+> Render oferece esse caminho: *"For A records, use this target value:
+> 216.24.57.1"*.
+>
+> **É o mesmo IP do `fixly.company`, e está certo.** O Render usa um IP
+> compartilhado e decide qual serviço responder pelo **cabeçalho Host** da
+> requisição. Quem separa os dois é o CNAME do `www` — daí ele ter que apontar
+> para `fixly-admin.onrender.com`, e não para o hostname do site.
 
 ⚠️ **Apague antes qualquer A/CNAME de estacionamento** que a Hostinger tenha
 criado para o `fixly.fun`, senão os registros brigam e o domínio fica oscilando.

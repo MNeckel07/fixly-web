@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { appRole, adminUrl, siteUrl } from "@/lib/appRole";
 import { Logo } from "@/components/ui/Logo";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { AdminLoginForm } from "@/components/auth/AdminLoginForm";
 import { ServiceTypewriter } from "@/components/auth/ServiceTypewriter";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
@@ -34,6 +35,24 @@ export default async function LoginPage({
     if (profile && pertence && profile.active !== false && profile.status === "aprovado") {
       redirect(ROLE_HOME[profile.role]);
     }
+  }
+
+  /**
+   * PAINEL — tela própria, sem nada de vitrine.
+   * Sai antes de consultar o catálogo de categorias: o painel não precisa
+   * dessa query, e cada dado a menos nesta tela é um dado a menos exposto a
+   * quem topou com o endereço por acaso.
+   */
+  if (ambiente === "admin") {
+    return (
+      <main className="flex flex-1 min-h-screen items-center justify-center bg-canvas p-6">
+        <div className="w-full max-w-sm">
+          <Suspense fallback={<div className="h-80" />}>
+            <AdminLoginForm siteUrl={outroEndereco} />
+          </Suspense>
+        </div>
+      </main>
+    );
   }
 
   // todas as categorias cadastradas (leitura pública via RLS cat_read)
