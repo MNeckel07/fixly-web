@@ -29,10 +29,19 @@
 4. **Falhas isoladas:** o painel continua de pé se o site cair, e vice-versa.
 5. **Dá para trancar por IP** só o serviço do painel, sem afetar clientes.
 
+6. **O painel não é COMPILADO no servidor público** (`scripts/strip-admin.mjs`).
+   Bloquear `/admin` por rota impede a navegação, mas não tira os endpoints do
+   ar: as **17 server actions** do painel — `impersonationLink` (gera link
+   mágico de acesso a conta), `deleteUser`, `createStaffUser`,
+   `settleWithdrawal`, `setFixBadge`, `approveProfile`… — eram compiladas como
+   POST acionáveis no `fixly.company`, guardadas só pelo `assertAdmin()`. O
+   script apaga `src/app/admin` e `src/components/admin` antes do build quando
+   `APP_ROLE=site`. É a diferença entre "a porta está trancada" e "não há porta".
+
 **O que ela NÃO entrega — para não criar falsa sensação de segurança:**
-- O código do admin **continua presente** no servidor público, apenas
-  inacessível por rota. Quem tiver execução de código naquela máquina não é
-  barrado por isso.
+- O `SUPABASE_SECRET_KEY` continua existindo nos **dois** servidores (ambos
+  rodam server actions que escrevem com privilégio). Esse é o segredo mais
+  sensível dos dois lados, e a separação não o remove.
 - **A fronteira que protege os dados continua sendo a RLS do Supabase** +
   `is_admin()`. Senha de admin vazada é igualmente grave nos dois domínios.
 - Os dois serviços têm `SUPABASE_SECRET_KEY` (ambos rodam server actions).
@@ -177,6 +186,28 @@ Subi as duas configurações localmente e conferi rota por rota:
 | `/api/pagamentos/webhook` | 200 | **404** |
 | `/` | 307 → login | 307 → `/admin` |
 
-E na tela de login: o painel oferece **só** "Equipe Fixly", título `Painel ·
-Fixly` e `robots: noindex, nofollow`; o site oferece só contratante e prestador,
-com o título de sempre.
+E na tela de login: o painel tem **tela própria** (fundo escuro, cartão de
+vidro, sem escolha de perfil e sem "Cadastre-se"), título `Painel · Fixly` e
+`robots: noindex, nofollow`; o site oferece só contratante e prestador, com o
+título de sempre.
+
+### O build público sem o painel (testado em 11/08/2026)
+Rodei o `strip-admin` na árvore e compilei:
+
+| Verificação | Resultado |
+|---|---|
+| `npm run build` sem `src/app/admin` | ✅ compila |
+| rotas `/admin` no build | **0** |
+| `impersonationLink`, `createStaffUser`, `settleWithdrawal`, `setFixBadge`, `approveProfile` | ✅ ausentes |
+| string exclusiva da action `deleteUser` ("não pode excluir a própria conta") | ✅ ausente |
+| script sem `--force` fora do Render | ✅ recusa e sai com erro |
+| script com `APP_ROLE=admin` | ✅ não remove nada |
+
+> `deleteUser` ainda aparece no build como texto, mas é o método
+> `auth.admin.deleteUser` **do SDK do Supabase**, não a nossa action — provado
+> pela ausência da mensagem exclusiva dela. E "Selo Fix" aparece porque é das
+> telas do contratante e do prestador, que são do produto.
+>
+> O componente `AdminLoginForm` continua no bundle público (é importado pela
+> página de login). É uma caixa de formulário, sem dado nem endpoint
+> privilegiado — fica registrado por honestidade, não por risco.
