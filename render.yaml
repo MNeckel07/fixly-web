@@ -16,7 +16,9 @@ services:
     runtime: node
     plan: free           # troque para "starter" para evitar cold start
     region: oregon
-    buildCommand: npm ci && npm run build
+    # `strip-admin` APAGA src/app/admin antes de compilar: as server actions do
+    # painel não viram endpoints neste servidor. Ver o cabeçalho do script.
+    buildCommand: node scripts/strip-admin.mjs && npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /login
     autoDeploy: true

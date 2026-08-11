@@ -3,78 +3,74 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/Button";
-import { Input, Label } from "@/components/ui/Field";
 import { writeRemember } from "@/lib/session";
 import { resolveLoginEmail } from "@/app/login/actions";
 
 /**
- * Login do PAINEL (fixly.fun) — tela própria, propositalmente seca.
+ * Login do PAINEL (fixly.fun).
  *
- * Nada de vitrine aqui: sem o painel de marca da esquerda, sem o efeito de
- * digitação, sem "Cadastre-se", sem escolher perfil. Quem chega nesta tela já
- * sabe o que veio fazer, e cada elemento a mais seria: (a) ruído para a equipe,
- * (b) informação de graça para quem topou com o endereço por acaso.
+ * Arquitetura copiada do login do Estradão, a pedido do dono: fundo escuro com
+ * gradientes em camadas, um único cartão de vidro centralizado, marca empilhada
+ * no topo, campos escuros e olho na senha. Estilo em `style` inline pelo mesmo
+ * motivo que lá — a tela não herda o tema claro do produto e não deve depender
+ * dele.
  *
- * O papel é fixo em `admin` — a conta que não for da equipe é recusada e tem a
- * sessão encerrada na hora.
+ * Aqui não existe vitrine: sem escolha de perfil, sem "Cadastre-se", sem
+ * animação. O papel é fixo em `admin`; conta que não for da equipe entra e é
+ * deslogada na hora, porque deixar sessão de pé no domínio errado esvaziaria o
+ * motivo de separar os ambientes.
  */
 export function AdminLoginForm({ siteUrl }: { siteUrl: string }) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
-  const [remember, setRemember] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [usuario, setUsuario] = useState("");
+  const [senha, setSenha] = useState("");
+  const [verSenha, setVerSenha] = useState(false);
+  const [lembrar, setLembrar] = useState(true);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function entrar(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    setCarregando(true);
+    setErro("");
 
-    // grava a preferência ANTES de criar o cliente: é ela que define se os
-    // cookies da sessão vão com validade longa ou só até fechar o navegador
-    writeRemember(remember);
+    // grava a preferência ANTES de criar o cliente: é ela que decide se o
+    // cookie da sessão dura ou morre ao fechar o navegador
+    writeRemember(lembrar);
     const supabase = createClient();
 
-    const loginEmail = email.includes("@") ? email : await resolveLoginEmail(email);
-    if (!loginEmail) {
-      setError("Usuário ou senha incorretos.");
-      setLoading(false);
+    const email = usuario.includes("@") ? usuario : await resolveLoginEmail(usuario);
+    if (!email) {
+      setErro("Usuário ou senha não conferem.");
+      setCarregando(false);
       return;
     }
 
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
-      password,
-    });
-    if (signInError || !data.user) {
-      setError("Usuário/e-mail ou senha incorretos.");
-      setLoading(false);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+    if (error || !data.user) {
+      setErro("Usuário ou senha não conferem.");
+      setCarregando(false);
       return;
     }
 
-    const { data: profile } = await supabase
+    const { data: perfil } = await supabase
       .from("profiles")
       .select("role, status, active")
       .eq("id", data.user.id)
       .single();
 
-    // Conta que não é da equipe não fica com sessão aberta neste domínio —
-    // é o que dá sentido a separar os ambientes.
-    if (!profile || profile.role !== "admin") {
+    if (!perfil || perfil.role !== "admin") {
       await supabase.auth.signOut();
-      setError(`Esta área é restrita à equipe Fixly. Clientes e profissionais entram em ${siteUrl.replace(/^https?:\/\//, "")}.`);
-      setLoading(false);
+      setErro(`Área restrita à equipe Fixly. Clientes e profissionais entram em ${siteUrl.replace(/^https?:\/\//, "")}.`);
+      setCarregando(false);
       return;
     }
-    if (profile.active === false || profile.status !== "aprovado") {
+    if (perfil.active === false || perfil.status !== "aprovado") {
       await supabase.auth.signOut();
-      setError("Esta conta está inativa. Fale com um administrador.");
-      setLoading(false);
+      setErro("Esta conta está inativa. Fale com um administrador.");
+      setCarregando(false);
       return;
     }
 
@@ -83,78 +79,193 @@ export function AdminLoginForm({ siteUrl }: { siteUrl: string }) {
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="flex items-center gap-2.5 mb-6">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-ink">
-          <ShieldCheck className="h-5 w-5" strokeWidth={2.2} />
-        </span>
-        <div>
-          <h1 className="text-lg font-bold text-ink leading-tight">Painel Fixly</h1>
-          <p className="text-xs text-gray-light">Acesso restrito à equipe</p>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <Label>E-mail ou usuário</Label>
-          <Input
-            type="text"
-            required
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="usuário ou voce@email.com"
-            autoComplete="username"
-          />
+    <main style={estilos.fundo}>
+      <div style={estilos.cartao}>
+        {/* Marca — o símbolo do Fixly sobre fundo escuro, com a régua âmbar */}
+        <div style={estilos.marca}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/fixly-symbol.png" alt="" style={{ width: 56, height: "auto" }} />
+          <span style={estilos.wordmark}>
+            Fi<span style={{ color: "#ffc107" }}>x</span>ly
+          </span>
+          <span style={estilos.tagline}>
+            <span style={estilos.risco} />
+            PAINEL ADMINISTRATIVO
+            <span style={estilos.risco} />
+          </span>
         </div>
 
-        <div>
-          <Label>Senha</Label>
-          <div className="relative">
-            <Input
-              type={showPass ? "text" : "password"}
+        <p style={estilos.subtitulo}>Acesso restrito à equipe.</p>
+
+        <form onSubmit={entrar} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <label style={estilos.campo}>
+            <span style={estilos.rotulo}>Usuário ou e-mail</span>
+            <input
+              autoFocus
               required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
-              className="pr-11"
+              autoComplete="username"
+              value={usuario}
+              onChange={(e) => {
+                setUsuario(e.target.value);
+                setErro("");
+              }}
+              placeholder="usuário ou voce@email.com"
+              style={estilos.input}
             />
-            <button
-              type="button"
-              onClick={() => setShowPass((v) => !v)}
-              aria-label={showPass ? "Ocultar senha" : "Mostrar senha"}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-light hover:text-ink"
-            >
-              {showPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
-        </div>
+          </label>
 
-        {error && (
-          <p className="text-sm text-danger bg-danger/5 rounded-lg px-3 py-2">{error}</p>
-        )}
+          <label style={estilos.campo}>
+            <span style={estilos.rotulo}>Senha</span>
+            <div style={{ position: "relative" }}>
+              <input
+                required
+                type={verSenha ? "text" : "password"}
+                autoComplete="current-password"
+                value={senha}
+                onChange={(e) => {
+                  setSenha(e.target.value);
+                  setErro("");
+                }}
+                placeholder="••••••••"
+                style={{ ...estilos.input, paddingRight: 52 }}
+              />
+              <button
+                type="button"
+                onClick={() => setVerSenha((v) => !v)}
+                aria-label={verSenha ? "Ocultar senha" : "Mostrar senha"}
+                style={estilos.olho}
+              >
+                {verSenha ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </label>
 
-        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-            className="h-4 w-4 accent-[#FFC107] cursor-pointer"
-          />
-          <span className="text-sm text-ink">Ficar conectado</span>
-        </label>
+          {erro && <p style={estilos.erro}>{erro}</p>}
 
-        <Button type="submit" size="lg" fullWidth loading={loading}>
-          Entrar
-        </Button>
+          <label style={estilos.lembrar}>
+            <input
+              type="checkbox"
+              checked={lembrar}
+              onChange={(e) => setLembrar(e.target.checked)}
+              style={{ accentColor: "#ffc107", width: 16, height: 16, cursor: "pointer" }}
+            />
+            Ficar conectado
+          </label>
 
-        <p className="text-center">
-          <Link href="/recuperar-senha" className="text-sm font-semibold text-primary-dark hover:underline">
+          <button type="submit" disabled={carregando} style={estilos.botao}>
+            {carregando ? "Entrando…" : "Entrar"}
+          </button>
+        </form>
+
+        <p style={{ textAlign: "center", marginTop: 20 }}>
+          <Link href="/recuperar-senha" style={estilos.link}>
             Esqueci minha senha
           </Link>
         </p>
-      </form>
-    </div>
+      </div>
+    </main>
   );
 }
+
+const estilos: Record<string, React.CSSProperties> = {
+  fundo: {
+    minHeight: "100dvh",
+    display: "grid",
+    placeItems: "center",
+    padding: 24,
+    color: "#eef0f3",
+    background:
+      "radial-gradient(1100px 700px at 15% -10%, #2a2418, transparent 60%)," +
+      "radial-gradient(900px 600px at 100% 0%, #1a1d22, transparent 55%)," +
+      "linear-gradient(160deg, #101216, #1a1d24)",
+  },
+  cartao: {
+    width: "100%",
+    maxWidth: 400,
+    padding: "32px 28px",
+    borderRadius: 24,
+    background: "rgba(36,40,49,0.55)",
+    border: "1px solid rgba(255,255,255,0.09)",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08)",
+    backdropFilter: "blur(28px) saturate(180%)",
+    WebkitBackdropFilter: "blur(28px) saturate(180%)",
+  },
+  marca: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 8,
+    margin: "0 0 14px",
+  },
+  wordmark: { fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#fff", lineHeight: 1 },
+  tagline: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 10.5,
+    letterSpacing: "0.16em",
+    color: "#8b93a3",
+    whiteSpace: "nowrap",
+    marginTop: 2,
+  },
+  risco: { width: 18, height: 2, background: "#ffc107", borderRadius: 2, display: "inline-block" },
+  subtitulo: { color: "#aab1bc", fontSize: 14, margin: "0 0 24px", textAlign: "center" },
+  campo: { display: "flex", flexDirection: "column", gap: 6 },
+  rotulo: { color: "#8b93a3", fontSize: 13, fontWeight: 500 },
+  input: {
+    width: "100%",
+    height: 46,
+    padding: "0 14px",
+    borderRadius: 12,
+    background: "rgba(9,12,17,0.5)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#eef0f3",
+    fontSize: 15,
+    outline: "none",
+  },
+  olho: {
+    position: "absolute",
+    right: 6,
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: 40,
+    height: 40,
+    display: "grid",
+    placeItems: "center",
+    borderRadius: 10,
+    border: "none",
+    background: "transparent",
+    color: "#aab1bc",
+    cursor: "pointer",
+  },
+  erro: {
+    color: "#ff6b6b",
+    fontSize: 13,
+    margin: 0,
+    background: "rgba(255,107,107,0.08)",
+    border: "1px solid rgba(255,107,107,0.2)",
+    borderRadius: 10,
+    padding: "8px 12px",
+  },
+  lembrar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    color: "#aab1bc",
+    fontSize: 14,
+    cursor: "pointer",
+    userSelect: "none",
+  },
+  botao: {
+    marginTop: 6,
+    height: 48,
+    borderRadius: 12,
+    border: "none",
+    background: "#ffc107",
+    color: "#1f2329",
+    fontSize: 15,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  link: { color: "#ffc107", fontSize: 13, fontWeight: 600, textDecoration: "none" },
+};

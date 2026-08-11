@@ -45,13 +45,9 @@ export default async function LoginPage({
    */
   if (ambiente === "admin") {
     return (
-      <main className="flex flex-1 min-h-screen items-center justify-center bg-canvas p-6">
-        <div className="w-full max-w-sm">
-          <Suspense fallback={<div className="h-80" />}>
-            <AdminLoginForm siteUrl={outroEndereco} />
-          </Suspense>
-        </div>
-      </main>
+      <Suspense fallback={null}>
+        <AdminLoginForm siteUrl={outroEndereco} />
+      </Suspense>
     );
   }
 
