@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { appRole, adminUrl, siteUrl } from "@/lib/appRole";
 import { Logo } from "@/components/ui/Logo";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { ServiceTypewriter } from "@/components/auth/ServiceTypewriter";
@@ -17,12 +19,19 @@ export default async function LoginPage({
 }) {
   const { erro } = await searchParams;
 
+  const ambiente = appRole((await headers()).get("host"));
+  const outroEndereco = ambiente === "admin" ? siteUrl() : adminUrl();
+
   // "Ficar conectado": quem já tem sessão válida entra direto, sem passar pelo
   // formulário. Não vale quando vem com `?erro=` (papel errado / conta inativa),
   // senão o aviso nunca aparece.
+  //
+  // ⚠️ Só redireciona se o papel da conta pertencer a ESTE ambiente: no painel,
+  // mandar um contratante para /app/contratante cairia no 404 do proxy.
   if (!erro) {
     const { profile } = await getProfile();
-    if (profile && profile.active !== false && profile.status === "aprovado") {
+    const pertence = profile && (ambiente === "admin" ? profile.role === "admin" : profile.role !== "admin");
+    if (profile && pertence && profile.active !== false && profile.status === "aprovado") {
       redirect(ROLE_HOME[profile.role]);
     }
   }
@@ -70,7 +79,7 @@ export default async function LoginPage({
             <Logo size={28} variant="dark" />
           </div>
           <Suspense fallback={<div className="h-96" />}>
-            <LoginForm />
+            <LoginForm ambiente={ambiente} outroEndereco={outroEndereco} />
           </Suspense>
           <p className="text-center text-sm text-gray mt-8">
             Não tem conta?{" "}

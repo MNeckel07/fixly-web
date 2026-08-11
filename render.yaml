@@ -1,6 +1,16 @@
 # Render — Infra as Code do Fixly (sistema-web)
 # Ao conectar o repositório no Render, ele detecta este arquivo (Blueprint).
+#
+# DOIS SERVIÇOS, O MESMO CÓDIGO:
+#   fixly-web    → APP_ROLE=site   → fixly.company → o produto. /admin dá 404.
+#   fixly-admin  → APP_ROLE=admin  → fixly.fun     → o painel. /app/* dá 404.
+# A regra de quem serve o quê está em `src/lib/appRole.ts`, aplicada no `proxy.ts`.
+#
+# ⚠️ `APP_ROLE` é a única diferença obrigatória entre os dois. Se ela faltar, o
+# serviço assume `site` de propósito: esquecer a variável nunca deve transformar
+# o site público em painel.
 services:
+  # ── Site público ──────────────────────────────────────────
   - type: web
     name: fixly-web
     runtime: node
@@ -13,6 +23,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
+      - key: APP_ROLE
+        value: site
       - key: NEXT_PUBLIC_SUPABASE_URL
         sync: false
       - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
@@ -21,9 +33,51 @@ services:
         sync: false
       - key: NEXT_PUBLIC_APP_URL
         sync: false
-      - key: RESEND_API_KEY
+      - key: NEXT_PUBLIC_ADMIN_URL
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Pagamento — só o site cobra. O painel não recebe estas.
       - key: MP_ACCESS_TOKEN
         sync: false
       - key: NEXT_PUBLIC_MP_PUBLIC_KEY
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false
+
+  # ── Painel da equipe ──────────────────────────────────────
+  # Repare no que NÃO está aqui: nenhuma credencial do Mercado Pago. O painel
+  # não chama a API do gateway (só lê colunas de `payments`), então não há
+  # motivo para o token existir nessa máquina.
+  - type: web
+    name: fixly-admin
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /login
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: APP_ROLE
+        value: admin
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      # No painel, a URL pública dele mesmo (links de e-mail saem corretos)
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      # aprovação/reprovação de cadastro avisa o candidato por e-mail
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM
         sync: false

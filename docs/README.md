@@ -18,6 +18,9 @@
    e o que muda em `pricing.ts`.
 9. [`09-plano-mercado-pago.md`](09-plano-mercado-pago.md) — **plano de implementação**:
    fases, spec do **Selo Fix** (fluxo sem cobrança), roteiro de teste e go-live.
+10. [`10-ambiente-admin-separado.md`](10-ambiente-admin-separado.md) — **painel em
+    domínio próprio** (fixly.fun): como funciona a barreira por `APP_ROLE`, o passo
+    a passo do domínio na Hostinger/Render e o que a separação entrega (e o que não).
 
 ## TL;DR (o essencial)
 - **Marketplace de serviços** (tipo Uber/GetNinjas) com 3 frentes numa app só:

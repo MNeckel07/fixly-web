@@ -17,10 +17,22 @@ const ROLES: { role: Role; icon: LucideIcon; hint: string }[] = [
   { role: "admin", icon: ShieldCheck, hint: "Equipe Fixly" },
 ];
 
-export function LoginForm() {
+export function LoginForm({
+  ambiente = "site",
+  outroEndereco = "",
+}: {
+  /** Papel deste servidor: o site público ou o painel da equipe. */
+  ambiente?: "site" | "admin";
+  /** Endereço do outro ambiente, para orientar quem errou a porta. */
+  outroEndereco?: string;
+} = {}) {
   const router = useRouter();
   const params = useSearchParams();
-  const [role, setRole] = useState<Role>("contratante");
+
+  // No painel só existe o perfil da equipe; no site público, só os dois do
+  // produto. Separar os ambientes começa por não oferecer a porta errada.
+  const perfis = ROLES.filter((r) => (ambiente === "admin" ? r.role === "admin" : r.role !== "admin"));
+  const [role, setRole] = useState<Role>(ambiente === "admin" ? "admin" : "contratante");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -71,6 +83,25 @@ export function LoginForm() {
       setLoading(false);
       return;
     }
+    /**
+     * Porta errada: conta de admin não entra pelo site público, e conta de
+     * cliente/profissional não entra pelo painel. A sessão é encerrada na hora
+     * — deixá-la de pé no domínio errado esvaziaria o motivo de separar os
+     * ambientes. (A barreira de verdade é o proxy, que responde 404; isto aqui
+     * é para a pessoa entender o que fazer.)
+     */
+    const pertence = ambiente === "admin" ? profile.role === "admin" : profile.role !== "admin";
+    if (!pertence) {
+      await supabase.auth.signOut();
+      setError(
+        ambiente === "admin"
+          ? `Esta é a área da equipe Fixly. Contas de ${ROLE_LABELS[profile.role as Role]} entram em ${outroEndereco || "fixly.company"}.`
+          : `Contas da equipe Fixly entram pelo painel administrativo${outroEndereco ? ` em ${outroEndereco}` : ""}, não por aqui.`,
+      );
+      setLoading(false);
+      return;
+    }
+
     if (profile.role !== role) {
       await supabase.auth.signOut();
       setError(
@@ -92,9 +123,9 @@ export function LoginForm() {
       <h2 className="text-2xl font-bold text-ink">Entrar</h2>
       <p className="text-gray mt-1 mb-6">Escolha seu perfil e acesse a conta.</p>
 
-      {/* Seleção de papel */}
-      <div className="grid grid-cols-3 gap-2 mb-6">
-        {ROLES.map((r) => {
+      {/* Seleção de papel — no painel sobra só "Equipe Fixly" */}
+      <div className={`grid gap-2 mb-6 ${perfis.length === 1 ? "grid-cols-1" : perfis.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+        {perfis.map((r) => {
           const active = role === r.role;
           const Icon = r.icon;
           return (
