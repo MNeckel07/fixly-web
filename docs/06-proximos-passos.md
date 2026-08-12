@@ -51,7 +51,30 @@ Passo a passo na seção 5 do `docs/09`. Trocar as 3 variáveis no Render do sit
 para `APP_USR-` + a assinatura secreta da aba **Modo de produção**, e fazer um
 serviço real de R$ 1,00.
 
-### 5. Trancar o painel por IP (recomendado, agora é barato)
+### 5. 🔴 Liberação automática do escrow (dinheiro pode ficar preso para sempre)
+**Não existe** aprovação automática. Se o contratante não clicar em "aprovar",
+o valor fica `retido` indefinidamente — o prestador trabalhou e não recebe.
+Sugerido: liberar sozinho **7 dias** depois de o prestador marcar
+`provider_done_at`, com aviso por e-mail no 5º dia. É uma coluna de prazo + um
+job diário. É a pendência mais séria do fluxo de pagamento.
+
+### 6. Validar a chave PIX do prestador
+O saque usa **só** `profiles_private.pix_key` — banco, agência e conta são
+coletados no cadastro e **nunca usados**. Hoje nada valida a chave: nem formato,
+nem se o titular é a pessoa do cadastro. Há lixo salvo em produção
+(`bank_name` = "321231", "xz\x"), o que mostra que o formulário aceita qualquer
+coisa. Correção barata: validar o formato e aceitar por padrão só a chave que
+seja o **CPF do próprio cadastro**.
+
+### 7. A conta do Mercado Pago é PESSOAL (CPF), não da Fixly
+A conta que recebe é `NECKELMATHEUS20220502082512` /
+`matheusneckel@hotmail.com`, tipo **normal**, documento **CPF**, com nome
+fantasia "Caminhos da Virtude" de outro negócio. Em produção, todo o valor —
+inclusive a parte do prestador — entraria no CPF do dono. **Resolver antes de
+virar o dinheiro real**: conta empresa no CNPJ da Fixly, e refazer aplicação,
+credenciais e webhook a partir dela.
+
+### 8. Trancar o painel por IP (recomendado, agora é barato)
 `fixly-admin` → Settings → Access Control → só a faixa da empresa. Nenhum
 cliente é afetado, porque eles não passam por esse serviço.
 
