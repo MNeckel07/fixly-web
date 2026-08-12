@@ -71,6 +71,23 @@ export function Carteira({
     router.refresh();
   }
 
+  /**
+   * O dinheiro do prestador vive em quatro estados, e a carteira antiga
+   * misturava dois deles. A distinção que faltava: `balance.sacado` soma os
+   * saques NÃO recusados — ou seja, inclui o que foi só *pedido* e ainda não
+   * foi pago. Para "já caiu na conta" isso é mentira, então o valor pago vem
+   * da lista de saques com status `pago`.
+   */
+  const jaCaiu = withdrawals
+    .filter((w) => w.status === "pago")
+    .reduce((s, w) => s + Number(w.amount), 0);
+  const emProcessamento = withdrawals
+    .filter((w) => w.status === "solicitado")
+    .reduce((s, w) => s + Number(w.amount), 0);
+
+  const aindaVaiCair = balance.disponivel + balance.a_liberar + balance.em_servico + emProcessamento;
+  const totalPrestado = jaCaiu + aindaVaiCair;
+
   return (
     <div className="space-y-4">
       {/* Saldo principal */}
@@ -79,14 +96,6 @@ export function Carteira({
           <Wallet className="h-4 w-4" /> Disponível para saque
         </p>
         <p className="text-4xl font-bold mt-1">{brl(balance.disponivel)}</p>
-        <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 text-sm">
-          <span className="inline-flex items-center gap-1.5">
-            <Clock className="h-4 w-4" /> a liberar {brl(balance.a_liberar)}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Lock className="h-4 w-4" /> em serviço {brl(balance.em_servico)}
-          </span>
-        </div>
         <div className="mt-5">
           <Button
             variant="dark"
@@ -101,6 +110,61 @@ export function Carteira({
             </p>
           )}
         </div>
+      </div>
+
+      {/* Onde está o seu dinheiro — os quatro estados, sem misturar */}
+      <div className="bg-white rounded-2xl border border-black/5 p-5">
+        <div className="grid grid-cols-2 gap-4 pb-4 border-b border-black/5">
+          <div>
+            <p className="text-xs text-gray-light">Já caiu na sua conta</p>
+            <p className="text-2xl font-bold text-success mt-0.5">{brl(jaCaiu)}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-light">Ainda vai cair</p>
+            <p className="text-2xl font-bold text-ink mt-0.5">{brl(aindaVaiCair)}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2.5 py-4">
+          <EstadoDoDinheiro
+            Icon={ArrowDownToLine}
+            tom="text-success"
+            titulo="Disponível para sacar"
+            detalhe="é seu agora — peça o saque quando quiser"
+            valor={balance.disponivel}
+          />
+          {emProcessamento > 0 && (
+            <EstadoDoDinheiro
+              Icon={Banknote}
+              tom="text-warning"
+              titulo="Saque em processamento"
+              detalhe="já pedido, a Fixly está enviando o PIX"
+              valor={emProcessamento}
+            />
+          )}
+          <EstadoDoDinheiro
+            Icon={Clock}
+            tom="text-info"
+            titulo="Aprovado, aguardando o prazo"
+            detalhe="o cliente aprovou; libera no dia seguinte"
+            valor={balance.a_liberar}
+          />
+          <EstadoDoDinheiro
+            Icon={Lock}
+            tom="text-gray-light"
+            titulo="Em serviço"
+            detalhe="pago pelo cliente e retido até ele aprovar a conclusão"
+            valor={balance.em_servico}
+          />
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t border-black/5">
+          <span className="text-sm text-gray">Total que você já prestou</span>
+          <span className="font-bold text-ink">{brl(totalPrestado)}</span>
+        </div>
+        <p className="text-[11px] text-gray-light mt-1.5">
+          Valores já com a comissão da Fixly descontada — é o que entra na sua conta.
+        </p>
       </div>
 
       {done && (
@@ -231,6 +295,35 @@ export function Carteira({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Uma linha do "onde está o meu dinheiro": ícone, o que é, e quanto. */
+function EstadoDoDinheiro({
+  Icon,
+  tom,
+  titulo,
+  detalhe,
+  valor,
+}: {
+  Icon: typeof Clock;
+  tom: string;
+  titulo: string;
+  detalhe: string;
+  valor: number;
+}) {
+  const zerado = valor <= 0;
+  return (
+    <div className={`flex items-start justify-between gap-3 ${zerado ? "opacity-45" : ""}`}>
+      <div className="flex items-start gap-2.5 min-w-0">
+        <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${tom}`} />
+        <div className="min-w-0">
+          <p className="text-sm text-ink font-medium leading-tight">{titulo}</p>
+          <p className="text-[11px] text-gray-light leading-tight mt-0.5">{detalhe}</p>
+        </div>
+      </div>
+      <span className="text-sm font-semibold text-ink shrink-0">{brl(valor)}</span>
     </div>
   );
 }
