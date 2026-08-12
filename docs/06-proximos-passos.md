@@ -1,53 +1,97 @@
 # 06 — Próximos passos e instruções para a próxima sessão
 
-# ✅ v8 + v9 PUBLICADAS (2026-07-30, commit `8a1d207`)
+# 📍 PONTO DE PARADA — 12/08/2026 (leia isto primeiro)
 
-O trabalho das versões **v8, v8.1, v8.2 e v9** foi commitado e **publicado** —
-`86e0a6c..8a1d207`. O Render republicou e a produção saiu da v7.
+**Tudo o que estava pendente foi publicado.** `main` = `51427b9`, árvore limpa,
+nada esperando push. Os dois ambientes estão no ar e verificados por `curl`.
 
-**Verificado em produção depois do deploy (não é suposição):**
-- `GET /api/pagamentos/webhook` → **200** (antes era 404);
-- webhook assinado → assinatura **aceita** (não 401 ⇒ `MP_WEBHOOK_SECRET` do
-  Render bate com o painel; não 503 ⇒ `MP_ACCESS_TOKEN` está lá);
-- o MP respondeu `400 payment_id attribute can't be less than or equal to zero`
-  ⇒ a credencial do Render é um **Access Token de verdade**. Se fosse a Public
-  Key trocada, viria `403 At least one policy returned UNAUTHORIZED`;
-- varredura de 877 KB do JS público: **o Access Token não aparece** em nenhum
-  arquivo servido;
-- `/login` e `/cadastro` respondendo 200.
+| Ambiente | Domínio | Serviço Render | `APP_ROLE` | Estado |
+|---|---|---|---|---|
+| Produto | https://fixly.company | `fixly-web` | `site` | ✅ no ar · `/admin` → 404 |
+| Painel | https://fixly.fun | `fixly-admin` | `admin` | ✅ no ar · `/app/*`, `/cadastro`, `/p/`, `/e/`, `/api/pagamentos` → 404 |
 
-**Como o problema tinha sido descoberto:** o `check-mp.mjs` apontado para
-produção devolveu **404** na rota do webhook. Rota nova que responde 404 = código
-não subiu; 503 seria "subiu e falta variável". A `docs/06` afirmava, até então,
-que a v8 estava "no ar em modo degradado" — **doc não é prova de deploy**.
+**Mercado Pago: ambiente de TESTE nos dois.** Credenciais `TEST-` no Render do
+site. Nenhum dinheiro real se move ainda.
 
-**Ambiente do MP em produção: TESTE** (credenciais `TEST-`). Nenhum dinheiro real
-entra ainda; a virada para produção é a Parte 5 do plano em `docs/09`.
+**Migrações aplicadas no banco: 0001–0025.**
 
-**Por que é urgente:** a migração **0022 JÁ FOI APLICADA no banco de produção**,
-e ela aperta uma regra — só o contratante pode concluir um serviço. O código que
-está **no ar** ainda conclui pelo prestador, então **"Concluir serviço" está
-quebrado em produção** desde então.
+---
 
-## O que falta testar na tela (com credencial de TESTE)
-1. **Selo Fix ponta a ponta** — `contratante@fixly.com.br`: pedir → aceitar →
-   "Seguir sem pagamento" → concluir → aprovar. Conferir que **Admin → Vendas**
-   ignora esse serviço e que a carteira do prestador não muda.
-2. **Cartão de teste** — titular `APRO` aprova, `OTHE` recusa. Conferir os
-   **dois preços** na tela (Pix e cartão com acréscimo) e que o prestador recebe
-   o mesmo nos dois.
-3. **Webhook** — no painel do MP, "simular notificação": tem que dar 200.
+## O QUE FAZER NA PRÓXIMA SESSÃO (em ordem)
 
-> ⚠️ **Pix em modo teste não pode ser pago pelo app do banco** — credencial
-> `TEST-` só aceita conta de teste do MP. Quem valida o Pix de verdade é o teste
-> de R$ 1,00 depois da virada para produção.
+### 1. 🔴 Confirmar que o `strip-admin` rodou no build do site
+É a única coisa desta leva que **não dá para verificar de fora**. No Render →
+`fixly-web` → **Logs** do último deploy, procure a linha:
+```
+[strip-admin] removido: src/app/admin
+```
+Se ela **não** estiver lá, o Build Command não foi salvo — corrija para
+`node scripts/strip-admin.mjs && npm ci && npm run build` e faça Manual Deploy.
+Sem isso o `fixly.company` continua compilando as 17 server actions do painel
+(protegidas por `assertAdmin()`, mas presentes).
 
-> 🔴 **Pendência antes da virada:** existem **14 pagamentos simulados somando
-> R$ 17.103** no banco, do tempo do mock. Quando o dinheiro virar real eles
-> poluem `Admin → Vendas` e a carteira dos prestadores. Limpar **com o ok do
-> dono** — apaga histórico.
+### 2. Testar o pagamento na tela (credencial de TESTE)
+Nunca foi feito ponta a ponta pelo dono:
+- **Selo Fix:** `contratante@fixly.com.br`/`fixly1234` → pedir → aceitar →
+  "Seguir sem pagamento" → concluir → aprovar. Conferir que **Admin → Vendas**
+  ignora o serviço e a carteira do prestador não muda.
+- **Cartão de teste:** titular `APRO` aprova, `OTHE` recusa. Conferir os **dois
+  preços** (Pix e cartão com acréscimo) e que o prestador recebe igual nos dois.
+- **Webhook:** no painel do MP, "simular notificação" → 200.
 
-## PONTO DE PARADA EXATO (30/07/2026)
+> ⚠️ **Pix em modo teste não é pagável pelo app do banco** — credencial `TEST-`
+> só aceita conta de teste do MP.
+
+### 3. Limpar os pagamentos simulados (precisa do ok do dono — apaga histórico)
+Existem **14 pagamentos de mock somando R$ 17.103** no banco. Quando o dinheiro
+virar real eles poluem `Admin → Vendas` e a carteira dos prestadores.
+
+### 4. Virar o Mercado Pago para produção
+Passo a passo na seção 5 do `docs/09`. Trocar as 3 variáveis no Render do site
+para `APP_USR-` + a assinatura secreta da aba **Modo de produção**, e fazer um
+serviço real de R$ 1,00.
+
+### 5. Trancar o painel por IP (recomendado, agora é barato)
+`fixly-admin` → Settings → Access Control → só a faixa da empresa. Nenhum
+cliente é afetado, porque eles não passam por esse serviço.
+
+---
+
+## O QUE FOI FEITO NESTA LEVA (30/07 a 12/08)
+
+### Pagamento (v9)
+- **Estudo de 8 gateways** (`docs/08`): o ticket do Fixly (R$ 68–252) é o que
+  decide — tarifa fixa mata ticket baixo, e o MP ganha no Pix até ~R$ 160.
+- `GATEWAY_FEE_RATES.cartao` **3,79% → 4,98%** (a tarifa real do MP).
+- **Tarifa do cartão virou acréscimo ao contratante**
+  (`chargedTotal = valor/(1-taxa)`, **não** `valor*(1+taxa)`). O prestador passa
+  a receber o mesmo nos dois meios e o custo da Fixly no cartão vai a zero.
+- `scripts/check-mp.mjs` — diagnóstico do MP sem imprimir credencial. Detecta a
+  troca Public Key × Access Token, que devolve um `403` do MP sem explicação.
+
+### Selo Fix (migração 0023)
+Conta com selo roda o fluxo inteiro sem gateway. Pular o pagamento **exige selo
+nos dois lados**; se o prestador que aceitou for conta real, a cobrança entra em
+vigor. Isolamento assimétrico no `dispatch_request`. **Não grava em `payments`**
+— é isso que mantém carteira e faturamento limpos. Selo em 8 das 9 contas: **só
+o Arthur ficou sem**; conta nova nasce sem.
+
+### Prestador (0024/0025)
+- **Cancelar trabalho aceito** (`cancelJobAsProvider`): sem pagamento volta para
+  a fila; **com** pagamento estorna o contratante antes de mexer no banco.
+- **Pedidos em tempo real** (`service_requests` na publicação do Realtime).
+- `0025` consertou uma **regressão minha**: a `0023` reescreveu
+  `dispatch_request` a partir da `0004` e voltou a criar proposta automática.
+
+### Separação de ambientes (v10/v11)
+`APP_ROLE` decide o papel; `src/proxy.ts` responde **404** (não 403) para a rota
+do outro lado; login cruzado encerra a sessão; painel com tela própria (fundo
+escuro, cartão de vidro — arquitetura copiada do login do **Estradão**);
+`strip-admin.mjs` tira o painel do build público. Detalhes em `docs/10`.
+
+---
+
+## Histórico — ponto de parada de 30/07/2026 (já resolvido)
 
 **Base:** último commit `86e0a6c` ("docs: handoff da sessao v7"). Tudo o que veio
 depois está **só no working tree**: **30 arquivos novos + 49 modificados + 1
@@ -138,8 +182,8 @@ Reformas no `SolicitarFlow`).
   11,6 km** do endereço de teste do dono — se ele precisar entrar nos testes, é
   o raio dele que precisa aumentar, na tela do próprio prestador.
 
-## Estado atual (2026-07-31)
-- **Migrações aplicadas:** 0001–**0024**.
+## Estado atual (2026-08-12)
+- **Migrações aplicadas:** 0001–**0025**.
 - Builda limpo (`tsc --noEmit` + `npm run build`).
 - ⚠️ **`npm run db:apply` continua QUEBRADO** (falha no 0004 por dado do 0008).
   Para migração nova use `scripts/apply-migration.mjs <arquivo>` (um arquivo, em

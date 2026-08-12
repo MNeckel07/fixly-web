@@ -57,6 +57,27 @@ nada, e o dono viu "alguém aceitou sozinho". Consertado na `0025`.
 grep -rn "function public.<nome>" supabase/migrations/   # use a de MAIOR número
 ```
 
+### `proxy.ts` fora de `src/` é ignorado SEM AVISO
+O app vive em `src/app`, então o Next 16 exige **`src/proxy.ts`** (o antigo
+`middleware.ts`). Na raiz do projeto o arquivo é silenciosamente ignorado —
+sem erro, sem log. Ficou assim por semanas: o **rate limiting** (400 req/min por
+IP, 60/min nas telas de auth) e o refresh de sessão **nunca rodaram**, enquanto o
+`SECURITY.md` os dava como ativos.
+
+**Como provar que está valendo:** `npm run build` tem que imprimir
+`ƒ Proxy (Middleware)`, e um `curl` numa rota que ele deveria barrar precisa
+devolver o status esperado. Proteção que não roda é pior do que não ter, porque
+ninguém procura por ela.
+
+### Bloquear rota ≠ tirar o endpoint do ar
+`/admin` respondendo 404 impede a navegação, mas as **server actions** daquela
+área continuam compiladas e acionáveis por POST no mesmo domínio — protegidas só
+pelo `assertAdmin()`. Foi o caso do `fixly.company`, que carregava 17 delas
+(incluindo `impersonationLink`, que gera link mágico de acesso a conta).
+Por isso existe o `scripts/strip-admin.mjs`: no build do site ele **apaga** a
+pasta do painel. Ao criar qualquer área privilegiada nova, pergunte não só "dá
+para navegar até lá?" mas "o endpoint existe neste servidor?".
+
 ### `notification_url` do Mercado Pago não aceita localhost
 Se `NEXT_PUBLIC_APP_URL` for `http://localhost:3000`, o MP recusa a cobrança
 inteira com `400 notification_url attribute must be url valid`. O
