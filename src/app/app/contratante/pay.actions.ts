@@ -13,8 +13,6 @@ export interface PayResult {
   pixQrCode?: string;
   pixQrCodeBase64?: string;
   pixExpiresAt?: string;
-  /** Gateway em ambiente de teste — o QR do Pix não é pagável pelo banco. */
-  sandbox?: boolean;
   detail?: string;
 }
 
@@ -114,6 +112,17 @@ export async function processPayment(
     return { ok: false, error: e.message };
   }
 
+  /**
+   * O cliente não vê nada sobre ambiente — o site é produto acabado. Mas o Pix
+   * gerado com credencial `TEST-` é recusado pelo app do banco, e sem este
+   * registro a equipe perde tempo procurando bug no código que está certo.
+   */
+  if (method === "pix" && isGatewaySandbox()) {
+    console.warn(
+      "[pagamento] Pix gerado com credencial de TESTE do Mercado Pago — o app do banco vai recusar este QR. Troque MP_ACCESS_TOKEN/NEXT_PUBLIC_MP_PUBLIC_KEY pelas de produção (APP_USR-).",
+    );
+  }
+
   if (charge.status === "recusado") {
     return { ok: false, error: "Pagamento recusado pela operadora.", detail: charge.gatewayStatusDetail };
   }
@@ -148,7 +157,6 @@ export async function processPayment(
     pixQrCode: charge.pixQrCode,
     pixQrCodeBase64: charge.pixQrCodeBase64,
     pixExpiresAt: charge.pixExpiresAt,
-    sandbox: isGatewaySandbox(),
   };
 }
 

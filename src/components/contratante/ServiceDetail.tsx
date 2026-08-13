@@ -115,7 +115,7 @@ export function ServiceDetail({
   const [showChat, setShowChat] = useState(false);
   const [method, setMethod] = useState<PayMethod>("pix");
   const [payErr, setPayErr] = useState("");
-  const [pix, setPix] = useState<{ code: string; base64?: string; expiresAt?: string; sandbox?: boolean } | null>(null);
+  const [pix, setPix] = useState<{ code: string; base64?: string; expiresAt?: string } | null>(null);
   const [showCancel, setShowCancel] = useState(false);
   const [counterFor, setCounterFor] = useState<string | null>(null);
   const [counterValue, setCounterValue] = useState("");
@@ -200,7 +200,7 @@ export function ServiceDetail({
     if (!res.ok) return setPayErr([res.error, res.detail].filter(Boolean).join(" — ") || "Falha no pagamento.");
     // PIX volta pendente com QR: mostra o QR e espera a confirmação
     if (res.status === "pendente" && res.pixQrCode) {
-      setPix({ code: res.pixQrCode, base64: res.pixQrCodeBase64, expiresAt: res.pixExpiresAt, sandbox: res.sandbox });
+      setPix({ code: res.pixQrCode, base64: res.pixQrCodeBase64, expiresAt: res.pixExpiresAt });
       return;
     }
     router.refresh();
@@ -289,8 +289,8 @@ export function ServiceDetail({
         <div className="flex items-start gap-2 rounded-2xl bg-primary/10 text-ink px-4 py-3 text-sm">
           <BadgeCheck className="h-4 w-4 shrink-0 mt-0.5" />
           <span>
-            <b>Selo Fix — serviço sem cobrança.</b> Este é um fluxo de teste: nada foi cobrado
-            de você e o profissional não recebe valor nenhum por ele.
+            <b>Serviço de cortesia.</b> Este atendimento correu sem cobrança: nada foi
+            debitado de você.
           </span>
         </div>
       )}
@@ -459,7 +459,6 @@ export function ServiceDetail({
           qrCode={pix.code}
           qrCodeBase64={pix.base64}
           expiresAt={pix.expiresAt}
-          sandbox={pix.sandbox}
         />
       )}
 
@@ -533,10 +532,10 @@ export function ServiceDetail({
                 className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl border border-black/10 text-sm font-medium text-gray hover:text-ink hover:bg-black/[0.03] transition disabled:opacity-50"
               >
                 <BadgeCheck className="h-4 w-4 shrink-0" />
-                Seguir sem pagamento (Selo Fix)
+                Seguir sem cobrança
               </button>
               <p className="text-[11px] text-gray-light text-center mt-2">
-                Ambiente de teste: nenhum valor é cobrado e ninguém recebe.
+                Atendimento de cortesia: nada é cobrado de você.
               </p>
             </div>
           )}

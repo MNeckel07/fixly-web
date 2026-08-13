@@ -89,7 +89,7 @@ export function ChangePassword() {
           </div>
           {devCode && (
             <p className="mt-4 text-xs text-warning bg-warning/10 rounded-lg px-3 py-2">
-              Modo de teste — seu código é <b>{devCode}</b>
+              Não conseguimos enviar o e-mail agora — use este código: <b>{devCode}</b>
             </p>
           )}
           {error && <p className="mt-4 text-sm text-danger">{error}</p>}

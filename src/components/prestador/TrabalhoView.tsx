@@ -27,7 +27,7 @@ type Job = {
   photos: string[] | null;
   /** Preenchido quando o prestador sinaliza o término (aguarda aprovação). */
   provider_done_at: string | null;
-  /** Fluxo de teste do Selo Fix: roda igual, mas não gera pagamento nenhum. */
+  /** Atendimento de cortesia (Selo Fix): roda igual, mas não gera pagamento. */
   no_charge: boolean | null;
   category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
@@ -185,7 +185,7 @@ export function TrabalhoView({
               <>
                 <p className="font-bold text-ink">{brl(price)}</p>
                 {job.no_charge ? (
-                  <p className="text-[11px] text-gray-light">Selo Fix · sem cobrança</p>
+                  <p className="text-[11px] text-gray-light">Cortesia · sem cobrança</p>
                 ) : (
                   <p className="text-[11px] text-success">recebe {brl(providerNet(price))}</p>
                 )}
@@ -312,7 +312,7 @@ export function TrabalhoView({
             </div>
             <p className="text-xs text-gray-light mt-2">
               {job.no_charge
-                ? "Serviço com Selo Fix: é um fluxo de teste, nenhum valor entra na sua carteira."
+                ? "Atendimento de cortesia: este serviço não gera crédito na sua carteira."
                 : `Assim que ele aprovar, o valor de ${brl(providerNet(price))} entra na sua carteira.`}
             </p>
             <Link href="/app/prestador/ganhos" className="inline-flex items-center gap-1 text-sm font-semibold text-primary-dark mt-3">
