@@ -16,6 +16,46 @@ Migrações aplicadas: **0001–0026**.
 > (`\u00e9`), então **grep só com trecho ASCII** — "arraste o pino at" acha,
 > "arraste o pino até" não.
 
+## 🔑 O QUE DEPENDE DE CREDENCIAL (nada disso é código)
+
+### 1. Validar o Mercado Pago em produção
+As credenciais foram trocadas no Render pelo dono (13/08). **Não dá para
+conferir de fora**: a public key só entra no bundle da tela de pagamento, que
+fica atrás do login. Para validar de verdade, colocar as três de PRODUÇÃO no
+`.env.local` e rodar:
+```bash
+node --env-file=.env.local scripts/check-mp.mjs --url https://fixly.company
+```
+Tem que dizer **ambiente PRODUÇÃO** e aceitar a assinatura do webhook. Depois,
+um serviço real de R$ 1,00 pago pelo app do banco.
+
+### 2. Cartão na carteira do celular (código pronto, credencial faltando)
+`/api/carteira/apple` e `/api/carteira/google` respondem **503** enquanto não
+existirem as variáveis. Os botões só aparecem no cartão QR quando o servidor
+tem credencial — nada de botão que dá erro.
+
+**Google (grátis, ~1 dia de aprovação):**
+1. [Google Pay & Wallet Console](https://pay.google.com/business/console) →
+   criar conta de emissor → anotar o **Issuer ID**.
+2. Google Cloud → API "Google Wallet" ativada → criar **service account** →
+   baixar a chave JSON.
+3. No console do Wallet, autorizar o e-mail da service account.
+4. Render (`fixly-web`): `GOOGLE_WALLET_ISSUER_ID`, `GOOGLE_WALLET_SA_EMAIL`,
+   `GOOGLE_WALLET_SA_KEY` (a `private_key` do JSON, com os `\n`).
+
+**Apple (US$ 99/ano):**
+1. Apple Developer Program → Certificates, IDs & Profiles → **Pass Type ID**
+   (ex.: `pass.company.fixly.cartao`).
+2. Gerar o certificado, exportar como **.p12** com senha.
+3. Baixar o **Apple WWDR** (intermediário) em PEM.
+4. Render: `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`,
+   `APPLE_PASS_P12` (base64 do .p12), `APPLE_PASS_P12_PASSWORD`, `APPLE_WWDR_PEM`.
+
+### 3. Dados do Encarregado (DPO) nos Termos
+`src/lib/terms.ts` → constante `DPO`. Hoje está com
+`privacidade@fixly.company` e um nome genérico. **A LGPD (art. 41) pede pessoa
+identificável e canal que responda** — trocar pelo nome e e-mail reais.
+
 ## 🔴 PENDÊNCIA REGISTRADA — Apple Pay e Google Pay (próxima atualização)
 
 **Não é configuração: o Mercado Pago não oferece esses meios no Brasil.** O
