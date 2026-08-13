@@ -105,6 +105,53 @@ export function serviceNotificationEmailHtml(opts: {
 </body></html>`;
 }
 
+/**
+ * Selo Fixly ganho ou perdido.
+ *
+ * O dono pediu os dois lados: ganhar é reconhecimento (e vale destacar o que
+ * muda no perfil); perder precisa dizer POR QUE e o que fazer para recuperar —
+ * um e-mail que só avisa a perda soa punição sem saída.
+ */
+export function sealEmailHtml(opts: {
+  name: string;
+  gained: boolean;
+  reason?: string | null;
+  revoked?: boolean;
+}) {
+  const firstName = opts.name.split(" ")[0];
+  const APP = APP_URL;
+  const titulo = opts.gained ? "Você conquistou o Selo Fixly!" : "Você perdeu o Selo Fixly";
+  const cor = opts.gained ? "#16A34A" : "#DC2626";
+  const corpo = opts.gained
+    ? `Seu trabalho manteve a média em <b>4,5 estrelas ou mais</b>. A partir de agora o seu perfil mostra o <b>Selo Fixly</b> — ele aparece nas suas propostas, no seu perfil público e no seu cartão, e é o que faz o contratante escolher você com mais confiança.`
+    : opts.revoked
+      ? `A equipe do Fixly revogou o seu Selo após análise.${opts.reason ? ` Motivo: <b>${opts.reason}</b>.` : ""} Se você entende que houve engano, responda pelo suporte dentro da plataforma que reavaliamos o caso.`
+      : `Sua média de avaliações ficou abaixo de <b>4,5 estrelas</b>, e o Selo Fixly saiu do seu perfil por enquanto. Ele volta sozinho assim que a média subir de novo — capriche nos próximos atendimentos, combine tudo pelo chat e conclua no prazo.`;
+  return `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>${titulo} — Fixly</title></head>
+<body style="margin:0;background:#FAFAFA;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1F2329">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="text-align:center;padding:8px 0 24px">
+      <span style="font-size:28px;font-weight:700;color:#1F2329">Fi<span style="color:#FFC107">x</span>ly</span>
+    </div>
+    <div style="background:#FFFFFF;border-radius:20px;padding:32px;box-shadow:0 4px 24px -8px rgba(31,35,41,.12)">
+      <h1 style="font-size:22px;margin:0 0 12px;color:${cor}">${titulo}</h1>
+      <p style="font-size:15px;line-height:1.6;color:#4A4A4A;margin:0 0 8px">Olá, <b>${firstName}</b>!</p>
+      <p style="font-size:15px;line-height:1.6;color:#4A4A4A;margin:0">${corpo}</p>
+      <div style="text-align:center;margin:26px 0 6px">
+        <a href="${APP}/app/prestador/profiler" style="display:inline-block;background:#FFC107;color:#1F2329;text-decoration:none;font-weight:700;font-size:15px;padding:14px 30px;border-radius:12px">Ver meu perfil →</a>
+      </div>
+      <p style="font-size:13px;color:#9AA0A8;margin:18px 0 0">
+        O Selo Fixly é reavaliado a cada serviço concluído. Ele não é permanente:
+        acompanha a sua média de avaliações.
+      </p>
+    </div>
+    <p style="text-align:center;color:#9AA0A8;font-size:12px;margin-top:24px">Fixly © ${new Date().getFullYear()}</p>
+  </div>
+</body></html>`;
+}
+
 export function rejectionEmailHtml(name: string, role: Role, reason?: string) {
   const firstName = name.split(" ")[0];
   return `<!doctype html>

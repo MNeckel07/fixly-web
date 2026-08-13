@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { QrCode as QrIcon, Printer, Download, X, ShieldCheck, Star, BadgeCheck } from "lucide-react";
+import { QrCode as QrIcon, Printer, Download, X, ShieldCheck, Star, BadgeCheck, Wallet } from "lucide-react";
 
 type Props = {
   url: string;
@@ -14,6 +14,11 @@ type Props = {
   elite?: boolean;
   ratingLabel?: string; // "Novo" ou "4.8"
   jobsDone?: number;
+  /**
+   * Carteiras disponíveis (o servidor decide: só aparece a que tem credencial).
+   * Empreiteiro não tem cartão de carteira — a rota lê o perfil do profissional.
+   */
+  wallet?: { apple: boolean; google: boolean };
 };
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
@@ -39,7 +44,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 const INK = "#1F2329";
 const AMBER = "#FFC107";
 
-export function QrCard({ url, name, handle, category, headline, avatarUrl, elite, ratingLabel, jobsDone }: Props) {
+export function QrCard({ url, name, handle, category, headline, avatarUrl, elite, ratingLabel, jobsDone, wallet }: Props) {
   const [open, setOpen] = useState(false);
   const [qr, setQr] = useState<string>("");
   const [rendering, setRendering] = useState(false);
@@ -262,6 +267,29 @@ export function QrCard({ url, name, handle, category, headline, avatarUrl, elite
               {name} — {category}. {elite ? "Selo Fixly." : ""} {ratingLabel} · {jobsDone} serviços.
               <span className="inline-flex"><ShieldCheck /><Star /><BadgeCheck /></span>
             </div>
+
+            {/* Guardar no celular: o mesmo cartão, dentro da carteira do
+                aparelho — abre com um toque e sobrevive à troca de celular. */}
+            {(wallet?.apple || wallet?.google) && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {wallet?.apple && (
+                  <a
+                    href={`/api/carteira/apple?handle=${encodeURIComponent(handle)}`}
+                    className="flex-1 min-w-[10rem] inline-flex items-center justify-center gap-2 rounded-xl bg-white text-ink h-11 font-medium hover:bg-white/90"
+                  >
+                    <Wallet className="h-4 w-4" /> Apple Wallet
+                  </a>
+                )}
+                {wallet?.google && (
+                  <a
+                    href={`/api/carteira/google?handle=${encodeURIComponent(handle)}`}
+                    className="flex-1 min-w-[10rem] inline-flex items-center justify-center gap-2 rounded-xl bg-white text-ink h-11 font-medium hover:bg-white/90"
+                  >
+                    <Wallet className="h-4 w-4" /> Carteira do Google
+                  </a>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-2 mt-3">
               <button onClick={download} disabled={rendering} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-white text-ink h-11 font-medium hover:bg-white/90 disabled:opacity-50">

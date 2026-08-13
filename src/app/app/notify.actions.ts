@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { sendEmailBestEffort, serviceNotificationEmailHtml } from "@/lib/email";
+import { sendEmailBestEffort, serviceNotificationEmailHtml, sealEmailHtml } from "@/lib/email";
 import { brl } from "@/lib/pricing";
 
 /**
@@ -243,4 +243,51 @@ export async function notifyNewMessage(conversationId: string) {
     }),
   });
   await logNotification(admin, destinoId, "mensagem", conversationId);
+}
+
+/**
+ * Selo ganho ou perdido → avisa o profissional.
+ *
+ * Lê os eventos que o banco registrou (`seal_events`, migração 0028) e ainda
+ * não foram avisados. Fica assim, e não num gatilho de e-mail dentro do
+ * Postgres, porque o banco do Supabase não manda e-mail sozinho — e porque
+ * assim uma falha de envio não desfaz a mudança do selo.
+ *
+ * Chamado depois de aprovar um serviço (é quando a nota muda) e depois de o
+ * admin revogar/devolver o selo. Idempotente: marca `notified_at`.
+ */
+export async function notifySealChanges(profileId?: string) {
+  const admin = createAdminClient();
+
+  let q = admin
+    .from("seal_events")
+    .select("id, profile_id, gained, reason, created_at")
+    .is("notified_at", null)
+    .order("created_at", { ascending: true })
+    .limit(20);
+  if (profileId) q = q.eq("profile_id", profileId);
+
+  const { data: eventos } = await q;
+  for (const ev of eventos ?? []) {
+    const destino = await contactOf(admin, ev.profile_id as string);
+    if (!destino) continue;
+
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("seal_revoked_at")
+      .eq("id", ev.profile_id)
+      .maybeSingle();
+
+    await sendEmailBestEffort({
+      to: destino.email,
+      subject: ev.gained ? "Você conquistou o Selo Fixly!" : "Sobre o seu Selo Fixly",
+      html: sealEmailHtml({
+        name: destino.name,
+        gained: !!ev.gained,
+        reason: ev.reason as string | null,
+        revoked: !ev.gained && !!prof?.seal_revoked_at,
+      }),
+    });
+    await admin.from("seal_events").update({ notified_at: new Date().toISOString() }).eq("id", ev.id);
+  }
 }

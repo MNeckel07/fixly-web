@@ -18,6 +18,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   type LucideIcon,
+  Flag,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -31,6 +32,7 @@ const ITEMS: { href: string; label: string; icon: LucideIcon; perm?: PermKey }[]
   { href: "/admin/saques", label: "Saques", icon: Banknote, perm: "vendas" },
   { href: "/admin/servicos", label: "Serviços", icon: Wrench, perm: "servicos" },
   { href: "/admin/suporte", label: "Suporte", icon: LifeBuoy, perm: "suporte" },
+  { href: "/admin/denuncias", label: "Denúncias", icon: Flag, perm: "denuncias" },
   { href: "/admin/mensagens", label: "Equipe", icon: MessageSquare, perm: "equipe" },
   { href: "/admin/documentos", label: "Documentos", icon: FileText, perm: "documentos" },
   { href: "/admin/empreiteiros", label: "Empreiteiros", icon: Building2, perm: "empreiteiros" },

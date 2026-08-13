@@ -25,7 +25,7 @@ export default async function TrabalhoPage({
   const { data: rows } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, address, lat, lng, estimated_price, final_price, mode, urgent, photos, provider_done_at, no_charge, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city), location:service_request_locations(address, lat, lng)",
+      "id, description, status, address, lat, lng, estimated_price, final_price, mode, urgent, photos, provider_done_at, no_charge, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(id, full_name, city), location:service_request_locations(address, lat, lng)",
     )
     .eq("provider_id", profile!.id)
     .in("status", ACTIVE)

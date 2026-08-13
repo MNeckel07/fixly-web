@@ -7,6 +7,7 @@ import { Logo } from "@/components/ui/Logo";
 import { QrCard } from "@/components/profiler/QrCard";
 import { FollowButton } from "@/components/profiler/FollowButton";
 import { providerReputation } from "@/lib/reputation";
+import { walletDisponivel } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
 
   const { data: prov } = await supabase
     .from("profiles")
-    .select("id, full_name, handle, headline, bio, city, rating, jobs_done, avatar_path, specialties, card_category_id, card_headline, category:service_categories!profiles_category_id_fkey(name, slug)")
+    .select("id, full_name, handle, headline, bio, city, rating, jobs_done, seal_active, avatar_path, specialties, card_category_id, card_headline, category:service_categories!profiles_category_id_fkey(name, slug)")
     .ilike("handle", handle)
     .eq("role", "prestador")
     .eq("status", "aprovado")
@@ -44,7 +45,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
   const cardCat = prov.card_category_id
     ? allCats.find((c) => c.id === prov.card_category_id) ?? null
     : null;
-  const rep = providerReputation(prov.rating, prov.jobs_done);
+  const rep = providerReputation(prov.rating, prov.jobs_done, prov.seal_active);
   const elite = rep.elite;
   const avatarUrl = prov.avatar_path
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${prov.avatar_path}`
@@ -164,6 +165,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
               elite={elite}
               ratingLabel={rep.label}
               jobsDone={prov.jobs_done ?? 0}
+              wallet={walletDisponivel()}
             />
             {avatarUrl && (
               // pré-carrega o avatar para o canvas do cartão poder desenhá-lo (mesmo host, CORS ok)

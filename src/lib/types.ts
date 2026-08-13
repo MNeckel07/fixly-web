@@ -51,6 +51,10 @@ export interface Profile {
   created_at: string;
   /** Selo Fix (0023): conta roda o fluxo sem gateway. Só admin altera. */
   fix_badge?: boolean;
+  /** Selo Fixly de qualidade (0028) — calculado por trigger e revogável. */
+  seal_active?: boolean;
+  seal_revoked_at?: string | null;
+  seal_revoked_reason?: string | null;
   // v2
   active: boolean;
   birth_date: string | null;

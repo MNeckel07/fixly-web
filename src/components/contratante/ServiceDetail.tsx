@@ -15,6 +15,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { approveService, approveAdvance, processPayment, skipPayment, cancelService, type CardPayload } from "@/app/app/contratante/pay.actions";
 import { notifyCounter } from "@/app/app/notify.actions";
 import { ServiceChatBox } from "@/components/chat/ServiceChatBox";
+import { ReportButton } from "@/components/ui/ReportButton";
 import { CardForm } from "@/components/contratante/CardForm";
 import { PixPanel } from "@/components/contratante/PixPanel";
 import { brl, paymentBreakdown, chargedTotal, type PayMethod } from "@/lib/pricing";
@@ -638,23 +639,41 @@ export function ServiceDetail({
                   className="w-full rounded-xl border border-black/10 px-3 py-2 text-sm outline-none focus:border-primary"
                 />
                 {reviewErr && <p className="text-xs text-danger mt-1">{reviewErr}</p>}
-                <Button className="mt-2" size="sm" loading={busy} onClick={submitReview}>
-                  Enviar avaliação
-                </Button>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <Button size="sm" loading={busy} onClick={submitReview}>
+                    Enviar avaliação
+                  </Button>
+                  {service.provider_id && service.provider && (
+                    <ReportButton
+                      targetId={service.provider_id}
+                      targetName={service.provider.full_name}
+                      requestId={service.id}
+                      label="Algo grave aconteceu? Denunciar"
+                    />
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Cancelar */}
-      {canCancel && (
-        <div className="text-center pt-1">
+      {/* Cancelar / denunciar */}
+      <div className="flex flex-col items-center gap-2 pt-1">
+        {canCancel && (
           <button onClick={() => setShowCancel(true)} className="text-sm text-gray hover:text-danger transition">
             Cancelar {isPaid ? "serviço" : "pedido"}
           </button>
-        </div>
-      )}
+        )}
+        {service.provider_id && service.provider && (
+          <ReportButton
+            targetId={service.provider_id}
+            targetName={service.provider.full_name}
+            requestId={service.id}
+            label="Denunciar este profissional"
+          />
+        )}
+      </div>
       <ConfirmDialog
         open={showCancel}
         title={`Cancelar ${isPaid ? "serviço" : "pedido"}?`}

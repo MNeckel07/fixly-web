@@ -8,6 +8,7 @@ import {
   sendEmailBestEffort,
 } from "@/lib/email";
 import type { Role } from "@/lib/brand";
+import { notifySealChanges } from "@/app/app/notify.actions";
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -96,4 +97,38 @@ export async function getDocumentUrl(path: string): Promise<string | null> {
     .from("documentos")
     .createSignedUrl(path, 60 * 10);
   return data?.signedUrl ?? null;
+}
+
+/**
+ * Revoga (ou devolve) o Selo Fixly de um profissional.
+ *
+ * A regra dos Termos: fraude, manipulação de avaliações, dano grave apurado,
+ * assédio/ameaça/violência/discriminação e insistência em cobrar por fora da
+ * plataforma revogam o Selo NA HORA, sem prazo de regularização. O motivo é
+ * obrigatório porque vai no e-mail que o profissional recebe.
+ */
+export async function setSealRevocation(
+  providerId: string,
+  revogar: boolean,
+  reason?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { supabase } = await assertAdmin();
+
+  const { error } = await supabase.rpc("set_seal_revocation", {
+    p_provider: providerId,
+    p_revogar: revogar,
+    p_reason: reason ?? null,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  // o trigger já registrou o evento; aqui só disparamos o aviso
+  try {
+    await notifySealChanges(providerId);
+  } catch (e: any) {
+    console.error("[selo] falha ao avisar revogação:", e?.message ?? e);
+  }
+
+  revalidatePath("/admin/denuncias");
+  revalidatePath("/admin/usuarios");
+  return { ok: true };
 }

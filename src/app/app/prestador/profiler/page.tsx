@@ -4,6 +4,7 @@ import { getProfile } from "@/lib/auth";
 import { ProfilerEditor } from "@/components/prestador/ProfilerEditor";
 import { ProfilerTabs } from "@/components/profiler/ProfilerTabs";
 import { providerReputation } from "@/lib/reputation";
+import { walletDisponivel } from "@/lib/wallet";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function MeuProfilerPage() {
   const { profile } = await getProfile();
   if (!profile) redirect("/login");
 
-  const rep = providerReputation(profile.rating, profile.jobs_done);
+  const rep = providerReputation(profile.rating, profile.jobs_done, (profile as any).seal_active);
 
   const publicUrlBase = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/portfolio/`;
 
@@ -86,6 +87,7 @@ export default async function MeuProfilerPage() {
           categories={myCats as any}
           publicUrlBase={publicUrlBase}
           avatarUrlBase={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/`}
+          wallet={walletDisponivel()}
           providerName={profile.full_name}
           ratingLabel={rep.label}
           jobsDone={profile.jobs_done ?? 0}

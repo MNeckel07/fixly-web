@@ -53,7 +53,7 @@ const ADMIN_ONLY = ["/admin"];
  * OAuth do split apontam para o domínio do produto. O painel não precisa deles
  * e não deve expô-los.
  */
-const SITE_ONLY = ["/app", "/cadastro", "/p/", "/e/", "/api/pagamentos"];
+const SITE_ONLY = ["/app", "/cadastro", "/p/", "/e/", "/api/pagamentos", "/api/carteira"];
 
 /**
  * Este caminho pode ser servido por este papel?

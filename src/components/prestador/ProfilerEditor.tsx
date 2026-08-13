@@ -33,6 +33,7 @@ export function ProfilerEditor({
   categories,
   publicUrlBase,
   avatarUrlBase,
+  wallet,
   providerName,
   ratingLabel,
   jobsDone,
@@ -46,6 +47,8 @@ export function ProfilerEditor({
   categories: Cat[];
   publicUrlBase: string; // ex.: https://xxxx.supabase.co/storage/v1/object/public/portfolio/
   avatarUrlBase: string; // ex.: https://xxxx.supabase.co/storage/v1/object/public/avatars/
+  /** Carteiras do celular disponíveis (só as que têm credencial no servidor). */
+  wallet?: { apple: boolean; google: boolean };
   providerName: string;
   ratingLabel: string;
   jobsDone: number;
@@ -296,6 +299,7 @@ export function ProfilerEditor({
               elite={elite}
               ratingLabel={ratingLabel}
               jobsDone={jobsDone}
+              wallet={wallet}
             />
           ) : (
             <p className="inline-flex items-center gap-1.5 text-sm text-warning">

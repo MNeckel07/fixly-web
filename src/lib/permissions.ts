@@ -5,6 +5,7 @@ export const ADMIN_PERMISSIONS = [
   { key: "vendas", label: "Vendas" },
   { key: "servicos", label: "Serviços" },
   { key: "suporte", label: "Suporte (tickets)" },
+  { key: "denuncias", label: "Denúncias" },
   { key: "equipe", label: "Equipe (chat interno)" },
   { key: "documentos", label: "Tipos de documento" },
   { key: "empreiteiros", label: "Empreiteiros (B2B)" },

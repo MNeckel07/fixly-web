@@ -1,6 +1,17 @@
 import type { Role } from "./brand";
 
-export const TERMS_VERSION = "1.0";
+export const TERMS_VERSION = "1.1";
+
+/**
+ * Encarregado pelo Tratamento de Dados (DPO) — exigência do art. 41 da LGPD.
+ * ⚠️ Os dados abaixo aparecem nos Termos e na Política: confirmar com o dono
+ * antes de publicar mudança (nome e e-mail precisam existir de verdade).
+ */
+export const DPO = {
+  nome: "Encarregado de Dados do Fixly",
+  email: "privacidade@fixly.company",
+  canal: "Perfil → Suporte, na plataforma",
+};
 
 type Section = { h: string; p: string };
 type Terms = { title: string; sections: Section[] };
@@ -8,6 +19,25 @@ type Terms = { title: string; sections: Section[] };
 const COMMON_LGPD: Section = {
   h: "Proteção de dados (LGPD)",
   p: "O Fixly coleta e trata dados pessoais e documentos exclusivamente para verificação de identidade, prevenção a fraudes, prestação do serviço e cumprimento de obrigações legais, nos termos da Lei nº 13.709/2018 (LGPD). Os documentos enviados ficam armazenados de forma privada e criptografada, acessíveis apenas à equipe de análise. O usuário pode solicitar acesso, correção ou exclusão dos seus dados a qualquer momento, ressalvadas as hipóteses de guarda obrigatória.",
+};
+
+/**
+ * Encarregado de dados (LGPD art. 41). Fica junto da cláusula de LGPD nos dois
+ * papéis — o titular precisa saber a quem recorrer sem procurar.
+ */
+const COMMON_DPO: Section = {
+  h: "Encarregado pelo Tratamento de Dados (DPO)",
+  p: `Para exercer seus direitos, esclarecer dúvidas ou apresentar reclamações relativas a dados pessoais, o titular pode contatar o Encarregado do Fixly: ${DPO.nome} — ${DPO.email} — canal na plataforma: ${DPO.canal}. O titular também pode apresentar reclamação diretamente à Autoridade Nacional de Proteção de Dados (ANPD).`,
+};
+
+/**
+ * Isenção de garantias. É o ponto que o dono fez questão de deixar escrito: o
+ * Fixly aproxima as partes e protege o pagamento — quem responde pela execução,
+ * pelos danos e pelos acidentes é o profissional.
+ */
+const COMMON_ISENCAO: Section = {
+  h: "Natureza da plataforma e limites de garantia",
+  p: "O Fixly é um FACILITADOR entre contratante e profissional autônomo: não executa serviços, não é parte no contrato firmado entre as partes e não atua como empregador, seguradora ou fiadora. O Fixly NÃO garante e não se responsabiliza por: furto, roubo ou extravio de bens; danos materiais ao imóvel, a móveis, equipamentos ou a terceiros; vícios, defeitos ou refazimento do serviço; nem por lesões, acidentes ou doenças ocupacionais ocorridos durante a execução. Essas responsabilidades são integralmente do profissional que executa o serviço, que declara possuir capacitação, equipamentos de proteção e, quando aplicável, seguro próprio. O papel do Fixly limita-se a aproximar as partes, reter o pagamento até a aprovação do contratante, manter o registro da negociação e mediar conflitos administrativamente, sem assumir obrigação de indenizar.",
 };
 
 const COMMON_JURIS: Section = {
@@ -51,9 +81,23 @@ export const TERMS: Record<Exclude<Role, "admin">, Terms> = {
         h: "8. Avaliações e suspensão",
         p: "A qualidade é aferida por avaliações dos contratantes. Avaliações reiteradamente baixas, denúncias ou descumprimento destes Termos podem levar à suspensão temporária ou ao encerramento definitivo do cadastro, a critério do Fixly.",
       },
-      COMMON_LGPD,
       {
-        h: "9. Encerramento",
+        h: "9. Selo Fixly — concessão e perda",
+        p: "O Selo Fixly é um reconhecimento de qualidade concedido automaticamente ao profissional que mantém avaliação média de 4,5 estrelas ou mais, com histórico de serviços concluídos. Ele NÃO é permanente: cai sozinho quando a média deixa de atender ao critério, e o profissional é avisado nos dois sentidos (ao ganhar e ao perder).",
+      },
+      {
+        h: "9.1. Revogação imediata do Selo",
+        p: "Enseja revogação imediata do Selo, sem prazo prévio de regularização: fraude, tentativa de fraude ou falsidade documental confirmada; manipulação comprovada de avaliações; dano grave causado a cliente ou a terceiro, com apuração concluída; conduta de assédio, ameaça, violência ou discriminação; e solicitação reiterada de pagamento fora da plataforma. A revogação é comunicada ao profissional com indicação da motivação e das evidências consideradas, resguardados dados de terceiros.",
+      },
+      COMMON_ISENCAO,
+      COMMON_LGPD,
+      COMMON_DPO,
+      {
+        h: "10. Denúncias",
+        p: "O profissional pode denunciar condutas irregulares do contratante (ameaça, assédio, discriminação, tentativa de fraude, local inseguro ou proposta de pagamento por fora) pela tela do serviço. As denúncias são analisadas pela equipe do Fixly e podem levar à suspensão do contratante.",
+      },
+      {
+        h: "11. Encerramento",
         p: "Qualquer das partes pode encerrar a relação a qualquer tempo. Valores de serviços já concluídos e pendentes de repasse serão honrados conforme estes Termos.",
       },
       COMMON_JURIS,
@@ -94,7 +138,13 @@ export const TERMS: Record<Exclude<Role, "admin">, Terms> = {
         h: "8. Limitação de responsabilidade",
         p: "O Fixly emprega esforços de verificação de prestadores, mas não é parte no contrato de prestação de serviço em si. A responsabilidade pela execução técnica é do prestador. O Fixly atua na mediação de conflitos e na proteção do pagamento.",
       },
+      {
+        h: "9. Denúncias",
+        p: "O contratante pode denunciar condutas irregulares a qualquer momento — pela tela do serviço ou ao avaliar. São exemplos: cobrança por fora da plataforma, fraude, dano causado no atendimento, assédio, ameaça ou discriminação. As denúncias são analisadas pela equipe do Fixly e podem levar à perda do Selo, à suspensão ou ao encerramento do cadastro do profissional.",
+      },
+      COMMON_ISENCAO,
       COMMON_LGPD,
+      COMMON_DPO,
       COMMON_JURIS,
     ],
   },

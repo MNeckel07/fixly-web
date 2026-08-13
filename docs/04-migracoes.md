@@ -38,5 +38,7 @@ Todas idempotentes. Rodar com `npm run db:apply` (lista em `scripts/apply-schema
 
 | 0027 | `cartoes_salvos` | `profiles_private.mp_customer_id` + `mp_customer_env`. O cartão fica guardado NO MERCADO PAGO (customer); aqui só o id dele. `mp_customer_env` ('test'/'prod') existe porque customer de teste não vale em produção — sem isso, virar as credenciais quebraria o pagamento com um "customer not found" |
 
+| 0028 | `selo_e_denuncias` | **Selo Fixly vira estado no banco.** Antes era só uma conta feita na tela ("nota ≥ 4,5") — sem instante de ganho/perda, não dá para avisar ninguém. Agora `profiles.seal_active` é mantido pelo trigger `fixly_sync_selo` e cada virada gera linha em `seal_events` (é o que o e-mail lê). Admin pode **revogar** (`set_seal_revocation`, motivo obrigatório) e a revogação vence o cálculo automático; `guard_profile_changes` (partindo da versão do 0023) protege as três colunas novas. ⚠️ o trigger não grava evento no INSERT — a linha de `profiles` ainda não existe e a FK falharia. **Denúncias:** tabela `reports` (motivo, texto, status, desfecho) — quem denunciou e o admin leem; **o denunciado não vê** (senão o canal vira retaliação), e só dá para vincular a um serviço de que você participou |
+
 **Observação:** `pricing_rules` (0009/0012) ficou **sem uso** após o pivô 0015 —
 a aba admin de Precificação foi removida. A tabela permanece (inócua).

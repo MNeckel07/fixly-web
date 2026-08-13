@@ -16,7 +16,7 @@ import type { Profile } from "@/lib/types";
  * Para admin nada muda — o painel continua mostrando tudo.
  */
 export function ProfileCard({ profile }: { profile: Profile }) {
-  const rep = providerReputation(profile.rating, profile.jobs_done);
+  const rep = providerReputation(profile.rating, profile.jobs_done, (profile as { seal_active?: boolean }).seal_active);
   const isAdmin = profile.role === "admin";
   return (
     <div className="max-w-lg mx-auto">

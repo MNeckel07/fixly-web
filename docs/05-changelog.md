@@ -2,6 +2,33 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v12.2 — Parte 8: selo com história, denúncias, cartão na carteira (migração 0028)
+
+- **Selo Fixly ganho e perdido avisa por e-mail.** O selo saiu do "calculado na
+  tela" e virou estado no banco (`profiles.seal_active` + `seal_events`), então
+  existe o INSTANTE em que ele muda. E-mail nos dois sentidos: ganhar comemora,
+  perder explica o motivo e o caminho de volta.
+- **Revogação pela equipe** (Termos 9.1): fraude, manipulação de avaliações,
+  dano grave, assédio/ameaça/discriminação e insistência em cobrar por fora
+  derrubam o selo na hora, com motivo — que vai no e-mail do profissional.
+- **Denúncias** (`reports`): botão discreto na tela do serviço (as duas pontas)
+  e na hora de avaliar. **O denunciado não vê a denúncia** — sem isso o canal
+  vira retaliação. Fila em **Admin → Denúncias**, com revogar/devolver o selo
+  ali mesmo.
+- **Cartão Fixly na carteira do celular:** Apple Wallet (.pkpass assinado) e
+  Carteira do Google (JWT de "save link"), com o QR do perfil e o Selo. Os
+  botões só aparecem quando as credenciais existem no servidor. O .pkpass é
+  montado com um escritor de ZIP próprio (~60 linhas) para não arrastar
+  biblioteca de compressão por causa de 4 arquivos.
+- **Termos atualizados (v1.1):** natureza de facilitador e **isenção de
+  garantias** (furto, roubo, danos materiais, vícios do serviço e lesões são do
+  profissional, não do Fixly), regra do Selo e da revogação imediata, cláusula
+  de denúncias e a seção do **Encarregado de Dados (DPO)** exigida pela LGPD.
+- **Correção:** a caixa "Sair da conta?" nascia grudada no topo no
+  fixly.company. Causa: o cabeçalho é `sticky ... backdrop-blur`, e
+  `backdrop-filter` cria bloco de contenção — `position: fixed` passou a valer
+  em relação ao cabeçalho. Agora o diálogo vai por **portal** no `document.body`.
+
 ## v12.1 — Cartões salvos + site sem cara de teste (migração 0027)
 
 - **Cartões salvos.** Na segunda contratação o cartão já aparece na lista e o

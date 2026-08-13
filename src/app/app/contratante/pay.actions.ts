@@ -3,6 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchChargeStatus, isGatewaySandbox } from "@/lib/gateway";
 import { currentCustomerId, saveCard } from "@/app/app/contratante/cards.actions";
+import { notifySealChanges } from "@/app/app/notify.actions";
 import { settlementDate, type PayMethod, type PaymentBreakdown } from "@/lib/pricing";
 
 export interface PayResult {
@@ -365,6 +366,18 @@ export async function approveService(requestId: string): Promise<{ ok: boolean; 
     })
     .eq("request_id", requestId);
   await supabase.from("service_requests").update({ status: "concluido" }).eq("id", requestId);
+
+  /**
+   * Concluir recalcula a nota do profissional (trigger `on_request_completed`),
+   * e é aí que o Selo Fixly pode entrar ou cair. Este é o único momento natural
+   * para avisar — o Postgres do Supabase não manda e-mail sozinho.
+   * Nunca derruba a aprovação: o serviço já foi concluído e o dinheiro liberado.
+   */
+  try {
+    await notifySealChanges();
+  } catch (e: any) {
+    console.error("[selo] falha ao avisar mudança de selo:", e?.message ?? e);
+  }
 
   return { ok: true };
 }

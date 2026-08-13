@@ -12,6 +12,7 @@ import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
 import { cancelJobAsProvider } from "@/app/app/prestador/actions";
+import { ReportButton } from "@/components/ui/ReportButton";
 
 type Job = {
   id: string;
@@ -30,7 +31,7 @@ type Job = {
   /** Atendimento de cortesia (Selo Fix): roda igual, mas não gera pagamento. */
   no_charge: boolean | null;
   category: { name: string; slug: string } | null;
-  client: { full_name: string; city: string | null } | null;
+  client: { id: string; full_name: string; city: string | null } | null;
 };
 
 export function TrabalhoView({
@@ -275,6 +276,16 @@ export function TrabalhoView({
               Sem pagamento, o pedido volta para a fila. Já pago, o cliente é estornado.
             </p>
             {declineErr && <p className="text-xs text-danger text-center mt-1">{declineErr}</p>}
+            {job.client && (
+              <div className="flex justify-center mt-3">
+                <ReportButton
+                  targetId={job.client.id}
+                  targetName={job.client.full_name}
+                  requestId={job.id}
+                  label="Denunciar este cliente"
+                />
+              </div>
+            )}
           </div>
         )}
         {status === "a_caminho" && !arrived && (
