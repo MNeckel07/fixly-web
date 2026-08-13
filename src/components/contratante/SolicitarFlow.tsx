@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Textarea, Input, Label } from "@/components/ui/Field";
@@ -80,9 +80,11 @@ export function SolicitarFlow({
   /**
    * Envia o pedido. A plataforma NÃO define preço.
    *  - sem profissional escolhido → vai para os prestadores da região e o
-   *    contratante compara PROPOSTAS (mesmo método do Express, com negociação);
-   *  - com profissional escolhido (veio do Profiler) → vai direto para ele,
-   *    que combina a visita pelo chat e envia o valor.
+   *    contratante compara PROPOSTAS (com negociação);
+   *  - com profissional escolhido (veio do Profiler) → vai SÓ para ele
+   *    (`target_provider_id`), e segue o mesmo caminho: ele manda a proposta,
+   *    dá para negociar, contrapropor e conversar antes de fechar. Antes disso
+   *    o pedido nascia "aceito" e não havia como discutir valor.
    */
   async function submit() {
     if (!category) return;
@@ -107,9 +109,8 @@ export function SolicitarFlow({
         lat: loc.lat,
         lng: loc.lng,
         ...(mode === "orcamento" ? { mode: "orcamento" } : {}),
-        ...(provider
-          ? { provider_id: provider.id, status: "aceito" }
-          : { status: "buscando" }),
+        status: "buscando",
+        ...(provider ? { target_provider_id: provider.id } : {}),
       })
       .select("id")
       .single();
@@ -125,13 +126,8 @@ export function SolicitarFlow({
       if (paths.length > 0) await supabase.from("service_requests").update({ photos: paths }).eq("id", req.id);
     }
 
-    if (provider) {
-      // abre a conversa para combinar a visita
-      await supabase.rpc("start_service_chat", { p_request_id: req.id });
-    } else {
-      // dispara para prestadores próximos (cada um envia seu preço)
-      await supabase.rpc("dispatch_request", { p_request_id: req.id });
-    }
+    // dispara (para a região, ou só para o profissional escolhido)
+    await supabase.rpc("dispatch_request", { p_request_id: req.id });
 
     router.push(`/app/contratante/servico/${req.id}`);
     router.refresh();
@@ -144,7 +140,7 @@ export function SolicitarFlow({
       {provider && (
         <div className="flex items-center gap-2 rounded-xl bg-info/5 text-info px-4 py-3 text-sm mb-4">
           <MapPin className="h-4 w-4 shrink-0" />
-          <span>Pedido direcionado a <b>{provider.name}</b> — vocês combinam a visita pelo chat.</span>
+          <span>Pedido direcionado a <b>{provider.name}</b> — só ele recebe. Ele envia a proposta e vocês podem negociar e conversar antes de fechar.</span>
         </div>
       )}
 
@@ -212,7 +208,21 @@ export function SolicitarFlow({
                   </button>
                 )}
               </div>
-              <LocationPicker value={loc} onChange={setLoc} onAddress={(a) => setAddress(a)} height={200} />
+              <LocationPicker
+                value={loc}
+                onChange={setLoc}
+                onAddress={(a) => setAddress(a)}
+                height={200}
+                address={address}
+                houseNumber={houseNumber}
+                onHouseNumber={setHouseNumber}
+                city={client.city}
+              />
+              <p className="mt-2 flex items-start gap-1.5 text-xs text-gray-light">
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-success mt-px" />
+                O endereço completo só é liberado para o profissional depois que
+                você aceitar a proposta. Antes disso ele vê apenas a região.
+              </p>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">

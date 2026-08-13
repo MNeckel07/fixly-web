@@ -4,8 +4,12 @@ import { ROLE_LABELS } from "./brand";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-/** Template HTML moderno do e-mail de aprovação de cadastro. */
-export function approvalEmailHtml(name: string, role: Role) {
+/**
+ * E-mail de "conta liberada", enviado no instante em que o admin aprova.
+ * Leva o e-mail de acesso (o mesmo que a pessoa cadastrou) e o link de login —
+ * o pedido do dono era que desse para entrar direto daqui.
+ */
+export function approvalEmailHtml(name: string, role: Role, loginEmail?: string) {
   const firstName = name.split(" ")[0];
   const cta =
     role === "prestador"
@@ -31,6 +35,13 @@ export function approvalEmailHtml(name: string, role: Role) {
           <b style="color:#16A34A">aprovado</b> pela nossa equipe. Sua conta já está ativa
           e pronta para uso.
         </p>
+        ${loginEmail
+          ? `<div style="background:#FAFAFA;border:1px solid rgba(31,35,41,.08);border-radius:12px;padding:16px 20px;margin:0 0 8px">
+               <p style="margin:0 0 4px;font-size:12px;letter-spacing:.06em;color:#9AA0A8;text-transform:uppercase">Entre com</p>
+               <p style="margin:0;font-size:16px;font-weight:700;color:#1F2329">${loginEmail}</p>
+               <p style="margin:6px 0 0;font-size:13px;color:#5B616B">e a senha que você criou no cadastro.</p>
+             </div>`
+          : ""}
         <div style="text-align:center;margin:28px 0">
           <a href="${APP_URL}/login" style="display:inline-block;background:#FFC107;color:#1F2329;text-decoration:none;font-weight:700;font-size:16px;padding:14px 32px;border-radius:12px">${cta} →</a>
         </div>
@@ -46,6 +57,50 @@ export function approvalEmailHtml(name: string, role: Role) {
     <p style="text-align:center;color:#9AA0A8;font-size:12px;margin-top:24px">
       Você recebeu este e-mail porque se cadastrou no Fixly.<br>Fixly © ${new Date().getFullYear()}
     </p>
+  </div>
+</body></html>`;
+}
+
+/**
+ * Aviso de movimento no serviço (proposta, contra-proposta, convite de conversa,
+ * mensagem nova). Um template só, porque o que muda é o texto — e-mail de
+ * notificação que vira cinco arquivos diferentes é e-mail que ninguém mantém.
+ */
+export function serviceNotificationEmailHtml(opts: {
+  name: string;
+  title: string;
+  lead: string;
+  highlight?: string;
+  cta: string;
+  url: string;
+}) {
+  const firstName = opts.name.split(" ")[0];
+  return `<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>${opts.title} — Fixly</title></head>
+<body style="margin:0;background:#FAFAFA;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1F2329">
+  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
+    <div style="text-align:center;padding:8px 0 24px">
+      <span style="font-size:28px;font-weight:700;color:#1F2329">Fi<span style="color:#FFC107">x</span>ly</span>
+    </div>
+    <div style="background:#FFFFFF;border-radius:20px;padding:32px;box-shadow:0 4px 24px -8px rgba(31,35,41,.12)">
+      <h1 style="font-size:22px;margin:0 0 12px">${opts.title}</h1>
+      <p style="font-size:15px;line-height:1.6;color:#4A4A4A;margin:0 0 8px">Olá, <b>${firstName}</b>!</p>
+      <p style="font-size:15px;line-height:1.6;color:#4A4A4A;margin:0">${opts.lead}</p>
+      ${opts.highlight
+        ? `<div style="background:#FFFBEB;border-radius:12px;padding:16px 20px;margin:20px 0;text-align:center">
+             <p style="margin:0;font-size:20px;font-weight:700;color:#1F2329">${opts.highlight}</p>
+           </div>`
+        : ""}
+      <div style="text-align:center;margin:26px 0 6px">
+        <a href="${opts.url}" style="display:inline-block;background:#FFC107;color:#1F2329;text-decoration:none;font-weight:700;font-size:15px;padding:14px 30px;border-radius:12px">${opts.cta} →</a>
+      </div>
+      <p style="font-size:13px;color:#9AA0A8;margin:18px 0 0">
+        Toda a negociação acontece dentro do Fixly — é o que garante o pagamento
+        protegido e o histórico da conversa para os dois lados.
+      </p>
+    </div>
+    <p style="text-align:center;color:#9AA0A8;font-size:12px;margin-top:24px">Fixly © ${new Date().getFullYear()}</p>
   </div>
 </body></html>`;
 }

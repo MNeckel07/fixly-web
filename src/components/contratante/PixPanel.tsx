@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Check, Clock, Loader2 } from "lucide-react";
+import { Copy, Check, Clock, Loader2, AlertTriangle } from "lucide-react";
 import { checkPaymentStatus } from "@/app/app/contratante/pay.actions";
 
 /**
@@ -17,11 +17,14 @@ export function PixPanel({
   qrCode,
   qrCodeBase64,
   expiresAt,
+  sandbox = false,
 }: {
   requestId: string;
   qrCode: string;
   qrCodeBase64?: string;
   expiresAt?: string;
+  /** Credencial de teste do gateway: o QR é real na forma, mas o banco recusa. */
+  sandbox?: boolean;
 }) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
@@ -57,6 +60,18 @@ export function PixPanel({
       <p className="text-sm text-gray-light mt-0.5 mb-4">
         Escaneie o QR no app do seu banco ou use o copia-e-cola. A confirmação é automática.
       </p>
+
+      {sandbox && (
+        <div className="flex items-start gap-2 rounded-xl bg-warning/10 px-4 py-3 mb-4 text-xs text-ink">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+          <span>
+            <b>Ambiente de teste.</b> Este QR é gerado com a credencial de teste do
+            Mercado Pago — o app do banco vai dizer que o código é inválido. É o
+            comportamento esperado; só uma conta de teste do MP paga este código.
+            Com a credencial de produção o mesmo QR funciona normalmente.
+          </span>
+        </div>
+      )}
 
       {qrCodeBase64 && (
         <div className="flex justify-center mb-4">

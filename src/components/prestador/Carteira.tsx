@@ -163,7 +163,7 @@ export function Carteira({
           <span className="font-bold text-ink">{brl(totalPrestado)}</span>
         </div>
         <p className="text-[11px] text-gray-light mt-1.5">
-          Valores já com a comissão da Fixly descontada — é o que entra na sua conta.
+          Valores já com a taxa da plataforma descontada — é o que entra na sua conta.
         </p>
       </div>
 
@@ -277,13 +277,13 @@ export function Carteira({
           {gatewayConnected ? (
             <p className="text-sm text-success mt-1">
               Conta Mercado Pago conectada — o valor do serviço cai direto para você, já com a
-              comissão do Fixly descontada na hora.
+              taxa da plataforma descontada na hora.
             </p>
           ) : (
             <>
               <p className="text-sm text-gray mt-1">
                 Conectando sua conta Mercado Pago, o dinheiro do serviço vai direto para lá (sem
-                precisar sacar). A comissão do Fixly é separada automaticamente.
+                precisar sacar). A taxa da plataforma é separada automaticamente.
               </p>
               <a
                 href="/api/pagamentos/oauth/conectar"

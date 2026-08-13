@@ -39,6 +39,19 @@ export function isMercadoPagoConfigured() {
   return !!process.env.MP_ACCESS_TOKEN;
 }
 
+/**
+ * Estamos em ambiente de TESTE (ou sem gateway)?
+ *
+ * Importa para o PIX: com credencial `TEST-` o Mercado Pago gera um BR Code
+ * válido na forma, mas ligado a uma conta de teste — o app do banco lê e
+ * responde "QR inválido". Não é defeito nosso, e sem avisar na tela isso vira
+ * chamado de suporte toda vez. Só uma conta de teste do MP paga esse QR.
+ */
+export function isGatewaySandbox() {
+  const token = process.env.MP_ACCESS_TOKEN;
+  return !token || token.startsWith("TEST-");
+}
+
 export interface ChargeInput {
   amount: number;
   method: PayMethod;

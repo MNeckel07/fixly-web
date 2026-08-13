@@ -2,6 +2,54 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v12 — Melhoras "parte 7" (migração 0026)
+
+**Privacidade de contato e de endereço, negociação de verdade e avisos por e-mail.**
+
+- **Nenhum dado de contato entre usuários.** O cartão do perfil não mostra mais
+  e-mail, telefone e CPF para contratante e prestador (para **admin não muda
+  nada**). O único canal entre as pontas é o chat — e o chat **mascara**
+  telefone e e-mail digitados, por trigger no banco (`mask_contact_info`), que
+  o navegador não tem como burlar.
+- **Endereço só depois do aceite.** O endereço exato saiu de `service_requests`
+  e foi para `service_request_locations`, liberada pela RLS apenas ao
+  contratante, ao profissional **designado** e ao admin. Enquanto o serviço não
+  fecha, o prestador vê **bairro/cidade + um círculo de ~1 km** (`AreaMap`) e a
+  distância aproximada. Provado por teste de RLS com JWT falso: prestador
+  candidato = 0 linhas; depois do aceite = 1.
+- **Alfinete no lugar certo.** `PinPicker` (pino arrastável, clique no mapa) e
+  geocodificação **estruturada com o número da casa** (`geocodeAddress`), que é
+  o que faz o ponto parar na porta em vez do meio da quadra. O GPS agora também
+  preenche o número. Quando o número não existe no OSM, a tela **diz isso** e
+  pede para arrastar o pino, em vez de fingir precisão.
+- **Contra-proposta dos dois lados + chat da negociação.** O prestador pode
+  responder à contra-proposta com outro valor (ida e volta até alguém aceitar).
+  Qualquer um dos dois pode **pedir conversa**; o outro aceita, e esse mesmo
+  chat segue até o fim do serviço (histórico único). Sem pedido, ele abre
+  sozinho no aceite da proposta.
+- 🔴 **Buraco fechado:** a policy de update em `proposals` deixava o contratante
+  escrever qualquer coluna — inclusive `price`. Dava para baixar a proposta
+  alheia para R$ 1 e aceitar. Agora a negociação inteira passa por RPC
+  `security definer` e o update direto é admin-only.
+- **Pedido direto pelo Profiler virou negociação.** Antes nascia `aceito`, sem
+  proposta e sem como discutir valor. Agora nasce `buscando` com
+  `target_provider_id`: só o escolhido enxerga, manda o preço, e vale
+  contra-proposta e chat como em qualquer pedido.
+- **E-mails de aviso:** conta aprovada (agora com o e-mail de acesso e link de
+  login), proposta recebida, contra-proposta e mensagem no chat. `notification_log`
+  evita repetição (mensagem, no máximo 1 a cada 15 min por conversa).
+- **Foto de perfil** para contratante e prestador (`AvatarPicker` no cartão do
+  perfil, bucket público `avatars`).
+- **Taxa sem marca:** "Comissão Fixly (15%)" virou **"Taxa da plataforma (15%)"**
+  nas telas de pagamento, extrato e carteira. Os 15% continuam visíveis.
+- **Pix conferido:** o código está correto — o QR vem do próprio Mercado Pago
+  (`point_of_interaction.transaction_data`). O "deu erro ao ler" é a credencial
+  **de teste**: o BR Code aponta para uma conta de teste e o app do banco recusa.
+  A tela do Pix agora **avisa isso** quando o token é `TEST-` (`isGatewaySandbox`).
+- **Detalhes:** confirmação de "Sair" desceu um pouco; frase do cartão 70 → 60
+  caracteres; `scripts/dry-run-migration.mjs` (ensaia a migração no banco real e
+  dá rollback — foi como os testes acima rodaram sem sujar a produção).
+
 ## v8.2 — Área de atendimento no mapa + e-mail no ar
 - **E-mail FUNCIONANDO** (Brevo). O que libera o envio é o **remetente ativo**,
   não o domínio autenticado: `fixly.company` seguia `autenticado: false` e o

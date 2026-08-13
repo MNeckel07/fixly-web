@@ -14,7 +14,7 @@ type Item = { id: string; image_path: string; caption: string | null };
 type Cat = { id: string; name: string; slug: string };
 
 /** Limite do texto do cartão — a frase longa estourava o layout impresso. */
-export const CARD_HEADLINE_MAX = 70;
+export const CARD_HEADLINE_MAX = 60;
 
 type Form = {
   handle: string;

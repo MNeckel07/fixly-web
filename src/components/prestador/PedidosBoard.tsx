@@ -3,13 +3,16 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Inbox, User, MapPin, Check, ArrowRight, X } from "lucide-react";
+import { Inbox, User, MapPin, Check, ArrowRight, X, Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
+import { AreaMap } from "@/components/map/AreaMap";
+import { ServiceChatBox } from "@/components/chat/ServiceChatBox";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
 import { cancelJobAsProvider } from "@/app/app/prestador/actions";
+import { notifyCounter, notifyProposal } from "@/app/app/notify.actions";
 
 /** Job já atribuído a este prestador (orçamento/reforma ou Express aceito). */
 type MyJob = {
@@ -27,21 +30,35 @@ type Req = {
   id: string;
   description: string;
   urgent: boolean;
-  address: string | null;
+  /** Região aproximada (bairro/cidade). O endereço exato só depois do aceite. */
+  area: string | null;
   estimated_price: number | null;
   estimated_min: number | null;
   estimated_max: number | null;
+  /** Centro DESLOCADO — serve para desenhar a área, não para achar a casa. */
   lat: number | null;
   lng: number | null;
+  distanceKm: number | null;
+  /** Pedido que o contratante mandou direto para este profissional. */
+  direct: boolean;
   photos: string[] | null;
   category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
-  myProposal: { price: number; eta: number | null; advance_pct: number; counter_price: number | null; counter_status: string | null } | null;
+  myProposal: {
+    id: string;
+    price: number;
+    eta: number | null;
+    advance_pct: number;
+    counter_price: number | null;
+    counter_status: string | null;
+    counter_by: string | null;
+  } | null;
 };
 
 export function PedidosBoard({
   requests,
   myJobs = [],
+  providerId,
   providerName,
   rating,
   jobsDone,
@@ -51,6 +68,7 @@ export function PedidosBoard({
 }: {
   requests: Req[];
   myJobs?: MyJob[];
+  providerId: string;
   providerName: string;
   rating: number;
   jobsDone: number;
@@ -194,7 +212,7 @@ export function PedidosBoard({
         ) : (
           <div className="space-y-3">
             {requests.map((r) => (
-              <RequestCard key={r.id} r={r} defaultAdvancePct={defaultAdvancePct} />
+              <RequestCard key={r.id} r={r} defaultAdvancePct={defaultAdvancePct} currentUserId={providerId} />
             ))}
           </div>
         )}
@@ -203,7 +221,16 @@ export function PedidosBoard({
   );
 }
 
-function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: number }) {
+function RequestCard({
+  r,
+  defaultAdvancePct,
+  currentUserId,
+}: {
+  r: Req;
+  defaultAdvancePct: number;
+  currentUserId: string;
+}) {
+  const router = useRouter();
   // sem preço-base: o prestador digita o valor de cada serviço
   const [value, setValue] = useState<string>(r.myProposal ? String(r.myProposal.price) : "");
   const [advancePct, setAdvancePct] = useState<number>(Math.min(defaultAdvancePct, 50));
@@ -211,21 +238,57 @@ function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: numb
   const [sent, setSent] = useState(!!r.myProposal);
   const [error, setError] = useState("");
   const [counterStatus, setCounterStatus] = useState<string | null>(r.myProposal?.counter_status ?? null);
-  const counterPrice = r.myProposal?.counter_price ?? null;
+  const [counterBy, setCounterBy] = useState<string | null>(r.myProposal?.counter_by ?? null);
+  const [counterPrice, setCounterPrice] = useState<number | null>(r.myProposal?.counter_price ?? null);
+  const [myCounter, setMyCounter] = useState("");
+  const [showCounter, setShowCounter] = useState(false);
   const photos = r.photos ?? [];
 
+  /** A bola está comigo: o contratante mandou um valor e eu ainda não respondi. */
+  const waitingMe = counterStatus === "pendente" && counterBy !== currentUserId;
+  const waitingThem = counterStatus === "pendente" && counterBy === currentUserId;
+
   async function respondCounter(accept: boolean) {
+    if (!r.myProposal) return;
     setBusy(true);
     setError("");
     const supabase = createClient();
-    const patch = accept && counterPrice != null
-      ? { price: counterPrice, counter_status: "aceita" }
-      : { counter_status: "recusada" };
-    const { error } = await supabase.from("proposals").update(patch).eq("request_id", r.id);
+    const { error } = await supabase.rpc("respond_counter", {
+      p_proposal_id: r.myProposal.id,
+      p_accept: accept,
+    });
     setBusy(false);
     if (error) return setError(error.message);
     setCounterStatus(accept ? "aceita" : "recusada");
     if (accept && counterPrice != null) setValue(String(counterPrice));
+    router.refresh();
+  }
+
+  /**
+   * Contra-proposta DO PRESTADOR — o pedido do dono: "ao contratante fazer uma
+   * contraproposta, disponibilize a chance do prestador ainda assim colocar uma
+   * contraproposta". A ida e volta continua até alguém aceitar.
+   */
+  async function sendMyCounter() {
+    if (!r.myProposal) return;
+    const v = Number(myCounter);
+    if (!v || v <= 0) return setError("Informe um valor válido.");
+    setBusy(true);
+    setError("");
+    const supabase = createClient();
+    const { error } = await supabase.rpc("counter_proposal", {
+      p_proposal_id: r.myProposal.id,
+      p_price: v,
+    });
+    setBusy(false);
+    if (error) return setError(error.message);
+    await notifyCounter(r.myProposal.id);
+    setCounterPrice(v);
+    setCounterStatus("pendente");
+    setCounterBy(currentUserId);
+    setShowCounter(false);
+    setMyCounter("");
+    router.refresh();
   }
 
   const price = Number(value) || 0;
@@ -247,6 +310,12 @@ function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: numb
     setBusy(false);
     if (error) return setError(error.message);
     setSent(true);
+    // mexer no preço zera a negociação (o banco faz o mesmo no submit_proposal)
+    setCounterStatus(null);
+    setCounterBy(null);
+    setCounterPrice(null);
+    await notifyProposal(r.id);
+    router.refresh();
   }
 
   return (
@@ -257,20 +326,35 @@ function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: numb
             <CategoryIcon slug={r.category?.slug} className="h-6 w-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-ink">{r.category?.name ?? "Serviço"}</p>
               {r.urgent && (
                 <span className="text-[11px] font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">URGENTE</span>
+              )}
+              {r.direct && (
+                <span className="text-[11px] font-bold text-info bg-info/10 px-2 py-0.5 rounded-full">DIRETO PARA VOCÊ</span>
               )}
             </div>
             <p className="text-sm text-gray mt-0.5">{r.description}</p>
             <p className="flex items-center gap-1 text-xs text-gray-light mt-1">
               <User className="h-3.5 w-3.5" /> {r.client?.full_name ?? "Cliente"}
-              <MapPin className="h-3.5 w-3.5 ml-1" /> {r.address || r.client?.city || "—"}
+              <MapPin className="h-3.5 w-3.5 ml-1" /> {r.area || "região não informada"}
+              {r.distanceKm != null && <span>· ~{r.distanceKm.toFixed(1)} km de você</span>}
             </p>
           </div>
         </div>
       </div>
+
+      {/* Área aproximada — o endereço com número só depois de o cliente aceitar */}
+      {r.lat != null && r.lng != null && (
+        <div className="mt-3">
+          <AreaMap center={{ lat: r.lat, lng: r.lng }} radiusKm={1} height={140} />
+          <p className="flex items-center gap-1.5 text-[11px] text-gray-light mt-1.5">
+            <Lock className="h-3 w-3 shrink-0" />
+            Área aproximada (~1 km). O endereço exato aparece quando o cliente aceitar sua proposta.
+          </p>
+        </div>
+      )}
 
       {photos.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-3">
@@ -289,7 +373,7 @@ function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: numb
             <span className="inline-flex items-center gap-1.5 text-sm text-success font-medium">
               <Check className="h-4 w-4" /> Proposta enviada: {brl(Number(value))}
             </span>
-            {counterStatus !== "pendente" && (
+            {!waitingMe && !waitingThem && (
               <div className="flex items-center gap-3">
                 <button onClick={() => setSent(false)} className="text-xs text-gray hover:text-ink underline">
                   alterar
@@ -312,24 +396,59 @@ function RequestCard({ r, defaultAdvancePct }: { r: Req; defaultAdvancePct: numb
             )}
           </div>
 
-          {counterStatus === "pendente" && counterPrice != null && (
+          {waitingMe && counterPrice != null && (
             <div className="rounded-xl bg-info/5 border border-info/20 px-4 py-3">
               <p className="text-sm text-ink">
                 O contratante fez uma <b>contra-proposta</b>: <b>{brl(counterPrice)}</b>
               </p>
-              <div className="flex items-center gap-3 mt-2">
+              <div className="flex flex-wrap items-center gap-3 mt-2">
                 <Button size="sm" loading={busy} onClick={() => respondCounter(true)}>Aceitar {brl(counterPrice)}</Button>
+                <button
+                  onClick={() => { setShowCounter((v) => !v); setMyCounter(String(Math.round(((Number(value) || 0) + counterPrice) / 2))); }}
+                  disabled={busy}
+                  className="text-sm font-medium text-primary-dark hover:underline disabled:opacity-50"
+                >
+                  Fazer outra proposta
+                </button>
                 <button onClick={() => respondCounter(false)} disabled={busy} className="text-sm text-gray hover:text-danger">Recusar</button>
               </div>
+              {showCounter && (
+                <div className="flex items-end gap-2 mt-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-light">Seu novo valor (R$)</label>
+                    <input
+                      type="number"
+                      value={myCounter}
+                      onChange={(e) => setMyCounter(e.target.value)}
+                      className="w-full h-10 rounded-xl border border-black/10 px-3 mt-1 outline-none focus:border-primary text-sm"
+                    />
+                  </div>
+                  <Button size="sm" loading={busy} onClick={sendMyCounter}>Enviar</Button>
+                  <button onClick={() => setShowCounter(false)} className="text-xs text-gray hover:text-ink h-10">cancelar</button>
+                </div>
+              )}
             </div>
           )}
+          {waitingThem && counterPrice != null && (
+            <p className="text-xs text-info bg-info/5 rounded-lg px-3 py-2">
+              Sua contra-proposta de <b>{brl(counterPrice)}</b> foi enviada — aguardando o contratante.
+            </p>
+          )}
           {counterStatus === "aceita" && (
-            <p className="text-xs text-success">Contra-proposta aceita — novo valor {brl(Number(value))}.</p>
+            <p className="text-xs text-success">Negociação fechada em {brl(Number(value))} — aguardando o contratante confirmar.</p>
           )}
           {counterStatus === "recusada" && (
-            <p className="text-xs text-gray-light">Você recusou a contra-proposta; vale sua proposta original.</p>
+            <p className="text-xs text-gray-light">Contra-proposta recusada; vale a última proposta enviada.</p>
           )}
           {error && <p className="text-xs text-danger">{error}</p>}
+
+          {/* Chat da negociação: um lado pede, o outro aceita */}
+          <ServiceChatBox
+            requestId={r.id}
+            providerId={currentUserId}
+            currentUserId={currentUserId}
+            otherName={r.client?.full_name ?? "o cliente"}
+          />
         </div>
       ) : (
         <div className="mt-3">

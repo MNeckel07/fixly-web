@@ -13,6 +13,8 @@ import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { approveService, approveAdvance, processPayment, skipPayment, cancelService, type CardPayload } from "@/app/app/contratante/pay.actions";
+import { notifyCounter } from "@/app/app/notify.actions";
+import { ServiceChatBox } from "@/components/chat/ServiceChatBox";
 import { CardForm } from "@/components/contratante/CardForm";
 import { PixPanel } from "@/components/contratante/PixPanel";
 import { brl, paymentBreakdown, chargedTotal, type PayMethod } from "@/lib/pricing";
@@ -32,6 +34,8 @@ type Service = {
   rating: number | null;
   review: string | null;
   provider_id: string | null;
+  /** Pedido mandado direto a um profissional (veio do Profiler). */
+  target_provider_id: string | null;
   photos: string[] | null;
   advance_pct: number | null;
   advance_approved: boolean | null;
@@ -51,6 +55,8 @@ type Proposal = {
   advance_pct: number | null;
   counter_price: number | null;
   counter_status: string | null;
+  /** Quem fez a última oferta pendente (contratante ou prestador). */
+  counter_by: string | null;
   provider: {
     id: string;
     full_name: string;
@@ -109,21 +115,40 @@ export function ServiceDetail({
   const [showChat, setShowChat] = useState(false);
   const [method, setMethod] = useState<PayMethod>("pix");
   const [payErr, setPayErr] = useState("");
-  const [pix, setPix] = useState<{ code: string; base64?: string; expiresAt?: string } | null>(null);
+  const [pix, setPix] = useState<{ code: string; base64?: string; expiresAt?: string; sandbox?: boolean } | null>(null);
   const [showCancel, setShowCancel] = useState(false);
   const [counterFor, setCounterFor] = useState<string | null>(null);
   const [counterValue, setCounterValue] = useState("");
   const [acceptErr, setAcceptErr] = useState("");
 
+  /**
+   * Contra-proposta do contratante. Passa pela RPC `counter_proposal`: a policy
+   * de update em `proposals` virou admin-only, senão dava para reescrever o
+   * PREÇO da proposta alheia e aceitar por outro valor.
+   */
   async function sendCounter(p: Proposal) {
     const v = Number(counterValue);
     if (!v || v <= 0) return;
     setBusy(true);
+    setAcceptErr("");
     const supabase = createClient();
-    await supabase.from("proposals").update({ counter_price: v, counter_status: "pendente" }).eq("id", p.id);
+    const { error } = await supabase.rpc("counter_proposal", { p_proposal_id: p.id, p_price: v });
     setBusy(false);
+    if (error) return setAcceptErr(error.message);
+    await notifyCounter(p.id);
     setCounterFor(null);
     setCounterValue("");
+    router.refresh();
+  }
+
+  /** Resposta à contra-proposta que veio DO PRESTADOR. */
+  async function answerCounter(p: Proposal, accept: boolean) {
+    setBusy(true);
+    setAcceptErr("");
+    const supabase = createClient();
+    const { error } = await supabase.rpc("respond_counter", { p_proposal_id: p.id, p_accept: accept });
+    setBusy(false);
+    if (error) return setAcceptErr(error.message);
     router.refresh();
   }
 
@@ -175,7 +200,7 @@ export function ServiceDetail({
     if (!res.ok) return setPayErr([res.error, res.detail].filter(Boolean).join(" — ") || "Falha no pagamento.");
     // PIX volta pendente com QR: mostra o QR e espera a confirmação
     if (res.status === "pendente" && res.pixQrCode) {
-      setPix({ code: res.pixQrCode, base64: res.pixQrCodeBase64, expiresAt: res.pixExpiresAt });
+      setPix({ code: res.pixQrCode, base64: res.pixQrCodeBase64, expiresAt: res.pixExpiresAt, sandbox: res.sandbox });
       return;
     }
     router.refresh();
@@ -291,7 +316,9 @@ export function ServiceDetail({
           {acceptErr && <p className="text-sm text-danger bg-danger/5 rounded-lg px-4 py-3 mb-3">{acceptErr}</p>}
           {proposals.length === 0 ? (
             <div className="bg-white rounded-2xl border border-black/5 p-8 text-center text-gray">
-              Aguardando os profissionais enviarem propostas — esta página se atualiza sozinha.
+              {service.target_provider_id
+                ? "Pedido enviado direto para o profissional que você escolheu. Assim que ele mandar o valor, você poderá negociar e conversar por aqui — esta página se atualiza sozinha."
+                : "Aguardando os profissionais enviarem propostas — esta página se atualiza sozinha."}
             </div>
           ) : (
             <div className="space-y-3">
@@ -334,11 +361,41 @@ export function ServiceDetail({
                       </div>
                     </div>
 
-                    {/* Contra-proposta */}
-                    {p.counter_status === "pendente" ? (
+                    {/* Negociação — vai e volta entre os dois lados */}
+                    {p.counter_status === "pendente" && p.counter_by === currentUserId ? (
                       <p className="mt-3 text-xs text-info bg-info/5 rounded-lg px-3 py-2">
                         Contra-proposta de <b>{brl(p.counter_price ?? 0)}</b> enviada — aguardando o profissional.
                       </p>
+                    ) : p.counter_status === "pendente" ? (
+                      <div className="mt-3 rounded-xl bg-info/5 border border-info/20 px-3 py-2.5">
+                        <p className="text-sm text-ink">
+                          O profissional respondeu com <b>{brl(p.counter_price ?? 0)}</b>
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 mt-2">
+                          <Button size="sm" loading={busy} onClick={() => answerCounter(p, true)}>
+                            Aceitar {brl(p.counter_price ?? 0)}
+                          </Button>
+                          <button
+                            onClick={() => { setCounterFor(p.id); setCounterValue(String(Math.round(((p.counter_price ?? 0) + p.price) / 2))); }}
+                            className="text-sm font-medium text-primary-dark hover:underline"
+                          >
+                            Fazer outra proposta
+                          </button>
+                          <button onClick={() => answerCounter(p, false)} disabled={busy} className="text-sm text-gray hover:text-danger">
+                            Recusar
+                          </button>
+                        </div>
+                        {counterFor === p.id && (
+                          <div className="flex items-end gap-2 mt-3">
+                            <div className="flex-1">
+                              <label className="text-xs text-gray-light">Seu novo valor (R$)</label>
+                              <input type="number" value={counterValue} onChange={(e) => setCounterValue(e.target.value)} className="w-full h-10 rounded-xl border border-black/10 px-3 mt-1 outline-none focus:border-primary text-sm" />
+                            </div>
+                            <Button size="sm" loading={busy} onClick={() => sendCounter(p)}>Enviar</Button>
+                            <button onClick={() => setCounterFor(null)} className="text-xs text-gray hover:text-ink h-10">cancelar</button>
+                          </div>
+                        )}
+                      </div>
                     ) : p.counter_status === "recusada" ? (
                       <p className="mt-3 text-xs text-gray-light">O profissional recusou sua contra-proposta; vale {brl(p.price)}.</p>
                     ) : p.counter_status === "aceita" ? (
@@ -365,8 +422,8 @@ export function ServiceDetail({
                           Negociar
                         </button>
                       )}
-                      {/* Com contra-proposta pendente NÃO se fecha o serviço:
-                          o valor ainda está em negociação com o profissional. */}
+                      {/* Com negociação pendente NÃO se fecha o serviço:
+                          o valor ainda está em discussão com o profissional. */}
                       {p.counter_status === "pendente" ? (
                         <span className="flex-1 inline-flex items-center justify-center h-10 rounded-xl bg-black/[0.04] text-gray-light text-sm font-medium">
                           Em negociação
@@ -377,6 +434,16 @@ export function ServiceDetail({
                         </Button>
                       )}
                     </div>
+
+                    {/* Conversa com este candidato (um pede, o outro aceita) */}
+                    {p.provider && (
+                      <ServiceChatBox
+                        requestId={service.id}
+                        providerId={p.provider.id}
+                        currentUserId={currentUserId}
+                        otherName={p.provider.full_name}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -392,6 +459,7 @@ export function ServiceDetail({
           qrCode={pix.code}
           qrCodeBase64={pix.base64}
           expiresAt={pix.expiresAt}
+          sandbox={pix.sandbox}
         />
       )}
 
@@ -427,7 +495,7 @@ export function ServiceDetail({
                 <div className="border-t border-black/10 my-1" />
                 <Row label="Total a pagar" value={brl(bd.amount)} bold />
                 <div className="border-t border-black/10 my-1" />
-                <Row label="Comissão Fixly (15%)" value={`- ${brl(bd.platformFee)}`} muted />
+                <Row label="Taxa da plataforma (15%)" value={`- ${brl(bd.platformFee)}`} muted />
                 {bd.advancePct > 0 && (
                   <>
                     <Row label={`Taxa de adiantamento (${bd.advancePct}%)`} value={`- ${brl(bd.advanceFee)}`} muted />
@@ -539,7 +607,7 @@ export function ServiceDetail({
           <h2 className="font-semibold text-ink mb-3">Extrato do serviço</h2>
           <div className="rounded-xl bg-canvas p-4 text-sm space-y-1.5">
             <Row label="Valor do serviço" value={brl(service.payment?.amount ?? val)} />
-            <Row label="Comissão Fixly (15%)" value={`- ${brl(service.payment?.fee ?? 0)}`} muted />
+            <Row label="Taxa da plataforma (15%)" value={`- ${brl(service.payment?.fee ?? 0)}`} muted />
             <Row label="Tarifa do pagamento" value={`- ${brl(service.payment?.gateway_fee ?? 0)}`} muted />
             {(service.payment?.advance_pct ?? 0) > 0 && (
               <Row label={`Taxa de adiantamento (${service.payment?.advance_pct}%)`} value={`- ${brl(service.payment?.advance_fee ?? 0)}`} muted />

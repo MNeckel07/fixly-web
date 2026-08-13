@@ -36,7 +36,9 @@ export function ConfirmDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-ink/50 backdrop-blur-sm animate-fade-in" onClick={onCancel} />
-      <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-[0_20px_60px_-15px_rgba(31,35,41,0.4)] animate-fade-up">
+      {/* um pouco abaixo do centro óptico: centralizado "na régua" a caixa
+          parece alta demais e briga com o cabeçalho da tela */}
+      <div className="relative w-full max-w-sm translate-y-10 rounded-2xl bg-white p-6 shadow-[0_20px_60px_-15px_rgba(31,35,41,0.4)] animate-fade-up">
         <h3 className="text-lg font-bold text-ink">{title}</h3>
         {description && <p className="mt-2 text-sm text-gray leading-relaxed">{description}</p>}
         <div className="mt-6 flex gap-2">

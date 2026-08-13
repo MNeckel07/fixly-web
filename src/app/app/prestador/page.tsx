@@ -22,10 +22,13 @@ export default async function PrestadorHome() {
     [...(pcs ?? []).map((p: any) => p.category_id), profile.category_id].filter(Boolean) as string[],
   );
 
+  // ⚠️ `address`, `lat` e `lng` de `service_requests` são APROXIMADOS (0026):
+  // região e ponto deslocado. O endereço exato vive em
+  // `service_request_locations` e a RLS só libera depois do aceite.
   const { data: open } = await supabase
     .from("service_requests")
     .select(
-      "id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, photos, category_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city, fix_badge)",
+      "id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, photos, category_id, target_provider_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city, fix_badge)",
     )
     .in("status", ["buscando", "proposta_enviada"])
     .order("created_at", { ascending: false })
@@ -33,12 +36,23 @@ export default async function PrestadorHome() {
 
   const { data: myProps } = await supabase
     .from("proposals")
-    .select("request_id, price, eta_minutes, advance_pct, counter_price, counter_status")
+    .select("id, request_id, price, eta_minutes, advance_pct, counter_price, counter_status, counter_by")
     .eq("provider_id", profile.id);
 
-  const propMap: Record<string, { price: number; eta: number | null; advance_pct: number; counter_price: number | null; counter_status: string | null }> = {};
+  const propMap: Record<string, {
+    id: string; price: number; eta: number | null; advance_pct: number;
+    counter_price: number | null; counter_status: string | null; counter_by: string | null;
+  }> = {};
   (myProps ?? []).forEach((p: any) => {
-    propMap[p.request_id] = { price: p.price, eta: p.eta_minutes, advance_pct: p.advance_pct ?? 0, counter_price: p.counter_price, counter_status: p.counter_status };
+    propMap[p.request_id] = {
+      id: p.id,
+      price: p.price,
+      eta: p.eta_minutes,
+      advance_pct: p.advance_pct ?? 0,
+      counter_price: p.counter_price,
+      counter_status: p.counter_status,
+      counter_by: p.counter_by,
+    };
   });
 
   // Prestador ocupado = tem serviço em execução AINDA não sinalizado como pronto.
@@ -56,7 +70,7 @@ export default async function PrestadorHome() {
   // direto). Aparecem aqui também, além da aba Trabalho.
   const { data: mine } = await supabase
     .from("service_requests")
-    .select("id, description, status, address, mode, final_price, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)")
+    .select("id, description, status, address, mode, final_price, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city), location:service_request_locations(address)")
     .eq("provider_id", profile.id)
     .in("status", ["aceito", "a_caminho", "em_andamento"])
     .order("created_at", { ascending: false });
@@ -64,7 +78,8 @@ export default async function PrestadorHome() {
     id: j.id,
     description: j.description,
     status: j.status,
-    address: j.address,
+    // serviço já fechado: aqui o endereço completo pode (e deve) aparecer
+    address: (Array.isArray(j.location) ? j.location[0] : j.location)?.address ?? j.address,
     mode: j.mode,
     final_price: j.final_price,
     category: Array.isArray(j.category) ? j.category[0] : j.category,
@@ -104,21 +119,30 @@ export default async function PrestadorHome() {
       }
       return true;
     })
-    .map((r: any) => ({
-      id: r.id,
-      description: r.description,
-      urgent: r.urgent,
-      address: r.address,
-      estimated_price: r.estimated_price,
-      estimated_min: r.estimated_min,
-      estimated_max: r.estimated_max,
-      lat: r.lat,
-      lng: r.lng,
-      photos: (r.photos as string[] | null) ?? [],
-      category: Array.isArray(r.category) ? r.category[0] : r.category,
-      client: Array.isArray(r.client) ? r.client[0] : r.client,
-      myProposal: propMap[r.id] ?? null,
-    }));
+    .map((r: any) => {
+      const cliente = Array.isArray(r.client) ? r.client[0] : r.client;
+      return {
+        id: r.id,
+        description: r.description,
+        urgent: r.urgent,
+        // região aproximada (o endereço exato só depois do aceite)
+        area: r.address || cliente?.city || null,
+        estimated_price: r.estimated_price,
+        estimated_min: r.estimated_min,
+        estimated_max: r.estimated_max,
+        lat: r.lat,
+        lng: r.lng,
+        distanceKm:
+          profile.lat && profile.lng && r.lat && r.lng
+            ? haversineKm({ lat: profile.lat, lng: profile.lng }, { lat: r.lat, lng: r.lng })
+            : null,
+        direct: r.target_provider_id === profile.id,
+        photos: (r.photos as string[] | null) ?? [],
+        category: Array.isArray(r.category) ? r.category[0] : r.category,
+        client: cliente,
+        myProposal: propMap[r.id] ?? null,
+      };
+    });
 
   // assina as fotos (bucket privado) só para quem tem direito de ver
   const signedMap = await signRequestPhotoMap(supabase, requests.flatMap((r) => r.photos));
@@ -131,6 +155,7 @@ export default async function PrestadorHome() {
       <PedidosBoard
       requests={requests}
       myJobs={myJobs as any}
+      providerId={profile!.id}
       providerName={profile!.full_name}
       rating={profile!.rating ?? 0}
       jobsDone={profile!.jobs_done ?? 0}

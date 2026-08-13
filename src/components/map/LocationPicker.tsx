@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MapPin, Search, LocateFixed } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { RouteMap } from "@/components/map/RouteMap";
+import { PinPicker } from "@/components/map/PinPicker";
 import { ServiceAreaMap } from "@/components/map/ServiceAreaMap";
+import { geocodeAddress, reverseGeocode } from "@/lib/geo";
 
 export type Loc = { lat: number; lng: number };
 
@@ -13,7 +14,12 @@ const DEFAULT: Loc = { lat: -23.5505, lng: -46.6333 };
 /**
  * Seletor de localização estilo Uber/Google:
  *  - compartilhar GPS (permissão), ou
- *  - digitar o CEP e o sistema encontra automaticamente (ViaCEP + Nominatim).
+ *  - digitar o CEP e o sistema encontra automaticamente (ViaCEP + Nominatim),
+ *  - e, em qualquer um dos casos, ARRASTAR o pino até o ponto exato.
+ *
+ * Quando o número da casa é informado, a busca é refeita de forma estruturada
+ * (rua + número), que é o que faz o alfinete parar na porta e não no meio da
+ * quadra.
  */
 export function LocationPicker({
   value,
@@ -23,6 +29,10 @@ export function LocationPicker({
   hideGps = false,
   radiusKm,
   onRadiusChange,
+  houseNumber,
+  onHouseNumber,
+  address,
+  city,
 }: {
   value: Loc | null;
   onChange: (loc: Loc) => void;
@@ -32,10 +42,19 @@ export function LocationPicker({
   /** Com raio informado, o mapa vira o de ÁREA (círculo + slider embaixo). */
   radiusKm?: number;
   onRadiusChange?: (km: number) => void;
+  /** Número da casa: refina o ponto no mapa assim que é digitado. */
+  houseNumber?: string;
+  onHouseNumber?: (n: string) => void;
+  /** Rua já preenchida no formulário (para refinar com o número). */
+  address?: string;
+  city?: string | null;
 }) {
   const [cep, setCep] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
+  const lastRefined = useRef("");
+
+  const isArea = radiusKm != null && onRadiusChange != null;
 
   function useGps() {
     setStatus("Solicitando sua localização...");
@@ -48,24 +67,17 @@ export function LocationPicker({
         const loc = { lat: p.coords.latitude, lng: p.coords.longitude };
         onChange(loc);
         setStatus("Localização obtida — buscando o endereço...");
-        // reverse geocode: preenche o nome da rua (antes ficava vazio)
-        try {
-          const r = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&addressdetails=1&lat=${loc.lat}&lon=${loc.lng}`,
-            { headers: { "Accept-Language": "pt-BR" } },
-          ).then((res) => res.json());
-          const a = r?.address ?? {};
-          const rua = [a.road, a.suburb || a.neighbourhood || a.bairro, a.city || a.town || a.municipality]
-            .filter(Boolean)
-            .join(", ");
-          if (rua) {
-            onAddress?.(rua);
-            setStatus(`Local: ${rua}`);
-          } else {
-            setStatus("Localização obtida pelo GPS.");
-          }
-        } catch {
-          setStatus("Localização obtida pelo GPS.");
+        const found = await reverseGeocode(loc.lat, loc.lng);
+        if (found?.street) {
+          onAddress?.(found.street);
+          // o GPS costuma saber o número; sem isso o usuário digitava de novo
+          if (found.houseNumber && !houseNumber?.trim()) onHouseNumber?.(found.houseNumber);
+          lastRefined.current = `${found.street}|${found.houseNumber}`;
+          setStatus(
+            `Local: ${found.street}${found.houseNumber ? `, nº ${found.houseNumber}` : ""} — confira o pino no mapa.`,
+          );
+        } else {
+          setStatus("Localização obtida pelo GPS. Confira o pino no mapa.");
         }
       },
       (err) => {
@@ -94,26 +106,65 @@ export function LocationPicker({
         setLoading(false);
         return;
       }
-      const addr = `${via.logradouro || ""}, ${via.bairro || ""} - ${via.localidade}/${via.uf}`;
-      onAddress?.(addr.replace(/^, /, ""));
+      const addr = `${via.logradouro || ""}, ${via.bairro || ""} - ${via.localidade}/${via.uf}`.replace(/^, /, "");
+      onAddress?.(addr);
 
-      // geocodifica para coordenadas (Nominatim / OpenStreetMap)
-      const q = encodeURIComponent(`${via.logradouro || via.localidade}, ${via.localidade}, ${via.uf}, Brasil`);
-      const geo = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${q}`,
-        { headers: { "Accept-Language": "pt-BR" } },
-      ).then((r) => r.json());
-      if (geo?.[0]) {
-        onChange({ lat: parseFloat(geo[0].lat), lng: parseFloat(geo[0].lon) });
-        setStatus(`Local encontrado: ${addr.replace(/^, /, "")}`);
+      const found = await geocodeAddress({
+        street: via.logradouro || via.localidade,
+        number: houseNumber,
+        city: via.localidade,
+        state: via.uf,
+        postalcode: clean,
+      });
+      if (found) {
+        onChange({ lat: found.lat, lng: found.lng });
+        lastRefined.current = `${via.logradouro}|${houseNumber ?? ""}`;
+        setStatus(
+          found.precise
+            ? `Local encontrado: ${addr}, nº ${houseNumber}. Confira o pino.`
+            : `Local encontrado: ${addr}. O número não está mapeado — arraste o pino até o ponto certo.`,
+        );
       } else {
-        setStatus("Endereço encontrado, mas não localizei no mapa. Ajuste manualmente se precisar.");
+        setStatus("Endereço encontrado, mas não localizei no mapa. Arraste o pino até o local.");
       }
     } catch {
       setStatus("Falha ao buscar o CEP. Tente novamente.");
     }
     setLoading(false);
   }
+
+  /**
+   * Número digitado depois de a rua já estar preenchida: refaz a busca com o
+   * número junto. É esta passada que corrige o "está na rua certa, mas o
+   * número não puxa".
+   */
+  useEffect(() => {
+    if (isArea) return;
+    const rua = (address ?? "").trim();
+    const num = (houseNumber ?? "").trim();
+    if (!rua || !num) return;
+    const key = `${rua}|${num}`;
+    if (lastRefined.current === key) return;
+
+    const t = setTimeout(async () => {
+      lastRefined.current = key;
+      const found = await geocodeAddress({
+        street: rua.split(",")[0],
+        number: num,
+        city: city ?? rua.split(",")[1],
+        postalcode: cep,
+      });
+      if (!found) return;
+      onChange({ lat: found.lat, lng: found.lng });
+      setStatus(
+        found.precise
+          ? `Pino ajustado para o nº ${num}. Confira e arraste se precisar.`
+          : `O nº ${num} não está no mapa desta rua — arraste o pino até o ponto certo.`,
+      );
+    }, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, houseNumber, isArea]);
 
   return (
     <div className="space-y-3">
@@ -143,15 +194,15 @@ export function LocationPicker({
 
       {status && <p className="text-xs text-gray">{status}</p>}
 
-      {radiusKm != null && onRadiusChange ? (
+      {isArea ? (
         <ServiceAreaMap
           center={value ?? DEFAULT}
-          radiusKm={radiusKm}
-          onRadiusChange={onRadiusChange}
+          radiusKm={radiusKm!}
+          onRadiusChange={onRadiusChange!}
           height={height}
         />
       ) : (
-        <RouteMap target={value ?? DEFAULT} targetKind="home" requestGps={false} showRoute={false} height={height} />
+        <PinPicker value={value ?? DEFAULT} onChange={onChange} height={height} />
       )}
     </div>
   );

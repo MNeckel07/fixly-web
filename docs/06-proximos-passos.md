@@ -1,6 +1,43 @@
 # 06 — Próximos passos e instruções para a próxima sessão
 
-# 📍 PONTO DE PARADA — 12/08/2026 (leia isto primeiro)
+# 📍 PONTO DE PARADA — 12/08/2026 (parte 7)
+
+A leva "parte 7" está **escrita, compilando e ensaiada no banco**, mas ainda
+**NÃO publicada**: falta aplicar a migração `0026` e dar push. As duas coisas
+andam juntas — ver [[feedback_migracao_antes_do_deploy]].
+
+```bash
+# 1) aplicar (a 0026 já passou no ensaio com rollback)
+node --env-file=.env.local scripts/apply-migration.mjs 0026_melhoras_p7.sql
+# 2) publicar
+git push origin main
+# 3) conferir que subiu (curl + grep de um marcador) e pedir hard-refresh ao dono
+```
+
+**O que a 0026 muda em produção no instante em que roda** (por isso ela é do
+tipo que NÃO pode ficar esperando o deploy):
+- `service_requests.address/lat/lng` viram **aproximados** para todos os pedidos
+  que já existem. Com o código antigo no ar, o contratante veria a região no
+  lugar do endereço completo (degrada, não quebra).
+- `prop_update` vira admin-only: o código antigo faz `update` direto em
+  `proposals` para contra-propor → **a contra-proposta pararia de funcionar até
+  o push**.
+
+**Ensaios que já rodaram** (`scripts/dry-run-migration.mjs`, tudo com rollback):
+- migração aplica limpa sobre os dados reais (55 pedidos migrados);
+- RLS provada com JWT falso: prestador **candidato** lê 0 linhas de
+  `service_request_locations`; **designado depois do aceite** lê 1; o contratante
+  dono lê os dois pedidos dele;
+- negociação ponta a ponta: proposta → contra-proposta do contratante →
+  contra-proposta **do prestador** → aceite → serviço fechado, com os bloqueios
+  certos (contrapor 2× seguidas e aceitar com negociação aberta dão erro);
+- chat: pedido fica `pendente`, mensagem é **barrada pela RLS** até o outro lado
+  aceitar, e depois do aceite continua a MESMA conversa;
+- máscara de contato: telefone e e-mail viram `[contato oculto]`; "350 reais" fica.
+
+---
+
+# 📍 Ponto de parada anterior — 12/08/2026 (v11)
 
 **Tudo o que estava pendente foi publicado.** `main` = `51427b9`, árvore limpa,
 nada esperando push. Os dois ambientes estão no ar e verificados por `curl`.

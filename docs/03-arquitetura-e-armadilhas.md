@@ -146,6 +146,42 @@ tela do Pix confirma pelo polling de 5 s.
     E ao redimensionar, chamar `map.invalidateSize()` **depois** de o CSS
     aplicar (timeout curto) — senão ele mede o tamanho antigo.
 
+15. **RLS é por LINHA — dado sensível numa coluna vaza.** O endereço do serviço
+    ficava em `service_requests`, e a policy do 0007 deixa o prestador ler
+    QUALQUER pedido em aberto (é como ele acha trabalho). Ou seja: rua, número e
+    complemento de todo mundo, para qualquer prestador aprovado, sem nem propor.
+    Consertado como já foi feito com a PII do perfil: **tabela separada**
+    (`service_request_locations`) com a sua própria policy. Na tabela pública
+    ficou só a versão aproximada (bairro + ponto deslocado).
+    **Regra:** quando parte das colunas tem um público diferente do resto da
+    linha, o certo é outra tabela — não `select` sem a coluna (o cliente pede o
+    que quiser).
+
+16. **Realtime entrega a linha ANTES dos seus AFTER triggers.** A primeira versão
+    do split gravava o pedido com o endereço certo e um AFTER INSERT "limpava"
+    depois. Funciona na tela e vaza no websocket: o prestador assina
+    `service_requests` e recebe o payload do INSERT original. A saída foi o
+    BEFORE INSERT já gravar a versão aproximada e guardar a exata num
+    `set_config('fixly.loc_<id>', ..., true)` (escopo de transação) para o AFTER
+    INSERT salvar na tabela privada. **Ao esconder um dado, pergunte também o que
+    o Realtime publicou.**
+
+17. **Ensaie a migração antes de aplicar** — `scripts/dry-run-migration.mjs`
+    roda a migração (e um arquivo de conferências) contra o banco real dentro de
+    uma transação e dá **rollback** no fim. Foi assim que apareceu, antes de
+    qualquer estrago, que existiam **conversas de serviço duplicadas** (duas
+    chamadas simultâneas de `start_service_chat` passavam as duas pelo
+    `select ... limit 1`), que teriam feito o índice único falhar. Vale também
+    para provar RLS: dá para `set local role authenticated` + JWT falso e contar
+    linhas por usuário.
+
+18. **Update direto em tabela de negociação é dinheiro na mão do cliente.** A
+    policy `prop_update` deixava o contratante escrever em `proposals` — e nada
+    impedia `update proposals set price = 1`. Preço, status e contra-proposta só
+    devem mudar por RPC `security definer` com as regras dentro. Ao criar uma
+    tabela onde as duas pontas escrevem, pense em QUAIS COLUNAS cada uma pode
+    tocar; se a resposta não couber numa policy, é RPC.
+
 ## Convenções
 - Escrever código no estilo do redor (Tailwind utilitário, `lib/brand` para labels
   de papel/status, `Badge` para status, `CategoryIcon` por slug).

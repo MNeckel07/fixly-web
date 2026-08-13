@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchChargeStatus } from "@/lib/gateway";
+import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchChargeStatus, isGatewaySandbox } from "@/lib/gateway";
 import { settlementDate, type PayMethod, type PaymentBreakdown } from "@/lib/pricing";
 
 export interface PayResult {
@@ -13,6 +13,8 @@ export interface PayResult {
   pixQrCode?: string;
   pixQrCodeBase64?: string;
   pixExpiresAt?: string;
+  /** Gateway em ambiente de teste — o QR do Pix não é pagável pelo banco. */
+  sandbox?: boolean;
   detail?: string;
 }
 
@@ -146,6 +148,7 @@ export async function processPayment(
     pixQrCode: charge.pixQrCode,
     pixQrCodeBase64: charge.pixQrCodeBase64,
     pixExpiresAt: charge.pixExpiresAt,
+    sandbox: isGatewaySandbox(),
   };
 }
 

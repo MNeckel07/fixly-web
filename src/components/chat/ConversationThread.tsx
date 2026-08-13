@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, CheckCheck, Paperclip, Send, FileText } from "lucide-react";
+import { Check, CheckCheck, Paperclip, Send, FileText, ShieldAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { notifyNewMessage } from "@/app/app/notify.actions";
 
 export type Message = {
   id: string;
@@ -35,6 +36,7 @@ export function ConversationThread({
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [masked, setMasked] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -91,7 +93,18 @@ export function ConversationThread({
       .from("messages")
       .insert({ conversation_id: conversationId, sender_id: currentUserId, body })
       .select("*").single();
-    if (data) setMessages((prev) => (prev.some((x) => x.id === (data as Message).id) ? prev : [...prev, data as Message]));
+    if (data) {
+      const saved = data as Message;
+      setMessages((prev) => (prev.some((x) => x.id === saved.id) ? prev : [...prev, saved]));
+      // o banco mascara telefone/e-mail na conversa do serviço (migração 0026).
+      // Se voltou diferente do que foi digitado, foi isso — vale explicar, senão
+      // a pessoa acha que o chat comeu a mensagem.
+      if (saved.body && saved.body !== body) {
+        setMasked(true);
+        setTimeout(() => setMasked(false), 6000);
+      }
+      notifyNewMessage(conversationId);
+    }
     setSending(false);
   }
 
@@ -122,6 +135,15 @@ export function ConversationThread({
         ))}
         <div ref={bottomRef} />
       </div>
+      {masked && (
+        <div className="flex items-start gap-2 border-t border-black/5 bg-warning/10 px-4 py-2.5 text-xs text-ink">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-warning" />
+          <span>
+            Telefones e e-mails são ocultados nas conversas de serviço. Combine tudo
+            por aqui — é o que garante o pagamento protegido e o histórico para os dois lados.
+          </span>
+        </div>
+      )}
       <div className="p-3 border-t border-black/5 flex items-center gap-2">
         <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) sendAttachment(f); e.target.value = ""; }} />

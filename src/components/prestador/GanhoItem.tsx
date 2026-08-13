@@ -52,7 +52,7 @@ export function GanhoItem({ job, children }: { job: Job; children: React.ReactNo
         <div className="px-6 pb-4 -mt-1">
           <div className="rounded-xl bg-canvas p-4 text-sm space-y-1.5">
             <Row label="Valor do serviço" value={brl(amount)} />
-            <Row label="Comissão Fixly (15%)" value={`- ${brl(commission)}`} muted />
+            <Row label="Taxa da plataforma (15%)" value={`- ${brl(commission)}`} muted />
             <div className="border-t border-black/10 my-1" />
             <Row label="Você recebe" value={brl(net)} bold />
           </div>

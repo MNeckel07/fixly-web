@@ -25,17 +25,25 @@ export default async function TrabalhoPage({
   const { data: rows } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, address, lat, lng, estimated_price, final_price, mode, urgent, photos, provider_done_at, no_charge, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city)",
+      "id, description, status, address, lat, lng, estimated_price, final_price, mode, urgent, photos, provider_done_at, no_charge, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city), location:service_request_locations(address, lat, lng)",
     )
     .eq("provider_id", profile!.id)
     .in("status", ACTIVE)
     .order("created_at", { ascending: false });
 
-  const jobs = (rows ?? []).map((j: any) => ({
-    ...j,
-    category: Array.isArray(j.category) ? j.category[0] : j.category,
-    client: Array.isArray(j.client) ? j.client[0] : j.client,
-  }));
+  // Serviço aceito = endereço liberado (a RLS de `service_request_locations` é
+  // que decide; aqui só preferimos o exato quando ele vem).
+  const jobs = (rows ?? []).map((j: any) => {
+    const loc = Array.isArray(j.location) ? j.location[0] : j.location;
+    return {
+      ...j,
+      address: loc?.address ?? j.address,
+      lat: loc?.lat ?? j.lat,
+      lng: loc?.lng ?? j.lng,
+      category: Array.isArray(j.category) ? j.category[0] : j.category,
+      client: Array.isArray(j.client) ? j.client[0] : j.client,
+    };
+  });
 
   // "trabalhando agora" = a caminho / em andamento e ainda não sinalizado pronto
   const current =

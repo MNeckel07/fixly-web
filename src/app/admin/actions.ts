@@ -50,8 +50,8 @@ export async function approveProfile(formData: FormData) {
   if (priv?.email) {
     await sendEmailBestEffort({
       to: priv.email,
-      subject: "Seu cadastro no Fixly foi aprovado!",
-      html: approvalEmailHtml(profile.full_name, profile.role as Role),
+      subject: "Sua conta no Fixly já está liberada!",
+      html: approvalEmailHtml(profile.full_name, profile.role as Role, priv.email),
     });
   }
 
