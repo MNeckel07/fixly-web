@@ -1,39 +1,42 @@
 # 06 — Próximos passos e instruções para a próxima sessão
 
-# 📍 PONTO DE PARADA — 12/08/2026 (parte 7)
+# 📍 PONTO DE PARADA — 12/08/2026 (parte 7 · v12 · NO AR)
 
-A leva "parte 7" está **escrita, compilando e ensaiada no banco**, mas ainda
-**NÃO publicada**: falta aplicar a migração `0026` e dar push. As duas coisas
-andam juntas — ver [[feedback_migracao_antes_do_deploy]].
+`main` = `cc44163`, migração **0026 aplicada** e deploy **confirmado no ar**
+(marcadores da parte 7 encontrados nos chunks servidos por fixly.company).
+Migrações aplicadas: **0001–0026**.
 
-```bash
-# 1) aplicar (a 0026 já passou no ensaio com rollback)
-node --env-file=.env.local scripts/apply-migration.mjs 0026_melhoras_p7.sql
-# 2) publicar
-git push origin main
-# 3) conferir que subiu (curl + grep de um marcador) e pedir hard-refresh ao dono
-```
+**Verificado depois de publicar:**
+- 54 pedidos, 54 com linha em `service_request_locations`; o `address` público
+  virou região ("Batel - Curitiba/PR");
+- `prop_update` é admin-only; as 6 funções novas existem;
+- bundle servido contém "arraste o pino at…" e "Pino ajustado para o n…".
 
-**O que a 0026 muda em produção no instante em que roda** (por isso ela é do
-tipo que NÃO pode ficar esperando o deploy):
-- `service_requests.address/lat/lng` viram **aproximados** para todos os pedidos
-  que já existem. Com o código antigo no ar, o contratante veria a região no
-  lugar do endereço completo (degrada, não quebra).
-- `prop_update` vira admin-only: o código antigo faz `update` direto em
-  `proposals` para contra-propor → **a contra-proposta pararia de funcionar até
-  o push**.
+> ⚠️ Ao conferir marcador em bundle: o minificador escapa acento
+> (`\u00e9`), então **grep só com trecho ASCII** — "arraste o pino at" acha,
+> "arraste o pino até" não.
 
-**Ensaios que já rodaram** (`scripts/dry-run-migration.mjs`, tudo com rollback):
-- migração aplica limpa sobre os dados reais (55 pedidos migrados);
-- RLS provada com JWT falso: prestador **candidato** lê 0 linhas de
-  `service_request_locations`; **designado depois do aceite** lê 1; o contratante
-  dono lê os dois pedidos dele;
-- negociação ponta a ponta: proposta → contra-proposta do contratante →
-  contra-proposta **do prestador** → aceite → serviço fechado, com os bloqueios
-  certos (contrapor 2× seguidas e aceitar com negociação aberta dão erro);
-- chat: pedido fica `pendente`, mensagem é **barrada pela RLS** até o outro lado
-  aceitar, e depois do aceite continua a MESMA conversa;
-- máscara de contato: telefone e e-mail viram `[contato oculto]`; "350 reais" fica.
+## O que testar na tela (nesta ordem)
+1. **Pedido novo** (contratante): CEP → digitar o número → o pino tem que pular
+   para a casa; arrastar o pino e enviar.
+2. **Prestador**: o pedido aparece com **bairro + círculo de ~1 km**, sem rua e
+   sem número. Mandar proposta.
+3. **Contratante**: contra-proposta → **prestador responde com outro valor** →
+   contratante aceita → só então o endereço completo aparece para o prestador.
+4. **Chat**: pedir conversa de um lado, aceitar do outro, escrever um telefone
+   (tem que virar `[contato oculto]`).
+5. **Profiler**: "Solicitar serviço" em `/p/<handle>` → o pedido vai só para ele
+   e agora dá para negociar.
+6. **E-mails**: aprovar um cadastro no painel (chega com o e-mail de acesso), e
+   conferir os avisos de proposta/contra-proposta/mensagem.
+
+## Pendências que continuam abertas (não são desta leva)
+Liberação automática do escrow, validação da chave PIX, conta MP no CNPJ,
+limpeza dos 14 pagamentos simulados, virar o MP para produção e trancar o painel
+por IP — detalhe no bloco do v11 logo abaixo. Da parte 7 ficou de fora, por
+combinação: **empreiteiros** (404 do perfil público, assinatura sem pagamento,
+planos mensal/anual, foto da empresa) e o **telefone/WhatsApp que o anúncio de
+empreiteiro publica** (é um anúncio pago — o dono decide se sai).
 
 ---
 
