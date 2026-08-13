@@ -79,6 +79,11 @@ export interface MpChargeInput {
   paymentMethodId?: string;
   issuerId?: string;
   payerDocument?: string;
+  /**
+   * Cobrança em CARTÃO SALVO: o payer deixa de ser um e-mail solto e passa a
+   * ser o customer do MP (é ele que "possui" o cartão tokenizado).
+   */
+  customerId?: string;
   /** Referência do nosso lado (id do pedido) — volta no webhook. */
   externalReference?: string;
   /** Token do prestador (OAuth) — quando presente, o MP faz o split. */
@@ -109,12 +114,14 @@ export async function createMercadoPagoCharge(
     external_reference: input.externalReference,
     ...(webhookUrl ? { notification_url: webhookUrl } : {}),
     statement_descriptor: "FIXLY",
-    payer: {
-      email: input.payerEmail ?? "cliente@fixly.company",
-      ...(input.payerDocument
-        ? { identification: { type: "CPF", number: input.payerDocument.replace(/\D/g, "") } }
-        : {}),
-    },
+    payer: input.customerId
+      ? { type: "customer", id: input.customerId }
+      : {
+          email: input.payerEmail ?? "cliente@fixly.company",
+          ...(input.payerDocument
+            ? { identification: { type: "CPF", number: input.payerDocument.replace(/\D/g, "") } }
+            : {}),
+        },
     // comissão do Fixly no split. Em escrow não vai (o valor já cai para nós).
     ...(split ? { application_fee: Number(breakdown.platformFee.toFixed(2)) } : {}),
   };
@@ -156,6 +163,85 @@ export async function createMercadoPagoCharge(
     pixExpiresAt: tx?.expiration_date,
     gatewayStatusDetail: payment?.status_detail ? String(payment.status_detail) : undefined,
   };
+}
+
+/* ───────────────────── cartões salvos ───────────────────── */
+
+/**
+ * CARTÃO SALVO — o Fixly não guarda cartão nenhum.
+ *
+ * Quem guarda é o Mercado Pago, num "customer" ligado ao e-mail do contratante.
+ * Do nosso lado fica só o ID desse customer (`profiles_private.mp_customer_id`).
+ * Para cobrar de novo, o navegador gera um token a partir do `cardId` + **CVV**
+ * — o código de segurança é pedido toda vez porque o MP não pode guardá-lo, e
+ * é isso que impede que um vazamento do nosso banco vire compra no cartão de
+ * alguém.
+ */
+export interface MpSavedCard {
+  id: string;
+  lastFour: string;
+  brand: string;
+  brandName: string;
+  expMonth: number;
+  expYear: number;
+  holder: string | null;
+}
+
+function toSavedCard(c: Record<string, any>): MpSavedCard {
+  return {
+    id: String(c.id),
+    lastFour: String(c.last_four_digits ?? "????"),
+    brand: String(c.payment_method?.id ?? ""),
+    brandName: String(c.payment_method?.name ?? c.payment_method?.id ?? "Cartão"),
+    expMonth: Number(c.expiration_month ?? 0),
+    expYear: Number(c.expiration_year ?? 0),
+    holder: c.cardholder?.name ? String(c.cardholder.name) : null,
+  };
+}
+
+/** Procura o customer pelo e-mail (o MP recusa dois customers com o mesmo). */
+export async function findCustomerByEmail(email: string): Promise<string | null> {
+  const data = await mpFetch(`/v1/customers/search?email=${encodeURIComponent(email)}`, { method: "GET" });
+  const hit = data?.results?.[0];
+  return hit?.id ? String(hit.id) : null;
+}
+
+export async function createCustomer(input: {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  document?: string;
+}): Promise<string> {
+  const data = await mpFetch("/v1/customers", {
+    method: "POST",
+    body: JSON.stringify({
+      email: input.email,
+      ...(input.firstName ? { first_name: input.firstName } : {}),
+      ...(input.lastName ? { last_name: input.lastName } : {}),
+      ...(input.document
+        ? { identification: { type: "CPF", number: input.document.replace(/\D/g, "") } }
+        : {}),
+    }),
+  });
+  return String(data.id);
+}
+
+/** Guarda o cartão no customer. O token é de uso único e some depois disto. */
+export async function saveCustomerCard(customerId: string, token: string): Promise<MpSavedCard> {
+  const data = await mpFetch(`/v1/customers/${customerId}/cards`, {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+  return toSavedCard(data);
+}
+
+export async function listCustomerCards(customerId: string): Promise<MpSavedCard[]> {
+  const data = await mpFetch(`/v1/customers/${customerId}/cards`, { method: "GET" });
+  return (Array.isArray(data) ? data : data?.results ?? []).map(toSavedCard);
+}
+
+export async function deleteCustomerCard(customerId: string, cardId: string): Promise<void> {
+  await mpFetch(`/v1/customers/${customerId}/cards/${cardId}`, { method: "DELETE" });
 }
 
 /** Consulta o pagamento (usado pelo webhook e pela tela do PIX). */

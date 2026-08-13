@@ -36,5 +36,7 @@ Todas idempotentes. Rodar com `npm run db:apply` (lista em `scripts/apply-schema
 
 | 0025 | `fix_dispatch_sem_proposta_automatica` | conserta a regressão do 0023 no `dispatch_request` (voltara a criar proposta automática) |
 
+| 0027 | `cartoes_salvos` | `profiles_private.mp_customer_id` + `mp_customer_env`. O cartão fica guardado NO MERCADO PAGO (customer); aqui só o id dele. `mp_customer_env` ('test'/'prod') existe porque customer de teste não vale em produção — sem isso, virar as credenciais quebraria o pagamento com um "customer not found" |
+
 **Observação:** `pricing_rules` (0009/0012) ficou **sem uso** após o pivô 0015 —
 a aba admin de Precificação foi removida. A tabela permanece (inócua).

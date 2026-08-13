@@ -1,5 +1,8 @@
 import "server-only";
 import { paymentBreakdown, type PayMethod, type PaymentBreakdown } from "./pricing";
+import type { SavedCard } from "./types";
+
+export type { SavedCard };
 
 /**
  * Camada de gateway de pagamento (server-only).
@@ -66,6 +69,8 @@ export interface ChargeInput {
   installments?: number;
   paymentMethodId?: string;
   issuerId?: string;
+  /** Cartão salvo: o dono do cartão no gateway (payer vira o customer). */
+  customerId?: string;
   /** Presente = prestador conectou a conta dele; o MP faz o split. */
   providerAccessToken?: string;
 }
@@ -130,6 +135,45 @@ export async function releaseAdvance(chargeId: string, amount: number): Promise<
     return;
   }
   await new Promise((r) => setTimeout(r, 200));
+}
+
+/* ───────────────────── cartões salvos ───────────────────── */
+
+/**
+ * Sem gateway configurado (desenvolvimento), a carteira de cartões fica vazia e
+ * salvar não faz nada — a tela continua funcionando, só não há o que listar.
+ * É melhor do que inventar um cartão falso que não paga.
+ */
+export async function gatewayListCards(customerId: string): Promise<SavedCard[]> {
+  if (!isMercadoPagoConfigured()) return [];
+  const mp = await import("./mercadopago");
+  return mp.listCustomerCards(customerId);
+}
+
+export async function gatewaySaveCard(customerId: string, token: string): Promise<SavedCard | null> {
+  if (!isMercadoPagoConfigured()) return null;
+  const mp = await import("./mercadopago");
+  return mp.saveCustomerCard(customerId, token);
+}
+
+export async function gatewayDeleteCard(customerId: string, cardId: string): Promise<void> {
+  if (!isMercadoPagoConfigured()) return;
+  const mp = await import("./mercadopago");
+  await mp.deleteCustomerCard(customerId, cardId);
+}
+
+/** Acha ou cria o "customer" do gateway para este e-mail. */
+export async function gatewayEnsureCustomer(input: {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  document?: string;
+}): Promise<string | null> {
+  if (!isMercadoPagoConfigured()) return null;
+  const mp = await import("./mercadopago");
+  const found = await mp.findCustomerByEmail(input.email);
+  if (found) return found;
+  return mp.createCustomer(input);
 }
 
 /** Reembolsa (cancelamento do serviço). */

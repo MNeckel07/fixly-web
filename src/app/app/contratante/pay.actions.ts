@@ -2,6 +2,7 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchChargeStatus, isGatewaySandbox } from "@/lib/gateway";
+import { currentCustomerId, saveCard } from "@/app/app/contratante/cards.actions";
 import { settlementDate, type PayMethod, type PaymentBreakdown } from "@/lib/pricing";
 
 export interface PayResult {
@@ -23,6 +24,13 @@ export interface CardPayload {
   paymentMethodId?: string;
   issuerId?: string;
   payerDocument?: string;
+  /** Pagamento com cartão JÁ salvo (o token veio de cardId + CVV). */
+  savedCardId?: string;
+  /**
+   * Segundo token, gerado só para guardar o cartão na carteira. Existe porque o
+   * token do MP é de uso único: o da cobrança morre na cobrança.
+   */
+  saveCardToken?: string;
 }
 
 /**
@@ -88,6 +96,14 @@ export async function processPayment(
   }
 
   const advancePct = Number(req.advance_pct ?? 0);
+
+  // Cartão salvo: o pagador deixa de ser um e-mail e passa a ser o customer do
+  // gateway — é ele quem "possui" o cartão tokenizado.
+  const customerId = card?.savedCardId ? await currentCustomerId() : null;
+  if (card?.savedCardId && !customerId) {
+    return { ok: false, error: "Não foi possível usar o cartão salvo. Tente com um cartão novo." };
+  }
+
   let charge;
   try {
     charge = await createEscrowCharge({
@@ -105,6 +121,7 @@ export async function processPayment(
             paymentMethodId: card.paymentMethodId,
             issuerId: card.issuerId,
             payerDocument: card.payerDocument,
+            ...(customerId ? { customerId } : {}),
           }
         : {}),
     });
@@ -125,6 +142,17 @@ export async function processPayment(
 
   if (charge.status === "recusado") {
     return { ok: false, error: "Pagamento recusado pela operadora.", detail: charge.gatewayStatusDetail };
+  }
+
+  /**
+   * Guardar o cartão vem DEPOIS de a cobrança dar certo, e nunca derruba o
+   * pagamento: se o MP recusar o segundo token, o serviço já está pago — o que
+   * não pode é o cliente ver erro numa compra que funcionou.
+   */
+  // (aqui a cobrança recusada já retornou acima, então chegar neste ponto
+  //  significa aprovada ou pendente)
+  if (card?.saveCardToken) {
+    await saveCard(card.saveCardToken);
   }
 
   const { breakdown } = charge;

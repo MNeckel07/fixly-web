@@ -2,6 +2,25 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v12.1 — Cartões salvos + site sem cara de teste (migração 0027)
+
+- **Cartões salvos.** Na segunda contratação o cartão já aparece na lista e o
+  cliente só digita o **CVV**. O Fixly continua sem guardar cartão nenhum: quem
+  guarda é o Mercado Pago, num `customer`; aqui fica só o id dele
+  (`profiles_private.mp_customer_id`). Dá para remover o cartão na hora do
+  pagamento. ⚠️ O token do MP é de **uso único** — a tela gera **dois** (um paga,
+  o outro guarda); reaproveitar um só falha em silêncio.
+  `mp_customer_env` marca em que ambiente o customer nasceu: ao virar as
+  credenciais para produção, o id de teste é descartado sozinho.
+- **Nenhuma mensagem de ambiente de teste nas telas do cliente.** O aviso do Pix
+  em sandbox virou log do servidor, o Selo Fix virou "atendimento de cortesia" e
+  o código por e-mail, quando o envio falha, diz isso — sem falar em "modo de
+  teste".
+- **Apple Pay e Google Pay:** registrados como pendência da próxima atualização.
+  O Mercado Pago **não oferece** essas carteiras no Brasil (o Payment Brick vai
+  até cartão, Pix, boleto, lotérica e Carteira MP) — entregar as duas exige um
+  segundo gateway. Detalhe e caminho no `docs/06`.
+
 ## v12 — Melhoras "parte 7" (migração 0026)
 
 **Privacidade de contato e de endereço, negociação de verdade e avisos por e-mail.**

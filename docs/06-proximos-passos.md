@@ -16,6 +16,51 @@ Migrações aplicadas: **0001–0026**.
 > (`\u00e9`), então **grep só com trecho ASCII** — "arraste o pino at" acha,
 > "arraste o pino até" não.
 
+## 🔴 PENDÊNCIA REGISTRADA — Apple Pay e Google Pay (próxima atualização)
+
+**Não é configuração: o Mercado Pago não oferece esses meios no Brasil.** O
+Payment Brick deles aceita cartão, cartão de débito virtual Caixa, Pix, boleto,
+pagamento em lotérica, Carteira Mercado Pago e parcelamento sem cartão —
+`google_pay` e `apple_pay` não existem na lista. Conferido na documentação
+oficial do Payment Brick em 13/08/2026.
+
+Para entregar as duas carteiras é preciso um **segundo gateway** (Stripe, Adyen,
+Braintree ou Pagar.me são os que suportam no Brasil), convivendo com o MP:
+- Apple Pay exige domínio validado na Apple (o Stripe automatiza) e conta com
+  CNPJ;
+- o escrow, o estorno e o webhook passam a ter dois caminhos — é o trabalho
+  real dessa história, não o botão.
+
+**Decisão do dono (13/08/2026):** fica para a próxima atualização; agora entram
+o Pix real e os cartões salvos.
+
+## 💳 Como virar o Mercado Pago para PRODUÇÃO (é o que conserta o QR)
+
+O código está certo — `scripts/check-mp.mjs` confirma token válido, Pix e cartão
+ativos. O QR é recusado pelo banco porque a credencial é `TEST-`.
+
+1. **Mercado Pago → Seus negócios → Configurações → Gestão e administração →
+   Credenciais → Credenciais de produção**, na aplicação **Sistema-Fixly**.
+   (Se pedir, complete o cadastro do negócio: ramo, site `https://fixly.company`.)
+2. Copie **Public Key** (`APP_USR-…`) e **Access Token** (`APP_USR-…`).
+3. Ainda na aplicação, aba **Webhooks → Modo produção**: URL
+   `https://fixly.company/api/pagamentos/webhook`, evento **Pagamentos**, e
+   copie a **assinatura secreta** (ela é DIFERENTE da de teste).
+4. **Render → serviço `fixly-web` → Environment**, troque as três:
+   `MP_ACCESS_TOKEN`, `NEXT_PUBLIC_MP_PUBLIC_KEY`, `MP_WEBHOOK_SECRET`.
+   Salvar já dispara um deploy. ⚠️ O serviço `fixly-admin` **não** recebe
+   credencial de pagamento — é de propósito.
+5. Conferir: `node --env-file=.env.local scripts/check-mp.mjs --url https://fixly.company`
+   (com as mesmas credenciais no `.env.local`) tem que dizer **ambiente
+   PRODUÇÃO** e aceitar a assinatura do webhook.
+6. Fazer **um serviço real de R$ 1,00** ponta a ponta: Pix pago pelo app do
+   banco → o serviço tem que sair de "aguardando pagamento" sozinho (webhook).
+
+⚠️ **Antes do passo 1, decidir a conta.** A que está ligada hoje é PESSOAL, no
+CPF do Matheus (`NECKELMATHEUS20220502082512`). Em produção todo o dinheiro —
+inclusive a parte do prestador — entra nela. Trocar depois obriga a refazer
+aplicação, credenciais e webhook.
+
 ## O que testar na tela (nesta ordem)
 1. **Pedido novo** (contratante): CEP → digitar o número → o pino tem que pular
    para a casa; arrastar o pino e enviar.
@@ -25,6 +70,9 @@ Migrações aplicadas: **0001–0026**.
    contratante aceita → só então o endereço completo aparece para o prestador.
 4. **Chat**: pedir conversa de um lado, aceitar do outro, escrever um telefone
    (tem que virar `[contato oculto]`).
+4b. **Cartão salvo**: pagar com cartão marcando "salvar"; na contratação
+   seguinte o cartão aparece na lista e só pede o CVV. Remover pelo ícone de
+   lixeira. (Em teste, use os cartões de teste do MP — APRO aprova.)
 5. **Profiler**: "Solicitar serviço" em `/p/<handle>` → o pedido vai só para ele
    e agora dá para negociar.
 6. **E-mails**: aprovar um cadastro no painel (chega com o e-mail de acesso), e

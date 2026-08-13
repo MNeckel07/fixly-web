@@ -98,3 +98,18 @@ export interface Proposal {
   status: ProposalStatus;
   created_at: string;
 }
+
+/**
+ * Cartão guardado no gateway (Mercado Pago). Mora aqui, e não em `lib/gateway`,
+ * porque a TELA precisa do tipo — e o gateway é `server-only`.
+ * Só dados de exibição: nunca o número do cartão.
+ */
+export interface SavedCard {
+  id: string;
+  lastFour: string;
+  brand: string;
+  brandName: string;
+  expMonth: number;
+  expYear: number;
+  holder: string | null;
+}
