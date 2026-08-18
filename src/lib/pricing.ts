@@ -32,8 +32,22 @@ export type PayMethod = "pix" | "cartao" | "apple_pay" | "google_pay";
 export const GATEWAY_FEE_RATES: Record<PayMethod, number> = {
   pix: 0.0099, // 0,99%
   cartao: 0.0498, // 4,98% (crédito à vista, recebimento na hora)
-  apple_pay: 0.0498,
-  google_pay: 0.0498,
+  // carteiras rodam no STRIPE (o Mercado Pago não as oferece no Brasil):
+  // 3,99% + R$ 0,39 por transação aprovada.
+  apple_pay: 0.0399,
+  google_pay: 0.0399,
+};
+
+/**
+ * Parte FIXA da tarifa (o MP não cobra; o Stripe cobra R$ 0,39 por transação).
+ * Sem isso, uma carteira em serviço barato sairia no prejuízo: em R$ 20 os
+ * R$ 0,39 são quase 2% — mais do que o Pix inteiro.
+ */
+export const GATEWAY_FIXED_FEES: Record<PayMethod, number> = {
+  pix: 0,
+  cartao: 0,
+  apple_pay: 0.39,
+  google_pay: 0.39,
 };
 
 /**
@@ -52,7 +66,7 @@ export function isPassthrough(method: PayMethod): boolean {
 }
 
 export function gatewayFee(amount: number, method: PayMethod): number {
-  return Math.round(amount * GATEWAY_FEE_RATES[method] * 100) / 100;
+  return Math.round((amount * GATEWAY_FEE_RATES[method] + GATEWAY_FIXED_FEES[method]) * 100) / 100;
 }
 
 /**
@@ -64,7 +78,8 @@ export function gatewayFee(amount: number, method: PayMethod): number {
 export function chargedTotal(serviceAmount: number, method: PayMethod): number {
   if (!isPassthrough(method)) return serviceAmount;
   const rate = GATEWAY_FEE_RATES[method];
-  return Math.round((serviceAmount / (1 - rate)) * 100) / 100;
+  const fixo = GATEWAY_FIXED_FEES[method];
+  return Math.round(((serviceAmount + fixo) / (1 - rate)) * 100) / 100;
 }
 
 /**

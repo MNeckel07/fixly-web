@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Wrench, Home, FileText, Copy, Search, Sparkles, MailCheck, ShieldCheck, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { maskCpf, maskPhone, maskCep, onlyDigits } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea, Select } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
@@ -48,6 +49,16 @@ export function SignupForm({
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }));
+
+  /**
+   * Igual ao `set`, mas passando o valor por uma máscara antes de guardar.
+   * O que vai para o banco é limpo com `onlyDigits` na hora de enviar — aqui é
+   * só o que a pessoa vê enquanto digita.
+   */
+  const setMasked =
+    (k: keyof typeof f, mask: (v: string) => string) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setF((p) => ({ ...p, [k]: mask(e.target.value) }));
   const fullName = `${f.first_name.trim()} ${f.last_name.trim()}`.trim();
 
   // verificação de e-mail por código
@@ -109,7 +120,7 @@ export function SignupForm({
       firstName: f.first_name,
       lastName: f.last_name,
       email: f.email,
-      phone: f.phone,
+      phone: onlyDigits(f.phone),
       password: f.password,
       passwordConfirm,
     });
@@ -188,9 +199,10 @@ export function SignupForm({
 
     // dados sensíveis (tabela separada, só o dono e o admin leem)
     const { error: privErr } = await supabase.from("profiles_private").upsert({
-      id: userId, email: f.email, phone: f.phone, cpf: f.cpf, rg: f.rg,
+      // documento e telefone vão SÓ com dígitos: a máscara é da tela.
+      id: userId, email: f.email, phone: onlyDigits(f.phone), cpf: onlyDigits(f.cpf), rg: f.rg,
       birth_date: f.birth_date || null, gender: f.gender || null,
-      zip_code: f.zip_code, address: f.address, address_number: f.address_number,
+      zip_code: onlyDigits(f.zip_code), address: f.address, address_number: f.address_number,
       complement: f.complement, neighborhood: f.neighborhood,
       ...(role === "prestador" && {
         bank_name: bank.bank_name, bank_agency: bank.bank_agency, bank_account: bank.bank_account,
@@ -265,7 +277,7 @@ export function SignupForm({
               <Input type="email" required value={f.email} onChange={set("email")} placeholder="voce@email.com" autoComplete="email" />
             </Field>
             <Field label="Telefone / WhatsApp">
-              <Input required value={f.phone} onChange={set("phone")} placeholder="(00) 00000-0000" autoComplete="tel" />
+              <Input required value={f.phone} onChange={setMasked("phone", maskPhone)} placeholder="(00) 00000-0000" autoComplete="tel" inputMode="numeric" />
             </Field>
             <Field label="Senha">
               <PasswordField
@@ -368,7 +380,7 @@ export function SignupForm({
         {/* Dados pessoais */}
         <Section title="Dados pessoais">
           <div className="grid sm:grid-cols-3 gap-4">
-            <Field label="CPF"><Input required value={f.cpf} onChange={set("cpf")} placeholder="000.000.000-00" /></Field>
+            <Field label="CPF"><Input required value={f.cpf} onChange={setMasked("cpf", maskCpf)} placeholder="000.000.000-00" inputMode="numeric" /></Field>
             <Field label="RG"><Input value={f.rg} onChange={set("rg")} /></Field>
             <Field label="Nascimento"><Input type="date" value={f.birth_date} onChange={set("birth_date")} /></Field>
           </div>
@@ -385,7 +397,7 @@ export function SignupForm({
         {/* Endereço */}
         <Section title="Endereço">
           <div className="grid sm:grid-cols-[140px_1fr] gap-4">
-            <Field label="CEP"><Input value={f.zip_code} onChange={set("zip_code")} onBlur={(e) => lookupCep(e.target.value)} placeholder="00000-000" /></Field>
+            <Field label="CEP"><Input value={f.zip_code} onChange={setMasked("zip_code", maskCep)} onBlur={(e) => lookupCep(e.target.value)} placeholder="00000-000" inputMode="numeric" /></Field>
             <Field label="Rua / Logradouro"><Input value={f.address} onChange={set("address")} /></Field>
           </div>
           <div className="grid sm:grid-cols-3 gap-4">

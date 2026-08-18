@@ -124,3 +124,28 @@ body {
   background: rgba(37, 99, 235, 0.35);
   animation: pulse-ring 1.8s ease-out infinite;
 }
+
+/* ── Tela de carregamento da marca ───────────────────────────
+   Usada pelos `loading.tsx`. O símbolo flutua de leve e as três barras enchem
+   em sequência, no amarelo do Fixly — a ideia é parecer o app abrindo, não uma
+   página travada. */
+@keyframes fixly-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+@keyframes fixly-swipe {
+  0%       { transform: scaleX(0); opacity: .35; }
+  45%      { transform: scaleX(1); opacity: 1; }
+  100%     { transform: scaleX(1); opacity: .35; }
+}
+@keyframes fixly-pulse-slow {
+  0%, 100% { opacity: .35; transform: scale(.92); }
+  50%      { opacity: .7;  transform: scale(1.04); }
+}
+.animate-float { animation: fixly-float 2.4s ease-in-out infinite; }
+.animate-swipe { animation: fixly-swipe 1.2s ease-in-out infinite; }
+.animate-pulse-slow { animation: fixly-pulse-slow 2.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float, .animate-swipe, .animate-pulse-slow { animation: none; }
+}

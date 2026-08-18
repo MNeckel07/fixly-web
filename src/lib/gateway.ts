@@ -26,7 +26,7 @@ export type { SavedCard };
 
 export interface ChargeResult {
   id: string;
-  gateway: "mercadopago" | "mock";
+  gateway: "mercadopago" | "stripe" | "mock";
   status: "retido" | "pendente" | "recusado";
   method: PayMethod;
   breakdown: PaymentBreakdown;
@@ -35,11 +35,18 @@ export interface ChargeResult {
   pixQrCode?: string;
   pixQrCodeBase64?: string;
   pixExpiresAt?: string;
+  /** Carteiras (Stripe): segredo para o navegador confirmar com a digital. */
+  clientSecret?: string;
   gatewayStatusDetail?: string;
 }
 
 export function isMercadoPagoConfigured() {
   return !!process.env.MP_ACCESS_TOKEN;
+}
+
+/** As carteiras estão disponíveis? (depende do Stripe estar configurado) */
+export function walletPaymentsEnabled(): boolean {
+  return !!process.env.STRIPE_SECRET_KEY && !!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 }
 
 /**
@@ -82,6 +89,26 @@ export interface ChargeInput {
 export async function createEscrowCharge(input: ChargeInput): Promise<ChargeResult> {
   const breakdown = paymentBreakdown(input.amount, input.method, input.advancePct ?? 0);
 
+  /**
+   * CARTEIRAS vão para o Stripe: o Mercado Pago não oferece Apple Pay nem
+   * Google Pay no Brasil. Pix e cartão digitado continuam no MP, que cobra
+   * menos no Pix. Um gateway por meio de pagamento, cada um no que é melhor.
+   */
+  const stripe = await import("./stripe");
+  if (stripe.isWalletMethod(input.method)) {
+    if (!stripe.isStripeConfigured()) {
+      throw new Error("Pagamento por carteira digital ainda não está disponível. Use Pix ou cartão.");
+    }
+    return stripe.createStripeWalletIntent({
+      amount: input.amount,
+      method: input.method,
+      description: input.description,
+      requestId: input.externalReference ?? "",
+      payerEmail: input.payerEmail,
+      breakdown,
+    });
+  }
+
   if (isMercadoPagoConfigured()) {
     const mp = await import("./mercadopago");
     return mp.createMercadoPagoCharge(input, breakdown);
@@ -107,6 +134,15 @@ export async function createEscrowCharge(input: ChargeInput): Promise<ChargeResu
 export async function fetchChargeStatus(
   chargeId: string,
 ): Promise<{ status: ChargeResult["status"]; detail?: string } | null> {
+  if (chargeId.startsWith("pi_")) {
+    const stripe = await import("./stripe");
+    try {
+      const pi = await stripe.getStripePaymentIntent(chargeId);
+      return { status: pi.mapped, detail: pi.status };
+    } catch {
+      return null;
+    }
+  }
   if (!isMercadoPagoConfigured()) return { status: "retido" };
   const mp = await import("./mercadopago");
   try {
@@ -178,6 +214,12 @@ export async function gatewayEnsureCustomer(input: {
 
 /** Reembolsa (cancelamento do serviço). */
 export async function refundCharge(chargeId: string, amount?: number): Promise<void> {
+  // id do Stripe começa com `pi_` — é o que diz para qual gateway devolver
+  if (chargeId.startsWith("pi_")) {
+    const stripe = await import("./stripe");
+    await stripe.refundStripe(chargeId, amount);
+    return;
+  }
   if (isMercadoPagoConfigured()) {
     const mp = await import("./mercadopago");
     await mp.refundMercadoPago(chargeId, amount);

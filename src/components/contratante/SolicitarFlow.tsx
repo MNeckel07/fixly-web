@@ -47,7 +47,7 @@ export function SolicitarFlow({
   /** `orcamento` = serviço com visita técnica (reforma/orçamento). */
   mode?: "express" | "orcamento";
   /** Pedido direcionado a um profissional específico (vindo do Profiler). */
-  provider?: { id: string; name: string } | null;
+  provider?: { id: string; name: string; categorySlugs?: string[] } | null;
   client: ClientInfo;
 }) {
   const router = useRouter();
@@ -55,8 +55,19 @@ export function SolicitarFlow({
 
   const preCat = preselectSlug ? categories.find((c) => c.slug === preselectSlug) ?? null : null;
 
-  const [step, setStep] = useState<Step>(preCat ? "detalhes" : "categoria");
-  const [category, setCategory] = useState<ServiceCategory | null>(preCat);
+  /**
+   * Pedido direto pelo Profiler: o cliente escolhe entre os serviços DAQUELE
+   * profissional. Com um serviço só, não faz sentido perguntar — vai direto.
+   */
+  const catsDoProvider = provider?.categorySlugs?.length
+    ? categories.filter((c) => provider.categorySlugs!.includes(c.slug))
+    : null;
+  const catalogo = catsDoProvider ?? categories;
+  const catUnica = catsDoProvider?.length === 1 ? catsDoProvider[0] : null;
+  const catInicial = catUnica ?? preCat;
+
+  const [step, setStep] = useState<Step>(catInicial ? "detalhes" : "categoria");
+  const [category, setCategory] = useState<ServiceCategory | null>(catInicial);
   const [description, setDescription] = useState(initialDescription);
   const [urgent, setUrgent] = useState(initialUrgent);
   const [address, setAddress] = useState("");
@@ -126,10 +137,15 @@ export function SolicitarFlow({
       if (paths.length > 0) await supabase.from("service_requests").update({ photos: paths }).eq("id", req.id);
     }
 
-    // dispara (para a região, ou só para o profissional escolhido)
-    await supabase.rpc("dispatch_request", { p_request_id: req.id });
+    /**
+     * O dispatch DEVOLVE quantos profissionais o pedido alcançou. Antes esse
+     * número era jogado fora, e um pedido que não chegou em ninguém ficava
+     * calado esperando proposta que nunca viria — o cliente só descobria
+     * horas depois que não havia ninguém na categoria/raio dele.
+     */
+    const { data: alcance } = await supabase.rpc("dispatch_request", { p_request_id: req.id });
 
-    router.push(`/app/contratante/servico/${req.id}`);
+    router.push(`/app/contratante/servico/${req.id}${Number(alcance) === 0 ? "?alcance=0" : ""}`);
     router.refresh();
   }
 
@@ -150,7 +166,7 @@ export function SolicitarFlow({
           subtitle="Escolha a categoria do serviço"
         >
           <CategoryPicker
-            categories={categories}
+            categories={catalogo}
             reformaOnly={reformaOnly}
             onPick={(c) => {
               setCategory(c);
@@ -240,7 +256,7 @@ export function SolicitarFlow({
             </div>
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
-              {!preCat && <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>}
+              {!catInicial && <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>}
               <Button fullWidth loading={busy} onClick={submit}>
                 {provider
                   ? "Enviar pedido e conversar"

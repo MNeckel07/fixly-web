@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Star, MessageSquare, CheckCircle2, Lock, ShieldCheck, BadgeCheck, ExternalLink, Zap, CreditCard } from "lucide-react";
+import { ArrowLeft, Star, MessageSquare, CheckCircle2, Lock, ShieldCheck, BadgeCheck, ExternalLink, Zap, CreditCard, AlertTriangle, Smartphone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -16,6 +16,9 @@ import { approveService, approveAdvance, processPayment, skipPayment, cancelServ
 import { notifyCounter } from "@/app/app/notify.actions";
 import { ServiceChatBox } from "@/components/chat/ServiceChatBox";
 import { ReportButton } from "@/components/ui/ReportButton";
+import { EditRequestDialog } from "@/components/contratante/EditRequestDialog";
+import { WalletPayButton } from "@/components/contratante/WalletPayButton";
+import { Zap as ZapIcon } from "lucide-react";
 import { CardForm } from "@/components/contratante/CardForm";
 import { PixPanel } from "@/components/contratante/PixPanel";
 import { brl, paymentBreakdown, chargedTotal, type PayMethod } from "@/lib/pricing";
@@ -93,12 +96,25 @@ const METHODS: { key: PayMethod; label: string; Icon: typeof Zap }[] = [
   { key: "cartao", label: "Cartão", Icon: CreditCard },
 ];
 
+/**
+ * Carteira do celular (Apple Pay / Google Pay). Roda no **Stripe** — o Mercado
+ * Pago não oferece esses meios no Brasil. Só entra na lista quando o servidor
+ * tem credencial, e o botão em si só aparece se o aparelho tiver carteira.
+ */
+const CARTEIRA: { key: PayMethod; label: string; Icon: typeof Zap } = {
+  key: "google_pay",
+  label: "Carteira",
+  Icon: Smartphone,
+};
+
 export function ServiceDetail({
   service,
   currentUserId,
   conversationId,
   proposals = [],
   canSkipPayment = false,
+  semAlcance = false,
+  carteirasAtivas = false,
 }: {
   service: Service;
   currentUserId: string;
@@ -106,6 +122,10 @@ export function ServiceDetail({
   proposals?: Proposal[];
   /** Selo Fix nos dois lados — libera seguir sem passar pelo gateway. */
   canSkipPayment?: boolean;
+  /** O disparo não alcançou nenhum profissional (avisar em vez de deixar mudo). */
+  semAlcance?: boolean;
+  /** Stripe configurado no servidor — libera Apple Pay / Google Pay. */
+  carteirasAtivas?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -155,20 +175,46 @@ export function ServiceDetail({
 
   async function doApproveAdvance() {
     setBusy(true);
-    await approveAdvance(service.id);
-    setBusy(false);
-    router.refresh();
+    try {
+      await approveAdvance(service.id);
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
+  /**
+   * EXPRESS = urgente (v13). Modalidade de orçamento fica de fora: reforma com
+   * pressa continua sendo reforma, o que muda é a prioridade, não o fato de
+   * precisar de visita técnica.
+   */
+  const express = !!service.urgent && service.mode !== "orcamento";
+  /** Editar só faz sentido enquanto ninguém aceitou o pedido. */
+  const podeEditar = !service.provider_id && !["concluido", "cancelado"].includes(service.status);
   const canCancel = !["concluido", "cancelado"].includes(service.status);
   const isPaid = ["a_caminho", "em_andamento"].includes(service.status);
 
+  const [cancelErr, setCancelErr] = useState("");
+
+  /**
+   * ⚠️ try/finally não é enfeite: qualquer erro do servidor aqui dentro
+   * rejeitava a promessa e o `setBusy(false)` nunca rodava — o botão "Sim,
+   * cancelar" girava para sempre e o pedido continuava de pé. E o erro
+   * devolvido era ignorado, o que dava o mesmo sintoma sem exceção nenhuma.
+   */
   async function cancel() {
     setBusy(true);
-    await cancelService(service.id);
-    setBusy(false);
-    setShowCancel(false);
-    router.refresh();
+    setCancelErr("");
+    try {
+      const res = await cancelService(service.id);
+      if (!res.ok) return setCancelErr(res.error ?? "Não foi possível cancelar.");
+      setShowCancel(false);
+      router.refresh();
+    } catch (e: any) {
+      setCancelErr(e?.message ?? "Não foi possível cancelar. Tente de novo.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const awaiting = !service.provider_id && ["buscando", "proposta_enviada"].includes(service.status);
@@ -196,25 +242,35 @@ export function ServiceDetail({
   async function pay(card?: CardPayload) {
     setBusy(true);
     setPayErr("");
-    const res = await processPayment(service.id, method, card);
-    setBusy(false);
-    if (!res.ok) return setPayErr([res.error, res.detail].filter(Boolean).join(" — ") || "Falha no pagamento.");
-    // PIX volta pendente com QR: mostra o QR e espera a confirmação
-    if (res.status === "pendente" && res.pixQrCode) {
-      setPix({ code: res.pixQrCode, base64: res.pixQrCodeBase64, expiresAt: res.pixExpiresAt });
-      return;
+    try {
+      const res = await processPayment(service.id, method, card);
+      if (!res.ok) return setPayErr([res.error, res.detail].filter(Boolean).join(" — ") || "Falha no pagamento.");
+      // PIX volta pendente com QR: mostra o QR e espera a confirmação
+      if (res.status === "pendente" && res.pixQrCode) {
+        setPix({ code: res.pixQrCode, base64: res.pixQrCodeBase64, expiresAt: res.pixExpiresAt });
+        return;
+      }
+      router.refresh();
+    } catch (e: any) {
+      setPayErr(e?.message ?? "Não conseguimos falar com o meio de pagamento. Tente de novo.");
+    } finally {
+      setBusy(false);
     }
-    router.refresh();
   }
 
   /** Selo Fix: segue o fluxo sem gateway. O servidor reconfere os dois selos. */
   async function skip() {
     setBusy(true);
     setPayErr("");
-    const res = await skipPayment(service.id);
-    setBusy(false);
-    if (!res.ok) return setPayErr(res.error ?? "Não foi possível seguir sem pagamento.");
-    router.refresh();
+    try {
+      const res = await skipPayment(service.id);
+      if (!res.ok) return setPayErr(res.error ?? "Não foi possível seguir sem cobrança.");
+      router.refresh();
+    } catch (e: any) {
+      setPayErr(e?.message ?? "Não foi possível seguir sem cobrança.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const inProgress = ["aceito", "a_caminho", "em_andamento"].includes(service.status);
@@ -223,13 +279,18 @@ export function ServiceDetail({
   const origin = service.provider?.lat && service.provider?.lng ? { lat: service.provider.lat, lng: service.provider.lng } : null;
   const val = service.final_price ?? service.estimated_price ?? 0;
 
+  const [approveErr, setApproveErr] = useState("");
   async function approve() {
     setBusy(true);
+    setApproveErr("");
     try {
-      await approveService(service.id);
+      const res = await approveService(service.id);
+      if (!res.ok) return setApproveErr(res.error ?? "Não foi possível aprovar.");
+      router.refresh();
+    } catch (e: any) {
+      setApproveErr(e?.message ?? "Não foi possível aprovar agora.");
     } finally {
       setBusy(false);
-      router.refresh();
     }
   }
   const canApprove = ["a_caminho", "em_andamento"].includes(service.status);
@@ -260,11 +321,28 @@ export function ServiceDetail({
               <CategoryIcon slug={service.category?.slug} className="h-6 w-6" />
             </div>
             <div>
-              <p className="font-bold text-ink">{service.category?.name ?? "Serviço"}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-bold text-ink">{service.category?.name ?? "Serviço"}</p>
+                {express && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">
+                    <ZapIcon className="h-3 w-3" /> EXPRESS
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-light">{service.address ?? "—"}</p>
             </div>
           </div>
-          <Badge status={service.status} />
+          <div className="flex items-center gap-2 shrink-0">
+            {podeEditar && (
+              <EditRequestDialog
+                requestId={service.id}
+                descricaoAtual={service.description}
+                urgenteAtual={service.urgent}
+                enderecoAtual={service.address}
+              />
+            )}
+            <Badge status={service.status} />
+          </div>
         </div>
         <p className="text-sm text-gray bg-canvas rounded-xl px-4 py-3 mt-4">{service.description}</p>
         {(service.photos ?? []).length > 0 && (
@@ -307,6 +385,17 @@ export function ServiceDetail({
         </div>
       )}
 
+      {semAlcance && awaiting && proposals.length === 0 && (
+        <div className="flex items-start gap-2 rounded-2xl bg-warning/10 text-ink px-4 py-3 text-sm">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-warning" />
+          <span>
+            <b>Nenhum profissional dessa categoria foi alcançado agora.</b> Seu pedido
+            continua aberto e aparece assim que alguém da região ficar disponível. Se
+            preferir, edite o pedido no lápis acima — mudar a categoria costuma resolver.
+          </span>
+        </div>
+      )}
+
       {/* Propostas recebidas — escolha o profissional */}
       {awaiting && (
         <div>
@@ -315,6 +404,15 @@ export function ServiceDetail({
             <span className="text-sm text-gray-light">{proposals.length} proposta(s)</span>
           </div>
           {acceptErr && <p className="text-sm text-danger bg-danger/5 rounded-lg px-4 py-3 mb-3">{acceptErr}</p>}
+          {express && proposals.length > 0 && (
+            <div className="flex items-start gap-2 rounded-xl bg-danger/5 text-ink px-4 py-3 text-sm mb-3">
+              <ZapIcon className="h-4 w-4 shrink-0 mt-0.5 text-danger" />
+              <span>
+                <b>Este pedido é EXPRESS.</b> Ao aceitar uma proposta, o profissional sai
+                <b> agora</b> para o seu endereço. Só aceite se puder receber já.
+              </span>
+            </div>
+          )}
           {proposals.length === 0 ? (
             <div className="bg-white rounded-2xl border border-black/5 p-8 text-center text-gray">
               {service.target_provider_id
@@ -469,8 +567,8 @@ export function ServiceDetail({
           <h2 className="font-semibold text-ink mb-1">Pagamento protegido</h2>
           <p className="text-sm text-gray-light mb-4">Você paga agora; o profissional só recebe após sua aprovação.</p>
 
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            {METHODS.map(({ key, label, Icon }) => (
+          <div className={`grid ${carteirasAtivas ? "grid-cols-3" : "grid-cols-2"} gap-2 mb-4`}>
+            {(carteirasAtivas ? [...METHODS, CARTEIRA] : METHODS).map(({ key, label, Icon }) => (
               <button
                 key={key}
                 onClick={() => setMethod(key)}
@@ -520,8 +618,19 @@ export function ServiceDetail({
             <Button fullWidth size="lg" loading={busy} onClick={() => pay()}>
               <Lock className="h-4 w-4" /> Pagar {brl(service.final_price ?? val)} com Pix
             </Button>
-          ) : (
+          ) : method === "cartao" ? (
             <CardForm amount={chargedTotal(service.final_price ?? val, method)} busy={busy} onPay={(card) => pay(card)} />
+          ) : (
+            <WalletPayButton
+              requestId={service.id}
+              total={chargedTotal(service.final_price ?? val, method)}
+              descricao={service.category?.name ?? "Serviço Fixly"}
+              criarCobranca={async () => {
+                const res = await processPayment(service.id, method);
+                return { clientSecret: res.clientSecret, error: res.error };
+              }}
+              onPago={() => router.refresh()}
+            />
           )}
 
           {/* SELO FIX — só aparece com selo nos dois lados (o servidor reconfere) */}
@@ -596,9 +705,12 @@ export function ServiceDetail({
         </div>
       )}
       {canApprove && (
-        <Button fullWidth size="lg" loading={busy} onClick={approve}>
-          <CheckCircle2 className="h-5 w-5" /> Aprovar serviço e liberar pagamento
-        </Button>
+        <>
+          {approveErr && <p className="text-sm text-danger">{approveErr}</p>}
+          <Button fullWidth size="lg" loading={busy} onClick={approve}>
+            <CheckCircle2 className="h-5 w-5" /> Aprovar serviço e liberar pagamento
+          </Button>
+        </>
       )}
 
       {/* Extrato (só ao final) */}
@@ -677,7 +789,13 @@ export function ServiceDetail({
       <ConfirmDialog
         open={showCancel}
         title={`Cancelar ${isPaid ? "serviço" : "pedido"}?`}
-        description={isPaid ? "Como você já pagou, o valor será reembolsado. Esta ação não pode ser desfeita." : "Seu pedido será cancelado. Esta ação não pode ser desfeita."}
+        description={
+          cancelErr
+            ? cancelErr
+            : isPaid
+              ? "Como você já pagou, o valor será reembolsado. Esta ação não pode ser desfeita."
+              : "Seu pedido será cancelado. Esta ação não pode ser desfeita."
+        }
         confirmLabel="Sim, cancelar"
         cancelLabel="Voltar"
         variant="danger"

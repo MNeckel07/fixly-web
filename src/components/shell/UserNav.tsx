@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Home, Plus, Clock, User, Inbox, Wrench, Wallet, LifeBuoy, Images, type LucideIcon } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { UnreadNavBadge } from "@/components/chat/UnreadNavBadge";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
@@ -18,9 +19,16 @@ const ICONS: Record<string, LucideIcon> = {
   profiler: Images,
 };
 
-export type NavItem = { href: string; label: string; icon: keyof typeof ICONS; short?: string };
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: keyof typeof ICONS;
+  short?: string;
+  /** Mostra o contador de mensagens não lidas deste tipo de conversa. */
+  badge?: "servico" | "ticket";
+};
 
-export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
+export function UserNav({ items, name, currentUserId }: { items: NavItem[]; name: string; currentUserId: string }) {
   const path = usePathname();
   const isActive = (href: string) =>
     href === items[0].href ? path === href : path.startsWith(href);
@@ -48,6 +56,7 @@ export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
                 >
                   <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
                   {it.label}
+                  {it.badge && <UnreadNavBadge currentUserId={currentUserId} tipo={it.badge} />}
                 </Link>
               );
             })}
@@ -71,7 +80,12 @@ export function UserNav({ items, name }: { items: NavItem[]; name: string }) {
                 isActive(it.href) ? "text-primary-dark" : "text-gray-light"
               }`}
             >
-              <Icon className="h-5 w-5" strokeWidth={1.75} />
+              <span className="relative">
+                <Icon className="h-5 w-5" strokeWidth={1.75} />
+                {it.badge && (
+                  <UnreadNavBadge currentUserId={currentUserId} tipo={it.badge} className="absolute -top-1.5 -right-2" />
+                )}
+              </span>
               <span className="truncate max-w-full px-0.5">{it.short ?? it.label}</span>
             </Link>
           );

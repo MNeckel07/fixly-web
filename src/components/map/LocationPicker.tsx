@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MapPin, Search, LocateFixed } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { maskCep } from "@/lib/format";
 import { PinPicker } from "@/components/map/PinPicker";
 import { ServiceAreaMap } from "@/components/map/ServiceAreaMap";
 import { geocodeAddress, reverseGeocode } from "@/lib/geo";
@@ -179,7 +180,7 @@ export function LocationPicker({
             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-light" />
             <input
               value={cep}
-              onChange={(e) => setCep(e.target.value)}
+              onChange={(e) => setCep(maskCep(e.target.value))}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), findByCep())}
               placeholder="Digite seu CEP"
               inputMode="numeric"

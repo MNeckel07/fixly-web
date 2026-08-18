@@ -4,7 +4,8 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchChargeStatus, isGatewaySandbox } from "@/lib/gateway";
 import { currentCustomerId, saveCard } from "@/app/app/contratante/cards.actions";
 import { notifySealChanges } from "@/app/app/notify.actions";
-import { settlementDate, type PayMethod, type PaymentBreakdown } from "@/lib/pricing";
+import { revalidatePath } from "next/cache";
+import { paymentBreakdown, settlementDate, type PayMethod, type PaymentBreakdown } from "@/lib/pricing";
 
 export interface PayResult {
   ok: boolean;
@@ -15,6 +16,8 @@ export interface PayResult {
   pixQrCode?: string;
   pixQrCodeBase64?: string;
   pixExpiresAt?: string;
+  /** Carteira (Stripe): o navegador confirma com a digital usando este segredo. */
+  clientSecret?: string;
   detail?: string;
 }
 
@@ -186,6 +189,7 @@ export async function processPayment(
     pixQrCode: charge.pixQrCode,
     pixQrCodeBase64: charge.pixQrCodeBase64,
     pixExpiresAt: charge.pixExpiresAt,
+    clientSecret: charge.clientSecret,
   };
 }
 
@@ -418,4 +422,81 @@ export async function cancelService(requestId: string): Promise<{ ok: boolean; e
   }
   await supabase.from("service_requests").update({ status: "cancelado" }).eq("id", requestId);
   return { ok: true, refunded };
+}
+
+/**
+ * CARTEIRA (Apple Pay / Google Pay) — confirmação.
+ *
+ * O navegador confirma a cobrança com a digital do dono do aparelho e avisa
+ * aqui. **Nada do que ele diz é aceito**: o servidor consulta a intenção no
+ * Stripe e só grava o pagamento se o próprio Stripe disser `succeeded` e o
+ * valor bater com o do pedido. Sem isso, bastaria uma chamada forjada para
+ * "pagar" um serviço de graça.
+ */
+export async function confirmWalletPayment(
+  requestId: string,
+  paymentIntentId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const { data: req } = await supabase
+    .from("service_requests")
+    .select("id, client_id, status, final_price, estimated_price, advance_pct, provider_id")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
+
+  const { getStripePaymentIntent } = await import("@/lib/stripe");
+  let pi;
+  try {
+    pi = await getStripePaymentIntent(paymentIntentId);
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "Não foi possível confirmar o pagamento." };
+  }
+
+  if (pi.mapped !== "retido") return { ok: false, error: "O pagamento ainda não foi confirmado." };
+  if (pi.requestId && pi.requestId !== requestId) {
+    return { ok: false, error: "Este pagamento é de outro pedido." };
+  }
+
+  const admin = createAdminClient();
+  // idempotente: se o pagamento já foi gravado, não duplica
+  const { data: existente } = await admin
+    .from("payments")
+    .select("id")
+    .eq("gateway_id", paymentIntentId)
+    .maybeSingle();
+  if (existente) return { ok: true };
+
+  const valorServico = Number(req.final_price ?? req.estimated_price ?? 0);
+  const metodo: PayMethod = "google_pay"; // a tarifa é a mesma nas duas carteiras
+  const breakdown = paymentBreakdown(valorServico, metodo, Number(req.advance_pct ?? 0));
+
+  // o que o Stripe diz ter recebido é a verdade
+  if (Math.abs(pi.amount - breakdown.amount) > 0.05) {
+    return { ok: false, error: "O valor pago não confere com o do serviço. Fale com o suporte." };
+  }
+
+  await admin.from("payments").insert({
+    request_id: requestId,
+    amount: breakdown.amount,
+    fee: breakdown.platformFee,
+    gateway_fee: breakdown.gatewayFee,
+    provider_net: breakdown.providerNet,
+    advance_pct: breakdown.advancePct,
+    advance_amount: breakdown.advanceAmount,
+    advance_fee: breakdown.advanceFee,
+    method: metodo,
+    gateway: "stripe",
+    gateway_id: paymentIntentId,
+    gateway_status: "retido",
+    split_mode: "escrow",
+    status: "retido",
+  });
+
+  await supabase.from("service_requests").update({ status: "a_caminho" }).eq("id", requestId);
+  revalidatePath(`/app/contratante/servico/${requestId}`);
+  return { ok: true };
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Inbox, User, MapPin, Check, ArrowRight, X, Lock } from "lucide-react";
+import { Inbox, User, MapPin, Check, ArrowRight, X, Lock, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -12,6 +12,7 @@ import { AreaMap } from "@/components/map/AreaMap";
 import { ServiceChatBox } from "@/components/chat/ServiceChatBox";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
 import { cancelJobAsProvider } from "@/app/app/prestador/actions";
+import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { notifyCounter, notifyProposal } from "@/app/app/notify.actions";
 
 /** Job já atribuído a este prestador (orçamento/reforma ou Express aceito). */
@@ -21,6 +22,9 @@ type MyJob = {
   status: string;
   address: string | null;
   mode: string | null;
+  urgent?: boolean;
+  /** Conversa do serviço — para mostrar de qual deles é a mensagem nova. */
+  conversationId?: string | null;
   final_price: number | null;
   category: { name: string; slug: string } | null;
   client: { full_name: string; city: string | null } | null;
@@ -63,6 +67,7 @@ export function PedidosBoard({
   rating,
   jobsDone,
   monthNet,
+  monthLabel,
   defaultAdvancePct = 0,
   busy = false,
 }: {
@@ -73,6 +78,8 @@ export function PedidosBoard({
   rating: number;
   jobsDone: number;
   monthNet: number;
+  /** Nome do mês corrente — o rótulo dizia só "no mês" e confundia. */
+  monthLabel?: string;
   defaultAdvancePct?: number;
   busy?: boolean;
 }) {
@@ -130,7 +137,7 @@ export function PedidosBoard({
         <div className="grid grid-cols-3 gap-3 mt-5 relative">
           <Stat label="Avaliação" value={jobsDone > 0 ? rating.toFixed(1) : "Novo"} />
           <Stat label="Serviços" value={String(jobsDone)} />
-          <Stat label="Ganhos no mês" value={brl(monthNet)} />
+          <Stat label={monthLabel ? `Ganhos em ${monthLabel}` : "Ganhos no mês"} value={brl(monthNet)} />
         </div>
       </div>
 
@@ -156,8 +163,15 @@ export function PedidosBoard({
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-ink">{j.category?.name ?? "Serviço"}</p>
-                        {j.mode === "orcamento" && (
+                        {/* Depois de aceito o serviço não é mais "orçamento":
+                            o valor já foi combinado. A tarja só confunde. */}
+                        {j.mode === "orcamento" && !j.final_price && (
                           <span className="text-[11px] font-bold text-info bg-info/10 px-2 py-0.5 rounded-full">ORÇAMENTO</span>
+                        )}
+                        {j.urgent && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">
+                            <Zap className="h-3 w-3" /> EXPRESS
+                          </span>
                         )}
                       </div>
                       <p className="text-sm text-gray mt-0.5">{j.description}</p>
@@ -168,7 +182,12 @@ export function PedidosBoard({
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <Badge status={j.status} />
+                    <span className="inline-flex items-center gap-1.5">
+                      {j.conversationId && (
+                        <UnreadBadge conversationId={j.conversationId} currentUserId={providerId} />
+                      )}
+                      <Badge status={j.status} />
+                    </span>
                     {j.final_price ? (
                       <p className="text-sm font-semibold text-ink mt-1">{brl(j.final_price)}</p>
                     ) : (
@@ -329,7 +348,9 @@ function RequestCard({
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-ink">{r.category?.name ?? "Serviço"}</p>
               {r.urgent && (
-                <span className="text-[11px] font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">URGENTE</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">
+                  <Zap className="h-3 w-3" /> EXPRESS
+                </span>
               )}
               {r.direct && (
                 <span className="text-[11px] font-bold text-info bg-info/10 px-2 py-0.5 rounded-full">DIRETO PARA VOCÊ</span>
@@ -353,6 +374,18 @@ function RequestCard({
             <Lock className="h-3 w-3 shrink-0" />
             Área aproximada (~1 km). O endereço exato aparece quando o cliente aceitar sua proposta.
           </p>
+        </div>
+      )}
+
+      {/* EXPRESS: o profissional precisa saber ANTES de propor que aceitar
+          significa sair agora — é o combinado que o cliente vê do outro lado. */}
+      {r.urgent && (
+        <div className="flex items-start gap-2 rounded-xl bg-danger/5 text-ink px-3.5 py-2.5 text-xs mt-3">
+          <Zap className="h-4 w-4 shrink-0 text-danger" />
+          <span>
+            <b>Serviço EXPRESS.</b> O cliente precisa de atendimento <b>agora</b>. Só envie
+            proposta se puder ir assim que ele aceitar.
+          </span>
         </div>
       )}
 

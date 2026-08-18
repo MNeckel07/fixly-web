@@ -86,20 +86,27 @@ export default async function PrestadorHome() {
     client: Array.isArray(j.client) ? j.client[0] : j.client,
   }));
 
-  // Ganho líquido do mês corrente (substitui o antigo "preço-base" no painel)
+  /**
+   * Ganho do mês = o que foi LIBERADO neste mês, não o que foi pedido neste mês.
+   *
+   * Antes a conta filtrava por `created_at` do pedido: um serviço criado em
+   * julho e aprovado em agosto não aparecia em nenhum dos dois meses, e o
+   * painel mostrava "3 serviços · R$ 0,00" — que foi a reclamação. Quem manda
+   * é a data em que o dinheiro virou dele (`payments.released_at`).
+   */
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
-  const { data: doneThisMonth } = await supabase
-    .from("service_requests")
-    .select("final_price, estimated_price, payment:payments(provider_net)")
-    .eq("provider_id", profile.id)
-    .eq("status", "concluido")
-    .gte("created_at", monthStart.toISOString());
-  const monthNet = (doneThisMonth ?? []).reduce((sum: number, j: any) => {
-    const pay = Array.isArray(j.payment) ? j.payment[0] : j.payment;
-    return sum + Number(pay?.provider_net ?? providerNet(j.final_price ?? j.estimated_price ?? 0));
-  }, 0);
+  const { data: paidThisMonth } = await supabase
+    .from("payments")
+    .select("provider_net, released_at, request:service_requests!inner(provider_id)")
+    .eq("request.provider_id", profile.id)
+    .gte("released_at", monthStart.toISOString());
+  const monthNet = (paidThisMonth ?? []).reduce(
+    (sum: number, p: any) => sum + Number(p.provider_net ?? 0),
+    0,
+  );
+  const monthLabel = monthStart.toLocaleDateString("pt-BR", { month: "long" });
 
   const radius = profile.service_radius_km ?? 10;
   const requests = (open ?? [])
@@ -160,6 +167,7 @@ export default async function PrestadorHome() {
       rating={profile!.rating ?? 0}
       jobsDone={profile!.jobs_done ?? 0}
       monthNet={monthNet}
+      monthLabel={monthLabel}
       defaultAdvancePct={profile!.advance_pct ?? 0}
       busy={busy}
       />

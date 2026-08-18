@@ -88,3 +88,26 @@ npm run seed         # cria usuários de teste (precisa SUPABASE_SECRET_KEY)
 2. `npx tsc --noEmit` e `npm run build` (validar).
 3. `git add -A && git commit -m "..."` (co-author: Claude) e `git push origin main`.
 4. Render publica sozinho em ~1–2 min.
+
+
+## A tela roxa do Render ("SERVICE WAKING UP")
+
+Não é do Fixly: é a página que a **infraestrutura do Render** serve enquanto
+acorda um serviço do plano gratuito, que hiberna depois de 15 minutos sem
+acesso. Ela aparece **antes** do nosso código existir no ar, então nenhuma
+mudança de front resolve.
+
+Duas saídas:
+
+1. **Plano Starter (US$ 7/mês no `fixly-web`)** — o serviço não hiberna e a
+   tela nunca mais aparece. É a solução definitiva.
+2. **Monitor externo batendo em `/api/health`** (escolha do dono, 18/08/2026):
+   UptimeRobot ou cron-job.org, a cada 5 minutos, em
+   `https://fixly.company/api/health`. Custo zero.
+   ⚠️ O plano gratuito do Render dá **750 horas de instância por mês na conta
+   inteira**. Um serviço acordado 24/7 consome ~730 h e não sobra praticamente
+   nada para o `fixly-admin`. Por isso, configure o monitor com **janela de
+   horário** (ex.: 6h–24h) — dá ~540 h e deixa folga para o painel.
+
+O `loading.tsx` com a marca (`BrandLoading`) cobre a outra espera, a de
+navegação dentro do app: em vez de tela branca, o símbolo do Fixly pulsando.

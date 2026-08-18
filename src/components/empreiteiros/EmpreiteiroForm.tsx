@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, BadgeCheck, Clock, ExternalLink, Upload, Trash2, ImagePlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { maskPhone } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Textarea, Select, FieldGroup as Field } from "@/components/ui/Field";
 import { CategoryIcon } from "@/components/ui/icons";
@@ -240,8 +241,8 @@ export function EmpreiteiroForm({
         <Field label="Descrição"><Textarea rows={3} value={f.description} onChange={set("description")} placeholder="Conte sobre a sua equipe e experiência" /></Field>
         <div className="grid sm:grid-cols-3 gap-4">
           <Field label="Cidade"><Input value={f.city} onChange={set("city")} /></Field>
-          <Field label="Telefone *"><Input required value={f.phone} onChange={set("phone")} placeholder="(11) 90000-0000" /></Field>
-          <Field label="WhatsApp"><Input value={f.whatsapp} onChange={set("whatsapp")} placeholder="(11) 90000-0000" /></Field>
+          <Field label="Telefone *"><Input required value={f.phone} onChange={(e) => setF((p) => ({ ...p, phone: maskPhone(e.target.value) }))} placeholder="(11) 90000-0000" inputMode="numeric" /></Field>
+          <Field label="WhatsApp"><Input value={f.whatsapp} onChange={(e) => setF((p) => ({ ...p, whatsapp: maskPhone(e.target.value) }))} placeholder="(11) 90000-0000" inputMode="numeric" /></Field>
         </div>
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex items-center gap-3">

@@ -10,7 +10,7 @@ export default async function ServicosPage() {
   const { data } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, estimated_price, urgent, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name)",
+      "id, description, status, estimated_price, final_price, urgent, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name), payment:payments(amount, status)",
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -26,7 +26,7 @@ export default async function ServicosPage() {
             <tr className="text-left">
               <th className="px-5 py-3 font-medium">Serviço</th>
               <th className="px-5 py-3 font-medium hidden sm:table-cell">Contratante</th>
-              <th className="px-5 py-3 font-medium">Valor est.</th>
+              <th className="px-5 py-3 font-medium">Valor</th>
               <th className="px-5 py-3 font-medium">Status</th>
             </tr>
           </thead>
@@ -48,7 +48,18 @@ export default async function ServicosPage() {
                   </td>
                   <td className="px-5 py-3 text-gray hidden sm:table-cell">{client?.full_name ?? "—"}</td>
                   <td className="px-5 py-3 text-ink font-medium">
-                    {r.estimated_price ? `R$ ${r.estimated_price}` : "—"}
+                    {/* Aceito/concluído tem valor FECHADO (`final_price`); antes a
+                        coluna só olhava a estimativa e ficava "—" no serviço todo. */}
+                    {(() => {
+                      const pago = Array.isArray(r.payment) ? r.payment[0] : r.payment;
+                      const valor = pago?.amount ?? r.final_price ?? r.estimated_price;
+                      if (!valor) return "—";
+                      return (
+                        <span className={r.final_price || pago ? "font-semibold text-ink" : ""}>
+                          {Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-5 py-3"><Badge status={r.status} /></td>
                 </tr>

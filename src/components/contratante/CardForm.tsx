@@ -7,6 +7,7 @@ import { Input, Label } from "@/components/ui/Field";
 import type { CardPayload } from "@/app/app/contratante/pay.actions";
 import { listSavedCards, removeSavedCard } from "@/app/app/contratante/cards.actions";
 import type { SavedCard } from "@/lib/types";
+import { maskCardNumber, maskCardExpiry, maskCpf, onlyDigits } from "@/lib/format";
 
 /**
  * Cartão via Checkout Transparente do Mercado Pago.
@@ -248,7 +249,7 @@ export function CardForm({
                       <Label>CVV</Label>
                       <Input
                         value={savedCvv}
-                        onChange={(e) => setSavedCvv(e.target.value)}
+                        onChange={(e) => setSavedCvv(onlyDigits(e.target.value).slice(0, 4))}
                         inputMode="numeric"
                         autoComplete="cc-csc"
                         placeholder="123"
@@ -280,7 +281,7 @@ export function CardForm({
             <Label>Número do cartão</Label>
             <Input
               value={f.number}
-              onChange={set("number")}
+              onChange={(e) => setF((p) => ({ ...p, number: maskCardNumber(e.target.value) }))}
               inputMode="numeric"
               autoComplete="cc-number"
               placeholder="0000 0000 0000 0000"
@@ -293,15 +294,15 @@ export function CardForm({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label>Validade</Label>
-              <Input value={f.exp} onChange={set("exp")} autoComplete="cc-exp" placeholder="MM/AA" />
+              <Input value={f.exp} onChange={(e) => setF((p) => ({ ...p, exp: maskCardExpiry(e.target.value) }))} autoComplete="cc-exp" placeholder="MM/AA" inputMode="numeric" />
             </div>
             <div>
               <Label>CVV</Label>
-              <Input value={f.cvv} onChange={set("cvv")} inputMode="numeric" autoComplete="cc-csc" placeholder="123" />
+              <Input value={f.cvv} onChange={(e) => setF((p) => ({ ...p, cvv: onlyDigits(e.target.value).slice(0, 4) }))} inputMode="numeric" autoComplete="cc-csc" placeholder="123" />
             </div>
             <div>
               <Label>CPF do titular</Label>
-              <Input value={f.doc} onChange={set("doc")} inputMode="numeric" placeholder="000.000.000-00" />
+              <Input value={f.doc} onChange={(e) => setF((p) => ({ ...p, doc: maskCpf(e.target.value) }))} inputMode="numeric" placeholder="000.000.000-00" />
             </div>
           </div>
 

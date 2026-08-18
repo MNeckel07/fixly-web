@@ -37,16 +37,35 @@ export default async function SolicitarPage({
   };
 
   // Pedido direcionado a um profissional (veio do Profiler dele)
-  let provider: { id: string; name: string } | null = null;
+  let provider: { id: string; name: string; categorySlugs: string[] } | null = null;
   if (prestador) {
     const { data: p } = await supabase
       .from("profiles")
-      .select("id, full_name")
+      .select("id, full_name, category:service_categories!profiles_category_id_fkey(slug)")
       .eq("id", prestador)
       .eq("role", "prestador")
       .eq("status", "aprovado")
       .maybeSingle();
-    if (p) provider = { id: p.id, name: p.full_name };
+    if (p) {
+      /**
+       * TODAS as categorias que ele atende — não só a principal.
+       * Antes o pedido direto vinha travado na categoria principal: "o Robson
+       * faz tudo e só dá para pedir alvenaria". A escolha é do cliente, entre
+       * o que aquele profissional realmente faz.
+       */
+      const { data: pcs } = await supabase
+        .from("provider_categories")
+        .select("category:service_categories(slug)")
+        .eq("provider_id", p.id);
+      const principal = Array.isArray(p.category) ? p.category[0] : p.category;
+      const slugs = new Set<string>();
+      if (principal?.slug) slugs.add(principal.slug);
+      (pcs ?? []).forEach((r: any) => {
+        const c = Array.isArray(r.category) ? r.category[0] : r.category;
+        if (c?.slug) slugs.add(c.slug);
+      });
+      provider = { id: p.id, name: p.full_name, categorySlugs: [...slugs] };
+    }
   }
 
   // Orçamento e Reforma viraram a MESMA modalidade ("solicitar orçamento para

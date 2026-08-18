@@ -2,13 +2,21 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { signRequestPhotos } from "@/lib/uploads";
+import { walletPaymentsEnabled } from "@/lib/gateway";
 import { ServiceDetail } from "@/components/contratante/ServiceDetail";
 import { AutoRefresh } from "@/components/ui/AutoRefresh";
 
 export const dynamic = "force-dynamic";
 
-export default async function ServicoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ServicoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ alcance?: string }>;
+}) {
   const { id } = await params;
+  const { alcance } = await searchParams;
   const supabase = await createClient();
   const { userId } = await getProfile();
   if (!userId) redirect("/login");
@@ -76,7 +84,7 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
     <>
       {/* propostas, contra-propostas e confirmação de pagamento chegam sozinhas */}
       <AutoRefresh seconds={12} />
-      <ServiceDetail service={norm as any} currentUserId={userId} conversationId={conversationId} proposals={proposals} canSkipPayment={canSkipPayment} />
+      <ServiceDetail carteirasAtivas={walletPaymentsEnabled()} semAlcance={alcance === "0"} service={norm as any} currentUserId={userId} conversationId={conversationId} proposals={proposals} canSkipPayment={canSkipPayment} />
     </>
   );
 }
