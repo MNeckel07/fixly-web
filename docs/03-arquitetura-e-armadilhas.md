@@ -182,6 +182,23 @@ tela do Pix confirma pelo polling de 5 s.
     tabela onde as duas pontas escrevem, pense em QUAIS COLUNAS cada uma pode
     tocar; se a resposta não couber numa policy, é RPC.
 
+19. **SDK de terceiro só existe se o CSP deixar — e ele falha CALADO.** O botão
+    de Apple Pay/Google Pay foi entregue com o `js.stripe.com` fora do
+    `next.config.ts`. O navegador barra o script, o `carregarSdk()` devolve
+    `false` e o componente esconde o botão *de propósito* — o sintoma é
+    "não aparece nada", idêntico a credencial errada ou a celular sem carteira.
+    Ao plugar QUALQUER script externo, mexa no CSP no mesmo commit
+    (`script-src`, `connect-src`, `frame-src` e, se for pagamento, delegar
+    `payment` ao iframe no `Permissions-Policy`) e **prove no header servido**:
+    `npm run build && PORT=3999 npm start` + `curl -sI localhost:3999/login`.
+
+20. **Link de e-mail escrito no painel aponta para o painel.** No serviço
+    `fixly-admin` a `NEXT_PUBLIC_APP_URL` é o endereço do PAINEL — então todo
+    aviso disparado de lá (resposta de suporte, aprovação de cadastro) precisa
+    montar a URL com `siteUrl()`, senão o link sai para `fixly.fun/app/...`,
+    que responde **404 de propósito**. Ao criar aviso novo, pergunte primeiro:
+    *quem dispara isto, o site ou o painel?*
+
 ## Convenções
 - Escrever código no estilo do redor (Tailwind utilitário, `lib/brand` para labels
   de papel/status, `Badge` para status, `CategoryIcon` por slug).

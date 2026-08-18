@@ -306,3 +306,11 @@ gente está pagando a diferença do próprio bolso em cada serviço.
 | `MP_CLIENT_ID` / `MP_CLIENT_SECRET` | opcional | sem "receber direto" (split) |
 | `AUTH_TOKEN_SECRET` | opcional | usa a `SUPABASE_SECRET_KEY` para assinar |
 | `EMAIL_DEV_CODES` | 🔴 **não** | *só* para testar sem provedor — remover depois |
+| `STRIPE_SECRET_KEY` | para carteiras | Apple Pay / Google Pay não aparecem |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | para carteiras | idem (tem que ser a **publicável**) |
+
+> **Apple Pay e Google Pay rodam no STRIPE, não no Mercado Pago** — o MP não
+> oferece essas carteiras no Brasil. Passo a passo de como criar a conta,
+> validar o domínio e ligar os métodos: `docs/06`, seção "PARA O GOOGLE PAY
+> APARECER". As duas variáveis vão **só no `fixly-web`**; o painel não recebe
+> credencial de pagamento.

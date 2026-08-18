@@ -2,6 +2,74 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v13 — Melhoras "parte 10" (migrações 0029/0030)
+
+Entrega do PDF *Fixly 10* + os quatro pedidos avulsos do dono (animação do
+Render, Google Pay, chave PIX e editar o pedido).
+
+**Bugs, com a causa achada — não só o sintoma:**
+- **Foto de perfil dava "new row violates row-level security policy"** (0029).
+  O upload usa `upsert: true` e, nesse modo, o Storage precisa **enxergar** se o
+  objeto já existe; `avatars` e `portfolio` tinham insert/update/delete e
+  **nenhuma policy de select**. Era por isso que o portfólio (que sobe sem
+  upsert) nunca falhava — o que despistava o diagnóstico.
+- **Cancelar/pagar girando para sempre:** as ações não tinham `try/finally`,
+  então um erro do servidor rejeitava a promessa e o `setBusy(false)` nunca
+  rodava. Agora toda ação tem `finally` e mostra a mensagem real do erro.
+- **Ganhos do mês em R$ 0,00 com 3 serviços:** a conta filtrava pelo
+  `created_at` do PEDIDO. Serviço criado em julho e aprovado em agosto não caía
+  em mês nenhum. Passou a valer `payments.released_at`, e o rótulo diz o mês.
+- **Admin → Serviços mostrava "—":** a coluna só olhava `estimated_price`; agora
+  usa valor pago > `final_price` > estimativa.
+- **"2 prestadores não veem meus pedidos" NÃO era bug:** é o Selo Fix (0023) —
+  prestador COM selo não enxerga pedido de cliente SEM selo, e a conta de teste
+  do dono está sem selo. O que faltava era **aviso**: o `dispatch_request` já
+  devolvia o alcance e o número era jogado fora. Agora alcance zero aparece na
+  tela, em vez de deixar o cliente esperando proposta que não vem.
+
+**Novidades:**
+- **Máscaras automáticas** (`lib/format.ts`): CPF, CNPJ, telefone, CEP, cartão e
+  validade, no cadastro, no perfil, no cartão e no empreiteiro. O banco continua
+  recebendo **só dígitos** — a máscara é da tela, nunca do dado.
+- **Chave PIX com botão "Configurar"**: escolhe o tipo (CPF, CNPJ, celular,
+  e-mail ou aleatória) e o campo passa a formatar e validar conforme o tipo.
+- **Editar o pedido depois de enviado** (ícone de lápis), enquanto ninguém
+  aceitou. O endereço passa pela RPC `update_request_location` (0030): desde a
+  0026 o exato mora em `service_request_locations` e o pedido guarda a versão
+  embaralhada — gravar direto pela tela vazaria a rua para os prestadores.
+- **EXPRESS = urgente**, com aviso nas duas pontas: o profissional lê "só
+  proponha se puder ir agora"; o cliente lê "ao aceitar, ele sai agora para sua
+  casa". **Sem taxa extra** — decisão do dono: quem precifica a urgência é o
+  profissional, no valor da proposta.
+- **Notificação de mensagem** no menu (Trabalho/Serviços e Suporte) e **por
+  serviço** na lista, para saber DE QUAL deles é a mensagem.
+- **Resposta do suporte avisa por e-mail** quem abriu o chamado. O selo vermelho
+  só serve para quem está com o site aberto — e chamado de suporte é justamente
+  o caso em que a pessoa fecha a aba e vai esperar. ⚠️ O link do e-mail usa
+  `siteUrl()`, não `NEXT_PUBLIC_APP_URL`: quem responde é o admin, e no serviço
+  `fixly-admin` essa variável aponta para o PAINEL — o link sairia para
+  `fixly.fun/app/...`, que responde 404 de propósito.
+- **Pedido direto pelo Profiler** deixa escolher entre TODOS os serviços daquele
+  profissional (antes travava na categoria principal).
+- Aba **"Sou empreiteiro"** no perfil do prestador.
+- **Tela de carregamento com a marca** (`loading.tsx` + `BrandLoading`).
+- **Apple Pay e Google Pay via STRIPE** (`lib/stripe.ts`). O Mercado Pago não
+  oferece essas carteiras no Brasil e nem está na lista de gateways do Google
+  Pay; pelo Stripe o Apple Pay **não** exige a conta de US$ 99. Pix e cartão
+  continuam no MP. O servidor **reconfere a intenção no Stripe** antes de dar o
+  serviço como pago — nada do que o navegador diz é aceito. Fica desligado
+  enquanto `STRIPE_SECRET_KEY` não existir (botão que dá erro é pior que botão
+  que não aparece).
+- **`/api/health`** para o monitor externo que impede a hibernação no Render.
+
+**A tela roxa do Render não dá para trocar por dentro.** É a página que a
+*infraestrutura* do Render serve enquanto acorda um serviço do plano gratuito —
+aparece **antes** do nosso código existir no ar. As duas saídas reais estão no
+`docs/02`: plano Starter (US$ 7/mês, some de vez) ou monitor externo em
+`/api/health` (escolha do dono; ⚠️ 750 h/mês na conta inteira → configurar com
+janela de horário). O `BrandLoading` cobre a outra espera, a de navegação
+dentro do app.
+
 ## v12.2 — Parte 8: selo com história, denúncias, cartão na carteira (migração 0028)
 
 - **Selo Fixly ganho e perdido avisa por e-mail.** O selo saiu do "calculado na

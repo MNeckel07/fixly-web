@@ -1,6 +1,77 @@
 # 06 — Próximos passos e instruções para a próxima sessão
 
-# 📍 PONTO DE PARADA — 12/08/2026 (parte 7 · v12 · NO AR)
+# 📍 PONTO DE PARADA — 18/08/2026 (parte 10 · v13 · NO AR)
+
+`main` = v13 + o acerto do CSP do Stripe. Migrações **0001–0030 aplicadas**
+(conferido no banco: existe a função `update_request_location` e as policies
+`avatars_read`/`portfolio_read`). Deploy confirmado no ar: `/api/health` do
+fixly.company responde `{"ok":true,"service":"site"}`.
+
+**Tudo o que o PDF *Fixly 10* pedia está entregue.** O último item que faltava
+era a segunda metade do pedido da página 5 — "colocar um símbolo de notificação
+ali, **e das respostas por email**": o símbolo (`UnreadNavBadge`) já tinha
+sido feito; agora a **resposta do suporte avisa o autor do chamado por e-mail**.
+
+## 🔴 O QUE ESTAVA QUEBRADO NA v13 E FOI CORRIGIDO AGORA
+
+**O botão de Apple Pay/Google Pay não podia funcionar** — e falharia calado.
+O `next.config.ts` tem CSP, e o `js.stripe.com` não estava liberado em lugar
+nenhum. O navegador barraria o SDK, o `carregarSdk()` devolveria `false` e o
+componente esconde o botão de propósito ("botão de carteira que não funciona é
+pior do que não ter"). Resultado: depois de configurar as chaves, o dono veria
+exatamente a mesma tela de antes e concluiria que a credencial estava errada.
+
+Liberado no CSP: `script-src`/`img-src` (`js.stripe.com`, `*.stripe.com`),
+`connect-src` (`api.stripe.com`, `r.stripe.com`) e `frame-src`
+(`js.stripe.com`, `hooks.stripe.com` — o 3-D Secure). E o
+**`Permissions-Policy`** passou a **delegar** `payment` ao iframe do Stripe
+(`payment=(self "https://js.stripe.com")`): a Payment Request API roda dentro
+dele, e `payment=(self)` sozinho a bloqueia. Conferido no header servido pelo
+build de produção.
+
+## 🔑 PARA O GOOGLE PAY APARECER (só falta credencial)
+
+O código está pronto e **desligado** enquanto `STRIPE_SECRET_KEY` não existir.
+
+1. Criar conta em https://dashboard.stripe.com (CNPJ; o Stripe Brasil aceita
+   MEI). Ativar a conta ("Ativar pagamentos").
+2. **Desenvolvedores → Chaves de API**: copiar a **Publicável** (`pk_live_…`) e
+   a **Secreta** (`sk_live_…`). Para testar antes, use o par `pk_test_`/
+   `sk_test_` — o botão aparece igual e nada é cobrado.
+3. **Configurações → Métodos de pagamento**: ligar **Apple Pay** e **Google
+   Pay**.
+4. **Apple Pay → validar domínio** `fixly.company` (o Stripe faz o certificado;
+   **não** precisa da conta de US$ 99 da Apple).
+5. **Render → `fixly-web` → Environment**, duas variáveis novas:
+   `STRIPE_SECRET_KEY` e `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
+   ⚠️ A `NEXT_PUBLIC_…` precisa ser a **publicável** — a secreta dentro de uma
+   `NEXT_PUBLIC_*` vaza no bundle do navegador.
+   ⚠️ O `fixly-admin` **não** recebe nenhuma das duas (mesma regra do MP).
+6. Testar **no celular** (o botão só aparece em aparelho com carteira
+   configurada; no desktop sem carteira o `canMakePayment()` devolve nulo e
+   nada é mostrado — isso é o comportamento certo, não um bug).
+
+Pix e cartão digitado continuam no Mercado Pago. O dinheiro anda igual: cai na
+conta do Fixly (escrow), fica retido até o contratante aprovar, e o saque do
+profissional sai por Pix na fila do Admin.
+
+## O que testar na tela desta leva (parte 10)
+
+1. **Chave PIX**: perfil do prestador → "Configurar" → escolher o tipo →
+   digitar → o campo formata sozinho e recusa o que não bate com o tipo.
+2. **Editar pedido**: criar um pedido, clicar no lápis, trocar descrição e
+   endereço. Do lado do prestador, o endereço tem que continuar mostrando só a
+   região até o aceite.
+3. **EXPRESS**: pedido com "É urgente?" ligado → tarja EXPRESS nas duas pontas,
+   com os dois avisos ("só proponha se puder ir agora" / "ele sai agora").
+4. **Foto de perfil** pelo celular (era o erro de RLS do upsert).
+5. **Suporte**: abrir um chamado, responder pelo painel e conferir que chega o
+   **e-mail** "O suporte respondeu seu chamado #N" com link para o
+   fixly.company (não para o fixly.fun).
+6. **Ganhos**: a caixa diz "Ganhos em <mês>" e conta pelo `released_at`.
+
+
+# 📍 Ponto de parada anterior — 12/08/2026 (parte 7 · v12)
 
 `main` = `cc44163`, migração **0026 aplicada** e deploy **confirmado no ar**
 (marcadores da parte 7 encontrados nos chunks servidos por fixly.company).

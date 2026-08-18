@@ -3,6 +3,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { sendEmailBestEffort, serviceNotificationEmailHtml, sealEmailHtml } from "@/lib/email";
 import { brl } from "@/lib/pricing";
+import { siteUrl } from "@/lib/appRole";
 
 /**
  * AVISOS POR E-MAIL DO SERVIÇO
@@ -58,6 +59,19 @@ async function logNotification(
   refId: string,
 ) {
   await admin.from("notification_log").insert({ profile_id: profileId, kind, ref_id: refId });
+}
+
+/**
+ * Texto digitado pela pessoa entrando em HTML de e-mail (o assunto do chamado).
+ * Sem isso, um `<` no assunto quebra o layout — e um `<a>` viraria link de
+ * verdade dentro de um e-mail com a marca do Fixly.
+ */
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 async function contactOf(admin: ReturnType<typeof createAdminClient>, profileId: string) {
@@ -209,7 +223,15 @@ export async function notifyNewMessage(conversationId: string) {
     .select("id, type, request_id, chat_status")
     .eq("id", conversationId)
     .maybeSingle();
-  if (!conv || conv.type !== "servico" || conv.chat_status !== "ativa") return;
+  if (!conv) return;
+
+  // Suporte tem outro destinatário e outro link — mesma porta de entrada.
+  if (conv.type === "ticket") {
+    await notifyTicketReply(admin, conversationId, uid);
+    return;
+  }
+
+  if (conv.type !== "servico" || conv.chat_status !== "ativa") return;
 
   const { data: parts } = await admin
     .from("conversation_participants")
@@ -243,6 +265,55 @@ export async function notifyNewMessage(conversationId: string) {
     }),
   });
   await logNotification(admin, destinoId, "mensagem", conversationId);
+}
+
+/**
+ * Resposta do suporte → avisa por e-mail quem abriu o chamado.
+ *
+ * O selo vermelho no menu (`UnreadNavBadge`) só resolve para quem está com o
+ * site aberto; o chamado de suporte é justamente o caso em que a pessoa fecha
+ * a aba e vai esperar. Era a segunda metade do pedido da parte 10:
+ * "colocar um símbolo de notificação ali, **e das respostas por email**".
+ *
+ * Avisa SÓ o autor do chamado. O admin acompanha a fila pelo painel — mandar
+ * e-mail a cada mensagem do cliente entulharia a caixa da equipe e ninguém
+ * leria nenhum dos dois.
+ */
+async function notifyTicketReply(
+  admin: ReturnType<typeof createAdminClient>,
+  conversationId: string,
+  senderId: string,
+) {
+  const { data: ticket } = await admin
+    .from("tickets")
+    .select("id, number, subject, opener_id")
+    .eq("conversation_id", conversationId)
+    .maybeSingle();
+  // Sem ticket não há a quem avisar; e quem escreveu não recebe o próprio texto.
+  if (!ticket || ticket.opener_id === senderId) return;
+
+  if (await alreadyNotified(admin, ticket.opener_id, "suporte", conversationId, MESSAGE_COOLDOWN_MIN)) return;
+
+  const destino = await contactOf(admin, ticket.opener_id);
+  if (!destino) return;
+
+  const area = destino.role === "prestador" ? "prestador" : "contratante";
+
+  await sendEmailBestEffort({
+    to: destino.email,
+    subject: `O suporte respondeu seu chamado #${ticket.number} — Fixly`,
+    html: serviceNotificationEmailHtml({
+      name: destino.name,
+      title: "O suporte respondeu",
+      lead: `Seu chamado <b>#${ticket.number} — ${escapeHtml(String(ticket.subject ?? ""))}</b> tem uma resposta nova. Responda por aqui mesmo: o histórico do chamado fica registrado.`,
+      cta: "Ver a resposta",
+      // `siteUrl()`, não `APP_URL`: quem responde é o admin, e no serviço
+      // `fixly-admin` a NEXT_PUBLIC_APP_URL aponta para o PAINEL — o link
+      // sairia para fixly.fun/app/..., que responde 404 de propósito.
+      url: `${siteUrl()}/app/${area}/suporte`,
+    }),
+  });
+  await logNotification(admin, ticket.opener_id, "suporte", conversationId);
 }
 
 /**
