@@ -130,6 +130,12 @@ Medido em 21/08/2026, contra a produção:
 | Supabase Auth (10 medições) | ~250 ms, saudável |
 | memória da instância | **RSS 118 MB de 512** |
 | DNS e certificado | A → 216.24.57.1, cert válido até 05/10/2026 |
+| 40 amostras em 10 min, medindo `uptime_s` | **0 requisições mortas**; 2 reinícios, ambos causados pelos meus próprios deploys |
+
+Dois achados fecham o caso: **a instância não reinicia sozinha** (os únicos
+reinícios observados foram os dos deploys) e **reinício de deploy não derruba
+requisição** — o Render troca sem downtime. O que derruba é o serviço partindo
+do zero depois da hibernação.
 
 A leitura: **acordado, o serviço é confiável; o problema é acordar.** RSS de
 118 MB descarta queda por falta de memória, e o Supabase saudável descarta o
