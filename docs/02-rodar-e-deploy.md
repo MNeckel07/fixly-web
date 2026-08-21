@@ -111,3 +111,51 @@ Duas saídas:
 
 O `loading.tsx` com a marca (`BrandLoading`) cobre a outra espera, a de
 navegação dentro do app: em vez de tela branca, o símbolo do Fixly pulsando.
+
+## "This page couldn't load" (a tela preta do navegador)
+
+**Não é a mesma coisa que a tela roxa, e não é erro do Fixly.** A tela roxa é o
+Render dizendo "estou acordando"; esta aqui é o **navegador desistindo** antes
+de existir qualquer resposta. A diferença importa no diagnóstico: um erro do
+nosso código viria como 500 com a página de erro do Next; aqui não chega a
+existir status HTTP nenhum.
+
+Medido em 21/08/2026, contra a produção:
+
+| teste | resultado |
+|---|---|
+| 100 requisições com o site aquecido (`/login` e um `.png`) | **0 falhas** nas duas |
+| 60 requisições a cada 2 s | 1 morreu (`code 000`) depois de 27,6 s |
+| primeira batida depois de ocioso (20/08) | **43,8 s**; a seguinte, 0,31 s |
+| Supabase Auth (10 medições) | ~250 ms, saudável |
+| memória da instância | **RSS 118 MB de 512** |
+| DNS e certificado | A → 216.24.57.1, cert válido até 05/10/2026 |
+
+A leitura: **acordado, o serviço é confiável; o problema é acordar.** RSS de
+118 MB descarta queda por falta de memória, e o Supabase saudável descarta o
+banco. Sobra a hibernação do plano gratuito — que é justamente o que o dono vê
+e o monitor não, porque quem testa fica batendo no site e o mantém de pé.
+
+**O que dá para fazer por código (feito):**
+- `/api/health` agora devolve `uptime_s` e `mem_mb`. Serve para responder de
+  fora, sem acesso ao log do Render, se a instância **caiu e subiu** (uptime
+  volta a zero) ou se **nunca morreu** (uptime crescendo) — some o chute.
+- `healthCheckPath` passou de `/login` para `/api/health` nos dois serviços. É
+  o health check que decide quando o Render manda tráfego para a instância
+  nova; uma página inteira demora mais a responder no boot, e cada segundo a
+  mais é um segundo derrubando requisição de verdade.
+  ⚠️ `render.yaml` só vale em serviço gerenciado por **Blueprint**. Nos dois
+  serviços criados à mão, trocar também em **Settings → Health Check Path**.
+
+**O que NÃO se resolve por código:** a hibernação em si. O plano free do Render
+desliga o serviço após 15 minutos parado, e o pedido seguinte espera o
+container subir. Duas saídas, nesta ordem de eficácia:
+
+1. **Starter (US$ 7/mês) no `fixly-web`** — não hiberna. Acaba com a tela roxa
+   E com esta tela preta, e libera as 750 h/mês do plano free inteiras para o
+   `fixly-admin`.
+2. **Monitor externo** batendo em `https://fixly.company/api/health` a cada 5
+   min (UptimeRobot, grátis). ⚠️ As 750 h/mês são **da conta inteira**: manter
+   um serviço de pé 24/7 consome ~730 h e não sobra nada para o painel — por
+   isso o monitor precisa de **janela de horário** (ex.: 6h–24h ≈ 540 h). Fora
+   da janela, o primeiro acesso continua lento.
