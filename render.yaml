@@ -20,7 +20,12 @@ services:
     # painel não viram endpoints neste servidor. Ver o cabeçalho do script.
     buildCommand: node scripts/strip-admin.mjs && npm ci && npm run build
     startCommand: npm start
-    healthCheckPath: /login
+    # `/api/health` e nao `/login`: o health check e o que decide QUANDO o
+    # Render passa a mandar trafego para a instancia nova. `/login` e uma
+    # pagina inteira (render + proxy + Supabase), entao ela demora mais a
+    # responder no boot — e cada segundo a mais e um segundo em que as
+    # requisicoes de verdade morrem sem resposta.
+    healthCheckPath: /api/health
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
@@ -60,7 +65,12 @@ services:
     region: oregon
     buildCommand: npm ci && npm run build
     startCommand: npm start
-    healthCheckPath: /login
+    # `/api/health` e nao `/login`: o health check e o que decide QUANDO o
+    # Render passa a mandar trafego para a instancia nova. `/login` e uma
+    # pagina inteira (render + proxy + Supabase), entao ela demora mais a
+    # responder no boot — e cada segundo a mais e um segundo em que as
+    # requisicoes de verdade morrem sem resposta.
+    healthCheckPath: /api/health
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
