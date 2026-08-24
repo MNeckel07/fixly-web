@@ -199,6 +199,28 @@ tela do Pix confirma pelo polling de 5 s.
     que responde **404 de propósito**. Ao criar aviso novo, pergunte primeiro:
     *quem dispara isto, o site ou o painel?*
 
+21. **Componente de menu com exceção derruba o app inteiro — e a tela engana.**
+    O `UnreadNavBadge` é montado DUAS vezes para o mesmo tipo (menu do desktop
+    e barra de baixo do celular). Com nome de canal fixo, o
+    `supabase.channel()` devolvia o MESMO canal para as duas, a segunda
+    chamava `.on("postgres_changes", …)` num canal já inscrito e o Supabase
+    lançava *"cannot add postgres_changes callbacks after subscribe()"*. A
+    exceção derrubava a árvore e o navegador mostrava **"This page couldn't
+    load"** — que parece queda de servidor e não é: o servidor devolvia 200
+    com o HTML completo. Duas regras saem daí: **canal de realtime precisa de
+    nome único por instância** (`useId()`), e **componente de layout vai de
+    `try/catch` por princípio** (contador que não atualiza é detalhe; app que
+    não abre, não).
+
+22. **`curl` não executa JavaScript — para bug de tela, use navegador real.**
+    A pergunta que separa as duas metades é *"funciona deslogado?"*. Se a home
+    e o login abrem e só a área logada quebra, o problema está no código do
+    cliente, e nenhuma medição de uptime, memória ou rede vai encontrá-lo.
+    Playwright + Chromium com `pageerror`/`console`/`crash` achou a causa numa
+    execução. ⚠️ a versão do pacote em `~/.npm/_npx/*` pode não bater com o
+    browser em `~/Library/Caches/ms-playwright`; passar `executablePath` do
+    binário existente resolve sem baixar nada.
+
 ## Convenções
 - Escrever código no estilo do redor (Tailwind utilitário, `lib/brand` para labels
   de papel/status, `Badge` para status, `CategoryIcon` por slug).
