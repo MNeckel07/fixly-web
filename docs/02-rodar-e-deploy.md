@@ -131,6 +131,8 @@ Medido em 21/08/2026, contra a produção:
 | memória da instância | **RSS 118 MB de 512** |
 | DNS e certificado | A → 216.24.57.1, cert válido até 05/10/2026 |
 | 40 amostras em 10 min, medindo `uptime_s` | **0 requisições mortas**; 2 reinícios, ambos causados pelos meus próprios deploys |
+| 60 rodadas alternando `fixly.company` e `fixly.fun` | **0 falhas nos dois** |
+| 45 amostras em 15 min, sob tráfego contínuo | **0 reinícios espontâneos** nos dois |
 
 Dois achados fecham o caso: **a instância não reinicia sozinha** (os únicos
 reinícios observados foram os dos deploys) e **reinício de deploy não derruba
@@ -160,6 +162,14 @@ seguinte, com `uptime_s` = 36 — ou seja, ele **subiu por causa da minha
 requisição**. O site pelo menos recebe visita de vez em quando; o painel só o
 dono acessa, então ele está **sempre** frio. Se a reclamação de "não carrega"
 vier de quem usa o painel, é aqui, não no site.
+
+> **"Mas o painel funciona e o site não."** É a conclusão natural de quem usa
+> os dois — e ela não se sustenta na medição: 60 rodadas alternando os dois
+> domínios deram **0 falhas em cada um**, e o painel foi medido em **43,3 s**
+> frio. O painel parece melhor porque **o dono o mantém aquecido usando-o**; o
+> site fica ocioso e sempre o recebe frio. Os dois serviços têm o mesmo plano,
+> a mesma região e o mesmo peso de página — as únicas diferenças são as
+> intencionais (`strip-admin`, `APP_ROLE`, credenciais do MP).
 
 A conta do Render tem **750 h de instância gratuita por mês, na conta inteira**.
 Dois serviços de pé 24/7 precisariam de ~1460 h — não cabe. Por isso a única
