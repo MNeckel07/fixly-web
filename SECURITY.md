@@ -30,7 +30,10 @@ o que ainda é **recomendado** antes/depois de ir a produção.
 - **Correção:** o *guard* agora protege `role`, `status`, `active`, `rating`,
   `jobs_done`, `reviewed_at/by`, `reject_reason`. Nota e contagem de serviços são
   calculadas por **trigger confiável** no banco (`on_request_completed`), não
-  editáveis pelo usuário.
+  editáveis pelo usuário. A migração `0033` estende a proteção ao **INSERT**:
+  cadastro público só pode nascer não-admin e `pendente`, tanto pela policy RLS
+  quanto pelo trigger. Isso fecha a criação direta de perfil
+  `admin`/`aprovado` pelo PostgREST.
 
 ### 🟡 Médio — Cabeçalhos e superfície
 - **CSP restritiva** (só Supabase, tiles OSM, Nominatim, ViaCEP, Mercado Pago),
