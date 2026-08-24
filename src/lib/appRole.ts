@@ -51,9 +51,11 @@ const ADMIN_ONLY = ["/admin"];
  * Prefixos que só fazem sentido no site público.
  * `/api/pagamentos` entra aqui de propósito: o webhook do Mercado Pago e o
  * OAuth do split apontam para o domínio do produto. O painel não precisa deles
- * e não deve expô-los.
+ * e não deve expô-los. `/api/cron` pelo mesmo motivo: é a rota que LIBERA
+ * dinheiro do escrow (0032) e o painel nem recebe credencial de gateway —
+ * expor uma segunda porta para ela seria superfície de ataque de graça.
  */
-const SITE_ONLY = ["/app", "/cadastro", "/p/", "/e/", "/api/pagamentos", "/api/carteira"];
+const SITE_ONLY = ["/app", "/cadastro", "/p/", "/e/", "/api/pagamentos", "/api/carteira", "/api/cron"];
 
 /**
  * Este caminho pode ser servido por este papel?

@@ -98,6 +98,22 @@ export const SETTLEMENT_DAYS: Record<PayMethod, number> = {
   google_pay: 1,
 };
 
+/**
+ * LIBERAÇÃO AUTOMÁTICA DO ESCROW
+ * ------------------------------
+ * Sem isto, o dinheiro fica retido para SEMPRE quando o contratante some: o
+ * profissional fez o serviço, marcou concluído, e o pagamento nunca é liberado
+ * porque ninguém clica em "aprovar". O prejuízo é todo dele.
+ *
+ * Os 7 dias contam a partir de `provider_done_at` (o profissional sinalizando o
+ * fim), não do pagamento — é o único instante que significa "o trabalho
+ * acabou". No 5º dia sai um aviso por e-mail ao contratante, para que a
+ * liberação nunca seja surpresa: quem tem problema com o serviço ainda tem 2
+ * dias para reclamar ou abrir uma denúncia.
+ */
+export const AUTO_RELEASE_DAYS = 7;
+export const AUTO_RELEASE_WARN_DAYS = 5;
+
 /** Data em que o valor fica disponível para saque. */
 export function settlementDate(method: PayMethod, from: Date = new Date()): Date {
   const d = new Date(from);
