@@ -4,12 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Home, Wrench, ShieldCheck, Eye, EyeOff, type LucideIcon } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { ROLE_HOME, ROLE_LABELS, type Role } from "@/lib/brand";
 import { writeRemember } from "@/lib/session";
-import { resolveLoginEmail } from "@/app/login/actions";
+import { loginWithIdentifier } from "@/app/login/actions";
 
 const ROLES: { role: Role; icon: LucideIcon; hint: string }[] = [
   { role: "contratante", icon: Home, hint: "Preciso de um serviço" },
@@ -19,12 +18,9 @@ const ROLES: { role: Role; icon: LucideIcon; hint: string }[] = [
 
 export function LoginForm({
   ambiente = "site",
-  outroEndereco = "",
 }: {
   /** Papel deste servidor: o site público ou o painel da equipe. */
   ambiente?: "site" | "admin";
-  /** Endereço do outro ambiente, para orientar quem errou a porta. */
-  outroEndereco?: string;
 } = {}) {
   const router = useRouter();
   const params = useSearchParams();
@@ -51,66 +47,18 @@ export function LoginForm({
     // grava a preferência ANTES de criar o cliente: é ela que define se os
     // cookies da sessão vão com validade longa ou só até fechar o navegador
     writeRemember(remember);
-    const supabase = createClient();
-
-    // admin pode entrar por usuário ou e-mail; demais, por e-mail
-    const loginEmail = email.includes("@") ? email : await resolveLoginEmail(email);
-    if (!loginEmail) {
-      setError("Usuário ou senha incorretos.");
-      setLoading(false);
-      return;
-    }
-
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
+    const result = await loginWithIdentifier({
+      identifier: email,
       password,
+      expectedRole: role,
+      remember,
     });
-
-    if (signInError || !data.user) {
-      setError("Usuário/e-mail ou senha incorretos.");
+    if (!result.ok) {
+      setError(result.error ?? "Usuário/e-mail ou senha incorretos.");
       setLoading(false);
       return;
     }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, status")
-      .eq("id", data.user.id)
-      .single();
-
-    if (!profile) {
-      setError("Perfil não encontrado. Complete seu cadastro.");
-      setLoading(false);
-      return;
-    }
-    /**
-     * Porta errada: conta de admin não entra pelo site público, e conta de
-     * cliente/profissional não entra pelo painel. A sessão é encerrada na hora
-     * — deixá-la de pé no domínio errado esvaziaria o motivo de separar os
-     * ambientes. (A barreira de verdade é o proxy, que responde 404; isto aqui
-     * é para a pessoa entender o que fazer.)
-     */
-    const pertence = ambiente === "admin" ? profile.role === "admin" : profile.role !== "admin";
-    if (!pertence) {
-      await supabase.auth.signOut();
-      setError(
-        ambiente === "admin"
-          ? `Esta é a área da equipe Fixly. Contas de ${ROLE_LABELS[profile.role as Role]} entram em ${outroEndereco || "fixly.company"}.`
-          : `Contas da equipe Fixly entram pelo painel administrativo${outroEndereco ? ` em ${outroEndereco}` : ""}, não por aqui.`,
-      );
-      setLoading(false);
-      return;
-    }
-
-    if (profile.role !== role) {
-      await supabase.auth.signOut();
-      setError(
-        `Esta conta é de ${ROLE_LABELS[profile.role as Role]}. Selecione o perfil correto.`,
-      );
-      setLoading(false);
-      return;
-    }
-    if (profile.status !== "aprovado") {
+    if (result.status !== "aprovado") {
       router.push("/aguardando");
       return;
     }

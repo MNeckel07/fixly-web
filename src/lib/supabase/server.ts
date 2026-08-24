@@ -1,13 +1,14 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { REMEMBER_MAX_AGE } from "@/lib/session";
 
 /**
  * Cliente Supabase para Server Components / Server Actions / Route Handlers.
  * No Next.js 16 `cookies()` é assíncrono — por isso o await.
  * Continua limitado por RLS (usa a chave publishable + sessão do usuário).
  */
-export async function createClient() {
+export async function createClient(remember?: boolean) {
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -20,9 +21,17 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
-            );
+            cookiesToSet.forEach(({ name, value, options }) => {
+              if (remember === undefined) {
+                cookieStore.set(name, value, options);
+                return;
+              }
+              const removing = options?.maxAge === 0;
+              cookieStore.set(name, value, {
+                ...options,
+                maxAge: removing ? 0 : remember ? REMEMBER_MAX_AGE : undefined,
+              });
+            });
           } catch {
             // Chamado a partir de um Server Component — pode ser ignorado
             // quando há um proxy (middleware) atualizando a sessão.

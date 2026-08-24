@@ -279,6 +279,10 @@ export async function checkPaymentStatus(
     .eq("request_id", requestId)
     .maybeSingle();
   if (!pay) return { status: "desconhecido" };
+  const requestOwner = Array.isArray(pay.service_requests)
+    ? pay.service_requests[0]
+    : pay.service_requests;
+  if (!requestOwner || requestOwner.client_id !== user.id) return { status: "desconhecido" };
   if (pay.status === "retido") return { status: "retido" };
 
   const live = pay.gateway_id ? await fetchChargeStatus(pay.gateway_id as string) : null;

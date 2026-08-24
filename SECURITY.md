@@ -45,6 +45,18 @@ o que ainda é **recomendado** antes/depois de ir a produção.
   da chave de servidor no bundle do cliente).
 - Senha mínima de **8 caracteres** no cadastro.
 
+### 🟠 Alto/Médio — revisão completa de autorização (migrações 0033/0034)
+- Cadastro direto pelo PostgREST não consegue mais nascer `admin`/`aprovado`.
+- `provider_balance(uuid)` não expõe mais o faturamento de outro prestador;
+  chamadas anônimas são recusadas e usuário comum só consulta o próprio UUID.
+- Mensagens são imutáveis depois do envio. Participantes atualizam apenas os
+  recibos `delivered_at` e `read_at`, sem alterar autoria, corpo ou anexos.
+- Login por nome de usuário resolve o e-mail e autentica na mesma Server Action,
+  com limite por IP e resposta genérica; nenhum e-mail administrativo é
+  devolvido ao navegador.
+- A consulta periódica de pagamento agora confirma a titularidade do pedido
+  antes de acessar o gateway ou promover o serviço para `a_caminho`.
+
 ## Já estava correto (verificado)
 - **Autorização de Server Actions:** toda ação sensível revalida no servidor —
   admin (`assertAdmin`), dono do pedido (`client_id === user.id`), participante

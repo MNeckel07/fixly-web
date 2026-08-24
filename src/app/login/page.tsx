@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { appRole, adminUrl, siteUrl } from "@/lib/appRole";
+import { appRole } from "@/lib/appRole";
 import { Logo } from "@/components/ui/Logo";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { AdminLoginForm } from "@/components/auth/AdminLoginForm";
@@ -21,8 +21,6 @@ export default async function LoginPage({
   const { erro } = await searchParams;
 
   const ambiente = appRole((await headers()).get("host"));
-  const outroEndereco = ambiente === "admin" ? siteUrl() : adminUrl();
-
   // "Ficar conectado": quem já tem sessão válida entra direto, sem passar pelo
   // formulário. Não vale quando vem com `?erro=` (papel errado / conta inativa),
   // senão o aviso nunca aparece.
@@ -46,7 +44,7 @@ export default async function LoginPage({
   if (ambiente === "admin") {
     return (
       <Suspense fallback={null}>
-        <AdminLoginForm siteUrl={outroEndereco} />
+        <AdminLoginForm />
       </Suspense>
     );
   }
@@ -94,7 +92,7 @@ export default async function LoginPage({
             <Logo size={28} variant="dark" />
           </div>
           <Suspense fallback={<div className="h-96" />}>
-            <LoginForm ambiente={ambiente} outroEndereco={outroEndereco} />
+            <LoginForm ambiente={ambiente} />
           </Suspense>
           <p className="text-center text-sm text-gray mt-8">
             Não tem conta?{" "}

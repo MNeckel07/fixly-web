@@ -4,9 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { writeRemember } from "@/lib/session";
-import { resolveLoginEmail } from "@/app/login/actions";
+import { loginWithIdentifier } from "@/app/login/actions";
 
 /**
  * Login do PAINEL (fixly.fun).
@@ -22,7 +21,7 @@ import { resolveLoginEmail } from "@/app/login/actions";
  * deslogada na hora, porque deixar sessão de pé no domínio errado esvaziaria o
  * motivo de separar os ambientes.
  */
-export function AdminLoginForm({ siteUrl }: { siteUrl: string }) {
+export function AdminLoginForm() {
   const router = useRouter();
   const [usuario, setUsuario] = useState("");
   const [senha, setSenha] = useState("");
@@ -39,37 +38,14 @@ export function AdminLoginForm({ siteUrl }: { siteUrl: string }) {
     // grava a preferência ANTES de criar o cliente: é ela que decide se o
     // cookie da sessão dura ou morre ao fechar o navegador
     writeRemember(lembrar);
-    const supabase = createClient();
-
-    const email = usuario.includes("@") ? usuario : await resolveLoginEmail(usuario);
-    if (!email) {
-      setErro("Usuário ou senha não conferem.");
-      setCarregando(false);
-      return;
-    }
-
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
-    if (error || !data.user) {
-      setErro("Usuário ou senha não conferem.");
-      setCarregando(false);
-      return;
-    }
-
-    const { data: perfil } = await supabase
-      .from("profiles")
-      .select("role, status, active")
-      .eq("id", data.user.id)
-      .single();
-
-    if (!perfil || perfil.role !== "admin") {
-      await supabase.auth.signOut();
-      setErro(`Área restrita à equipe Fixly. Clientes e profissionais entram em ${siteUrl.replace(/^https?:\/\//, "")}.`);
-      setCarregando(false);
-      return;
-    }
-    if (perfil.active === false || perfil.status !== "aprovado") {
-      await supabase.auth.signOut();
-      setErro("Esta conta está inativa. Fale com um administrador.");
+    const result = await loginWithIdentifier({
+      identifier: usuario,
+      password: senha,
+      expectedRole: "admin",
+      remember: lembrar,
+    });
+    if (!result.ok || result.status !== "aprovado") {
+      setErro(result.error ?? "Usuário ou senha não conferem.");
       setCarregando(false);
       return;
     }
