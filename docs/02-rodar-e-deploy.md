@@ -153,6 +153,20 @@ e o monitor não, porque quem testa fica batendo no site e o mantém de pé.
   ⚠️ `render.yaml` só vale em serviço gerenciado por **Blueprint**. Nos dois
   serviços criados à mão, trocar também em **Settings → Health Check Path**.
 
+### ⚠️ O PAINEL hiberna sempre (24/08/2026)
+
+Medido: `fixly.fun/login` levou **43,3 s** na primeira batida e 0,47 s na
+seguinte, com `uptime_s` = 36 — ou seja, ele **subiu por causa da minha
+requisição**. O site pelo menos recebe visita de vez em quando; o painel só o
+dono acessa, então ele está **sempre** frio. Se a reclamação de "não carrega"
+vier de quem usa o painel, é aqui, não no site.
+
+A conta do Render tem **750 h de instância gratuita por mês, na conta inteira**.
+Dois serviços de pé 24/7 precisariam de ~1460 h — não cabe. Por isso a única
+combinação que deixa os DOIS rápidos é: `fixly-web` no **Starter** (pago, não
+consome hora gratuita) e o `fixly-admin` no free com monitor 24/7 (~730 h,
+cabe nas 750 h). Custo total: US$ 7/mês.
+
 **O que NÃO se resolve por código:** a hibernação em si. O plano free do Render
 desliga o serviço após 15 minutos parado, e o pedido seguinte espera o
 container subir. Duas saídas, nesta ordem de eficácia:
