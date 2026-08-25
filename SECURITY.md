@@ -45,7 +45,7 @@ o que ainda é **recomendado** antes/depois de ir a produção.
   da chave de servidor no bundle do cliente).
 - Senha mínima de **8 caracteres** no cadastro.
 
-### 🟠 Alto/Médio — revisão completa de autorização (migrações 0033/0034)
+### 🟠 Alto/Médio — revisão completa de autorização (migrações 0033/0034/0035)
 - Cadastro direto pelo PostgREST não consegue mais nascer `admin`/`aprovado`.
 - `provider_balance(uuid)` não expõe mais o faturamento de outro prestador;
   chamadas anônimas são recusadas e usuário comum só consulta o próprio UUID.
@@ -56,6 +56,38 @@ o que ainda é **recomendado** antes/depois de ir a produção.
   devolvido ao navegador.
 - A consulta periódica de pagamento agora confirma a titularidade do pedido
   antes de acessar o gateway ou promover o serviço para `a_caminho`.
+
+### 🔴 Regressão encontrada e fechada na mesma rodada (0035)
+A **0033**, ao redefinir `guard_profile_changes`, partiu da versão da **0006** e
+deixou cair em silêncio a proteção de **`fix_badge`, `seal_active`,
+`seal_revoked_at` e `seal_revoked_reason`**, que a 0028 tinha somado. Enquanto
+esteve assim, um `PATCH /rest/v1/profiles` de **uma coluna só** forjava o Selo
+Fixly (`trg_sync_selo` é escopado por coluna e não dispara num update que toca
+apenas `seal_active`), ligava o próprio Selo Fix — que libera serviço sem
+cobrança — e desfazia revogação do admin. A **0035** devolve as quatro colunas ao
+UPDATE, estende-as ao INSERT e troca o reconhecimento da chave de serviço para
+`auth.uid() is null` (medimos: `auth.role()` devolve **NULL** com as chaves novas
+do Supabase, então a 0033 sozinha teria quebrado o `createStaffUser`).
+
+**Lição, pela terceira vez neste repositório** (0025 → `dispatch_request`, 0028 →
+aviso no cabeçalho, 0033 → aqui): antes de todo `create or replace`, rodar
+`grep -rn "function public.<nome>" supabase/migrations` e partir do arquivo de
+**maior número**.
+
+### Como conferir que tudo isto continua valendo
+As provas de autorização vivem em `scripts/checks/` e rodam contra o banco de
+verdade, sempre com `rollback` no fim:
+
+```
+node --env-file=.env.local scripts/dry-run-migration.mjs \
+  0016_provider_reviews.sql scripts/checks/0035_guard_perfil.sql
+node --env-file=.env.local scripts/dry-run-migration.mjs \
+  0016_provider_reviews.sql scripts/checks/0034_saldo_e_chat.sql
+```
+
+A migração passada como primeiro argumento é **não relacionada** de propósito:
+assim o que está sendo exercitado é o guard que já está no banco, e não o do
+arquivo. Última execução (25/08/2026): **18/18 verdes**.
 
 ## Já estava correto (verificado)
 - **Autorização de Server Actions:** toda ação sensível revalida no servidor —

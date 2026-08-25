@@ -1,6 +1,15 @@
 -- ============================================================
 --  0033 — BLOQUEIA ESCALADA DE PRIVILÉGIO NO CADASTRO
 --
+--  ⚠️ SUPERADA PELA 0035. Este arquivo redefiniu `guard_profile_changes` a
+--  partir da versão da 0006 e, sem querer, deixou cair a proteção de
+--  `fix_badge`, `seal_active`, `seal_revoked_at` e `seal_revoked_reason`, que a
+--  0028 tinha acrescentado. Além disso reconhecia a chave de serviço só por
+--  `auth.role() = 'service_role'`, que neste projeto devolve NULL (medido em
+--  25/08/2026) — o `createStaffUser` teria quebrado. A 0035 redefine a policy,
+--  a função e o trigger por inteiro; NÃO aplique esta 0033 sozinha.
+--  Em banco novo a ordem 0033 → 0035 termina no estado correto.
+--
 --  O navegador cria a linha de `profiles` depois de criar a conta no Auth.
 --  A policy anterior conferia somente `id = auth.uid()`, enquanto o guard de
 --  campos protegidos rodava apenas em UPDATE. Uma sessão autenticada podia,

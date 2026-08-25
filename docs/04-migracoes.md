@@ -1,6 +1,15 @@
 # 04 — Migrações (supabase/migrations)
 
-Todas idempotentes. Rodar com `npm run db:apply` (lista em `scripts/apply-schema.mjs`).
+Todas idempotentes. ⚠️ `npm run db:apply` **não serve para migração nova**: a lista em
+`scripts/apply-schema.mjs` para na 0021. Use um arquivo por vez:
+`node --env-file=.env.local scripts/apply-migration.mjs 00NN_nome.sql`.
+
+**Antes de aplicar, ensaie** — roda de verdade contra o banco e faz `rollback` no fim:
+`node --env-file=.env.local scripts/dry-run-migration.mjs 00NN_nome.sql scripts/checks/00NN_nome.sql`.
+Os arquivos de `scripts/checks/` são provas de autorização (teste negativo + controle) e servem
+de regressão: para conferir o estado VIVO do banco, passe uma migração não relacionada
+(ex.: `0016_provider_reviews.sql`) como primeiro argumento — assim os guards exercitados são os
+que já estão lá.
 
 | # | Arquivo | O que faz |
 |---|---|---|
@@ -46,6 +55,7 @@ Todas idempotentes. Rodar com `npm run db:apply` (lista em `scripts/apply-schema
 | 0032 | `escrow_auto_release` | **Liberação automática do escrow — a pendência mais séria do fluxo de pagamento.** Só o contratante conclui (guard da 0022) e concluir é o que solta o dinheiro; quando ele some, o profissional trabalhava e **nunca recebia**. Agora `pg_cron` chama `POST /api/cron/escrow` todo dia às **12:00 UTC (9h BRT, dentro da janela do keep-alive)**: 7 dias após `provider_done_at` o serviço é concluído e o valor liberado, com **aviso por e-mail no 5º dia** para que nunca seja surpresa. Prazos em `lib/pricing.ts`. **Não refaz a liberação em SQL de propósito** — quem fala com o gateway é o app (`releaseEscrow`), e um segundo lugar mexendo em dinheiro divergiria do primeiro. Segredo no **Vault** (`fixly_cron_secret`), nunca no arquivo nem no `cron.job.command`; sem `CRON_SECRET` no Render a rota responde 503 e **nada é liberado** (falha fechada). A rota é idempotente e travada no tempo: acioná-la fora de hora não antecipa liberação de ninguém |
 | 0033 | `bloqueia_escalada_perfil_insert` | **Fecha escalada de privilégio no cadastro.** A antiga `prof_insert` conferia só `id = auth.uid()` e o guard rodava apenas em UPDATE; uma chamada direta ao PostgREST conseguia criar o próprio perfil como `admin`/`aprovado`. A policy agora aceita somente o próprio id, role não-admin e status `pendente`; o trigger passou a `BEFORE INSERT OR UPDATE` e valida também reputação/moderação no INSERT. `service_role` permanece autorizado para `createStaffUser` |
 | 0034 | `fecha_saldo_e_integridade_chat` | **Fecha duas falhas de autorização.** `provider_balance(uuid)` agora exige sessão e só aceita o próprio UUID ou uma sessão admin; `anon` perdeu EXECUTE. No chat, participantes continuam atualizando `delivered_at`/`read_at`, mas um trigger torna imutáveis autor, conversa, corpo, anexos e data — mensagens deixam de ser prova adulterável |
+| 0035 | `restaura_guard_selo` | **Conserta uma regressão da 0033 e fecha o resto.** A 0033 redefiniu `guard_profile_changes` partindo da versão da **0006** e deixou cair, em silêncio, a proteção de `fix_badge`, `seal_active`, `seal_revoked_at` e `seal_revoked_reason` que a **0028** tinha somado — dava para forjar o Selo Fixly com um `PATCH` de uma coluna só (`trg_sync_selo` é escopado por coluna e não dispara num update que toca apenas `seal_active`), auto-conceder o Selo Fix e desfazer revogação do admin. Aqui as quatro voltam ao ramo de UPDATE e entram também no de INSERT. Além disso troca o reconhecimento da chave de serviço: a 0033 usava só `auth.role() = 'service_role'`, que **devolve NULL neste projeto** (medido em 25/08/2026, chaves novas `sb_*` não são JWT) e teria quebrado o `createStaffUser`; o sinal primário passa a ser `auth.uid() is null`, o mesmo do `guard_request_changes` (0022). ⚠️ A ordem alfabética dos triggers BEFORE importa: `trg_guard_profile` roda antes de `trg_sync_selo`, e é isso que faz o guard ver o valor que o usuário mandou — renomear qualquer um dos dois fura a proteção. Provas em `scripts/checks/0035_guard_perfil.sql` |
 
 **Observação:** `pricing_rules` (0009/0012) ficou **sem uso** após o pivô 0015 —
 a aba admin de Precificação foi removida. A tabela permanece (inócua).
