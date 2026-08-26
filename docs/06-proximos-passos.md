@@ -1,5 +1,82 @@
 # 06 — Próximos passos e instruções para a próxima sessão
 
+# 📍 PONTO DE PARADA — 26/08/2026 (rodada *Fixly 11* + landing · NO AR)
+
+`main` = **`3accd79`**, árvore limpa, tudo publicado e **conferido em
+produção pelo comportamento** (não só por HTTP 200). Migrações **0001–0036**
+aplicadas.
+
+## O que entrou nesta sessão
+
+Três commits:
+
+| commit | o quê |
+|---|---|
+| `c4c3957` | rodada *Fixly 11* — os 12 itens do PDF |
+| `96a1924` | a landing virou a raiz de `fixly.company` |
+| `3accd79` | o frete não paga comissão |
+
+Detalhe de cada um no `docs/05` (v14, v15 e v15.1). As armadilhas que
+custaram diagnóstico estão no `docs/03`.
+
+**Os dois achados que mais importam**, porque mudam o que já se acreditava:
+
+1. **`#441` não era do cancelamento nem da edição.** Um `export const` num
+   arquivo `"use server"` derruba TODAS as server actions da página. Ver a
+   armadilha no `docs/03` e a varredura preventiva que está lá.
+2. **"2 prestadores não veem meus pedidos NÃO é bug" (anotação da v13) estava
+   errado.** A regra do Selo existe, mas a implementação estava furada: o
+   filtro lia `fix_badge` do cliente por um `join` que a RLS zera, e **todo
+   prestador com Selo via 0 pedidos**. Corrigido.
+
+## ✅ Conferido em produção (26/08)
+
+- `/` = landing, `/login` e `/cadastro/*` 200, `/admin` **404** no site público
+- `fixly.fun`: `/app/*` e `/cadastro` 404, `robots.txt` = `Disallow: /`
+- Prestador: serviço R$ 1.000 + frete R$ 200 → líquido **R$ 1.050,00**
+  (com o código antigo daria R$ 1.020,00 — é o número que prova o deploy)
+- Contratante: "Propostas recebidas (2)", filtros de Selo/serviços,
+  "R$ 400,00 + R$ 60,00 de frete", "bloco 1 de 2 · 3 valor(es) restante(s)",
+  "a partir de R$ 380,00" e "aguardando propostas" no lugar de R$ 0,00
+
+## 🔵 DECISÕES DO DONO REGISTRADAS
+
+- **O frete NÃO paga comissão** (26/08). Os 15% incidem só sobre o serviço;
+  o frete vai inteiro ao profissional, inclusive na retenção do cancelamento.
+- **A janela de 5 min do Express fica como está** (carência): dentro dos 5
+  minutos o cancelamento é gratuito mesmo com profissional já designado.
+  ⚠️ Segue **em aberto para revisão futura** — a alternativa é "sem carência"
+  (aceitou, valem os 30%), e é uma linha em `etapaDoCancelamento`.
+
+## 🟡 O QUE FICOU PENDENTE DESTA RODADA
+
+- **Item 3.4 da política (execução já iniciada) não tem fluxo de apuração.**
+  Hoje o serviço é interrompido, o dinheiro fica **retido** (item 8) e a tela
+  avisa que o suporte vai apurar — mas **não existe tela no painel** para o
+  suporte decidir quanto vai para cada lado. Enquanto isso, esses casos ficam
+  parados. É o próximo passo natural da política.
+- **O no-show do cliente (item 5.1) depende do profissional marcar "a caminho".**
+  Sem o carimbo `departed_at` a taxa de deslocamento não é devida — e o
+  profissional pode simplesmente não marcar. Vale observar em uso real.
+- **`travel_fee` não entra no adiantamento.** O frete é pago junto com o resto,
+  na aprovação. Se o dono quiser que o deslocamento seja adiantado (faz sentido:
+  o custo é do início), é uma mudança em `paymentBreakdown`.
+- **O prestador não vê o nome do cliente** ("Cliente" genérico) porque a RLS de
+  `profiles` não o expõe. Não foi pedido, mas a tela claramente pretendia
+  mostrar. Decisão de privacidade — perguntar antes de mudar.
+
+## ⚠️ ANTES DE MEXER NO CÓDIGO, SAIBA
+
+- `src/app` tem **dois route groups com root layouts separados**: `(site)` (a
+  landing) e `(app)` (o produto). Não junte os CSS — o motivo está no `docs/03`.
+- Imports de server action carregam o group: `@/app/(app)/…`.
+- `scripts/strip-admin.mjs` apaga **por caminho** e agora **falha fechado**. Se
+  alguma pasta mudar de lugar, o build para — de propósito.
+- As provas ficam em `scripts/checks/` (23 casos sem banco + 10 no banco com
+  rollback). Rodar antes de mexer em preço, política ou negociação.
+
+---
+
 # 📍 PONTO DE PARADA — 18/08/2026 (parte 10 · v13 · NO AR)
 
 `main` = v13 + o acerto do CSP do Stripe. Migrações **0001–0030 aplicadas**
