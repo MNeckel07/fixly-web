@@ -332,8 +332,13 @@ function RequestCard({
   const price = Number(value) || 0;
   const freteNum = Math.max(Number(frete) || 0, 0);
   const advanceFee = Math.round(((price * advancePct) / 100) * ADVANCE_FEE_RATE * 100) / 100;
-  // o frete também é receita dele: entra no líquido pela mesma regra do serviço
-  const net = Math.max(providerNet(price + freteNum) - advanceFee, 0);
+  /**
+   * O frete entra INTEIRO no líquido: a comissão de 15% incide só sobre o
+   * serviço (decisão do dono, 26/08/2026) — a Fixly não ganha sobre o custo de
+   * o profissional chegar até lá. Por isso `providerNet(serviço, frete)` e não
+   * `providerNet(serviço + frete)`, que cobraria comissão do deslocamento.
+   */
+  const net = Math.max(providerNet(price, freteNum) - advanceFee, 0);
 
   /** A negociação acabou: o último valor foi o dele. */
   const negociacaoNoLimite = rodadas >= MAX_RODADAS;

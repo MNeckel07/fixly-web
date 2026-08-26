@@ -63,8 +63,17 @@ export type ContaCancelamento = {
   valorServico: number;
   frete: number;
   total: number;
-  /** Quanto fica retido (vai para o profissional, descontada a comissão). */
+  /** Quanto fica retido no total (o que NÃO volta para o contratante). */
   retido: number;
+  /**
+   * A retenção separada em SERVIÇO e FRETE — e não é preciosismo contábil:
+   * a comissão de 15% incide sobre serviço e **não encosta no frete** (decisão
+   * do dono, 26/08/2026). Somar os dois num número só faria a plataforma
+   * cobrar comissão sobre o deslocamento na hora do cancelamento, justo o que
+   * ela não cobra na hora do pagamento normal.
+   */
+  retidoServico: number;
+  retidoFrete: number;
   /** Quanto volta para o contratante. */
   reembolso: number;
   /** Percentual aplicado, quando a regra é percentual (0 quando não é). */
@@ -156,6 +165,8 @@ export function contaDoCancelamento(
       return {
         ...base,
         retido: 0,
+        retidoServico: 0,
+        retidoFrete: 0,
         reembolso: total,
         percentual: 0,
         apuracao: false,
@@ -171,6 +182,8 @@ export function contaDoCancelamento(
       return {
         ...base,
         retido,
+        retidoServico: retido, // 30% do serviço; o frete não é devido ainda
+        retidoFrete: 0,
         reembolso: round2(total - retido),
         percentual: RETENCAO_APOS_ACEITE,
         apuracao: false,
@@ -182,10 +195,19 @@ export function contaDoCancelamento(
     case "apos_deslocamento": {
       // "50% do valor do Serviço OU a taxa de deslocamento, o que for MAIOR"
       const meio = round2(valorServico * RETENCAO_APOS_DESLOCAMENTO);
-      const retido = Math.min(round2(Math.max(meio, frete)), total);
+      /**
+       * "50% do valor do Serviço OU a taxa de deslocamento, o que for MAIOR" —
+       * são duas grandezas diferentes, não duas fatias da mesma. Quando vence o
+       * frete, o retido é frete puro (sem comissão); quando vencem os 50%, é
+       * serviço puro (com comissão).
+       */
+      const freteVence = frete > meio;
+      const retido = Math.min(round2(freteVence ? frete : meio), total);
       return {
         ...base,
         retido,
+        retidoServico: freteVence ? 0 : retido,
+        retidoFrete: freteVence ? retido : 0,
         reembolso: round2(total - retido),
         percentual: RETENCAO_APOS_DESLOCAMENTO,
         apuracao: false,
@@ -201,6 +223,9 @@ export function contaDoCancelamento(
       return {
         ...base,
         retido: total,
+        // a divisão sai da apuração, não de fórmula — ver o comentário do topo
+        retidoServico: 0,
+        retidoFrete: 0,
         reembolso: 0,
         percentual: 0,
         apuracao: true,
@@ -214,6 +239,8 @@ export function contaDoCancelamento(
       return {
         ...base,
         retido,
+        retidoServico: 0,
+        retidoFrete: retido, // é a taxa de deslocamento, e ela não paga comissão
         reembolso: round2(total - retido),
         percentual: 0,
         apuracao: false,
@@ -226,6 +253,8 @@ export function contaDoCancelamento(
       return {
         ...base,
         retido: 0,
+        retidoServico: 0,
+        retidoFrete: 0,
         reembolso: total,
         percentual: 0,
         apuracao: false,

@@ -107,7 +107,9 @@ export async function cancelJobAsProvider(
           conta.retido > 0
             ? {
                 status: "liberado",
-                provider_net: providerNet(conta.retido),
+                // no-show do cliente: o retido É a taxa de deslocamento, e ela
+                // não paga comissão (ver lib/pricing.paymentBreakdown)
+                provider_net: providerNet(conta.retidoServico, conta.retidoFrete),
                 released_at: new Date().toISOString(),
                 available_at: settlementDate((pay!.method as PayMethod) ?? "pix").toISOString(),
                 refunded_amount: devolver,

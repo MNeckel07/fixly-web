@@ -63,7 +63,10 @@ export function isGatewaySandbox() {
 }
 
 export interface ChargeInput {
+  /** Preço do SERVIÇO (sem o frete). É a base da comissão. */
   amount: number;
+  /** Frete: entra no total cobrado e sai inteiro ao prestador, sem comissão. */
+  travelFee?: number;
   method: PayMethod;
   description: string;
   payerEmail?: string;
@@ -87,7 +90,7 @@ export interface ChargeInput {
  * aprovado volta `retido` na hora.
  */
 export async function createEscrowCharge(input: ChargeInput): Promise<ChargeResult> {
-  const breakdown = paymentBreakdown(input.amount, input.method, input.advancePct ?? 0);
+  const breakdown = paymentBreakdown(input.amount, input.method, input.advancePct ?? 0, input.travelFee ?? 0);
 
   /**
    * CARTEIRAS vão para o Stripe: o Mercado Pago não oferece Apple Pay nem
@@ -100,7 +103,8 @@ export async function createEscrowCharge(input: ChargeInput): Promise<ChargeResu
       throw new Error("Pagamento por carteira digital ainda não está disponível. Use Pix ou cartão.");
     }
     return stripe.createStripeWalletIntent({
-      amount: input.amount,
+      // o que vai ao gateway é o TOTAL (serviço + frete + acréscimo)
+      amount: breakdown.amount,
       method: input.method,
       description: input.description,
       requestId: input.externalReference ?? "",

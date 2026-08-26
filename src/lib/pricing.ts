@@ -146,10 +146,16 @@ export const ADVANCE_FEE_RATE = 0.08; // 8% sobre o valor adiantado
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export interface PaymentBreakdown {
-  /** Total cobrado do contratante = serviço + acréscimo. É o valor que vai ao gateway. */
+  /** Total cobrado do contratante = serviço + frete + acréscimo. Vai ao gateway. */
   amount: number;
   /** Preço do serviço combinado com o prestador. Base da comissão e do líquido. */
   serviceAmount: number;
+  /**
+   * Frete / taxa de deslocamento. **Não entra na base da comissão** (decisão do
+   * dono, 26/08/2026): a Fixly não ganha sobre o custo de o profissional chegar
+   * até a casa do cliente. Vai INTEIRO para o prestador.
+   */
+  travelFee: number;
   /** Acréscimo do meio de pagamento cobrado do contratante (0 no Pix). */
   surcharge: number;
   platformFee: number; // comissão Fixly (15% do serviço)
@@ -176,26 +182,38 @@ export interface PaymentBreakdown {
  * `advancePct` (0–100) é quanto o prestador optou por receber antes de concluir:
  * a comissão é rateada proporcionalmente e a taxa de adiantamento pesa só na
  * parte antecipada.
+ *
+ * ⚠️ `travelFee` (frete) entra no que o CLIENTE paga e sai inteiro para o
+ * PRESTADOR: **a comissão de 15% não encosta nele.** É reembolso de custo de
+ * deslocamento, não receita de serviço — cobrar 15% do frete seria a Fixly
+ * ganhando sobre a gasolina do profissional. A tarifa do gateway continua
+ * incidindo sobre o total cobrado, porque o gateway cobra sobre o que passa
+ * por ele; essa parte não temos como escolher.
  */
 export function paymentBreakdown(
   serviceAmount: number,
   method: PayMethod,
   advancePct = 0,
+  travelFee = 0,
 ): PaymentBreakdown {
   const pct = Math.min(Math.max(advancePct, 0), 100);
-  const charged = chargedTotal(serviceAmount, method);
+  const frete = Math.max(round2(travelFee), 0);
+  const cobravel = round2(serviceAmount + frete);
+  const charged = chargedTotal(cobravel, method);
   // no repasse, a tarifa é EXATAMENTE o acréscimo — definir assim (em vez de
   // recalcular taxa × total) impede um centavo de sobra por arredondamento.
   const gf = isPassthrough(method)
-    ? round2(charged - serviceAmount)
-    : gatewayFee(serviceAmount, method);
-  const surcharge = isPassthrough(method) ? round2(charged - serviceAmount) : 0;
+    ? round2(charged - cobravel)
+    : gatewayFee(cobravel, method);
+  const surcharge = isPassthrough(method) ? round2(charged - cobravel) : 0;
 
+  // ⚠️ comissão sobre o SERVIÇO, nunca sobre `cobravel`: é aqui que o frete
+  // fica de fora da conta da Fixly.
   const pf = platformFee(serviceAmount);
   const advanceAmount = round2((serviceAmount * pct) / 100);
   const advanceFee = round2(advanceAmount * ADVANCE_FEE_RATE);
 
-  const providerNet = round2(serviceAmount - pf - advanceFee);
+  const providerNet = round2(serviceAmount - pf - advanceFee + frete);
   const platformNet = round2(pf + advanceFee - (isPassthrough(method) ? 0 : gf));
 
   const providerUpfront = round2(advanceAmount - (pf * pct) / 100 - advanceFee);
@@ -204,6 +222,7 @@ export function paymentBreakdown(
   return {
     amount: charged,
     serviceAmount,
+    travelFee: frete,
     surcharge,
     platformFee: pf,
     gatewayFee: gf,
@@ -221,9 +240,12 @@ export function paymentBreakdown(
  * Líquido do prestador a partir do preço do serviço. Desde o repasse da tarifa
  * ao contratante isto é EXATO (antes era aproximado, porque a tarifa do gateway
  * ainda saía daqui).
+ *
+ * `travelFee` passa direto, sem comissão — ver `paymentBreakdown`.
  */
-export function providerNet(amount: number): number {
-  return Math.round((amount - platformFee(amount)) * 100) / 100;
+export function providerNet(amount: number, travelFee = 0): number {
+  const frete = Math.max(Math.round(travelFee * 100) / 100, 0);
+  return Math.round((amount - platformFee(amount) + frete) * 100) / 100;
 }
 
 export function brl(value: number): string {

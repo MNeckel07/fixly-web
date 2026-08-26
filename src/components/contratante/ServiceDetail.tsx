@@ -662,11 +662,19 @@ export function ServiceDetail({
           </div>
 
           {(() => {
-            const bd = paymentBreakdown(service.final_price ?? val, method, service.advance_pct ?? 0);
+            /* `final_price` já inclui o frete; a comissão só vale para o
+               serviço, então os dois entram separados — senão o extrato na
+               tela mostraria uma taxa que o servidor não cobra. */
+            const freteSvc = Number(service.travel_fee ?? 0) || 0;
+            const servicoSvc = Math.max((service.final_price ?? val) - freteSvc, 0);
+            const bd = paymentBreakdown(servicoSvc, method, service.advance_pct ?? 0, freteSvc);
             return (
               <div className="rounded-xl bg-canvas p-4 text-sm space-y-1.5 mb-4">
                 <Row label="Profissional" value={service.provider?.full_name ?? "—"} />
                 <Row label="Valor do serviço" value={brl(bd.serviceAmount)} />
+                {bd.travelFee > 0 && (
+                  <Row label="Frete (deslocamento)" value={`+ ${brl(bd.travelFee)}`} />
+                )}
                 {bd.surcharge > 0 && (
                   <Row label="Acréscimo do cartão" value={`+ ${brl(bd.surcharge)}`} muted />
                 )}
@@ -674,6 +682,13 @@ export function ServiceDetail({
                 <Row label="Total a pagar" value={brl(bd.amount)} bold />
                 <div className="border-t border-black/10 my-1" />
                 <Row label="Taxa da plataforma (15%)" value={`- ${brl(bd.platformFee)}`} muted />
+                {bd.travelFee > 0 && (
+                  /* dizer isto em voz alta evita a pergunta "vocês ficam com
+                     parte do meu frete?" — que é justamente o que NÃO acontece */
+                  <p className="text-[11px] text-gray-light">
+                    A taxa incide só sobre o serviço. O frete vai inteiro para o profissional.
+                  </p>
+                )}
                 {bd.advancePct > 0 && (
                   <>
                     <Row label={`Taxa de adiantamento (${bd.advancePct}%)`} value={`- ${brl(bd.advanceFee)}`} muted />
@@ -684,7 +699,7 @@ export function ServiceDetail({
                 <Row label="Prestador recebe (total)" value={brl(bd.providerNet)} />
                 {bd.surcharge > 0 && (
                   <p className="text-[11px] text-gray-light pt-1">
-                    No Pix o total seria {brl(bd.serviceAmount)}. O acréscimo é a tarifa da
+                    No Pix o total seria {brl(bd.serviceAmount + bd.travelFee)}. O acréscimo é a tarifa da
                     operadora do cartão — o profissional recebe o mesmo nos dois meios.
                   </p>
                 )}

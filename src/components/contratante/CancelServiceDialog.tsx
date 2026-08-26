@@ -125,6 +125,21 @@ export function CancelServiceDialog({
             <>
               <p className="text-sm text-gray leading-relaxed">{conta.resumo}</p>
 
+              {/*
+                ⚠️ A retenção da política pressupõe dinheiro pago. No Fixly o
+                pagamento acontece DEPOIS do aceite, então existe uma janela em
+                que o serviço já tem profissional (e a cláusula 3.2 já fala em
+                30%) mas nada foi cobrado. Sem esta linha a caixa avisava que
+                "fica retido 30%" de um valor que não existe — chamado de
+                suporte garantido, e com razão.
+              */}
+              {semCobranca && conta.retido > 0 && !conta.apuracao && (
+                <p className="mt-2 rounded-lg bg-black/[0.03] px-3 py-2 text-xs text-ink">
+                  Como <b>você ainda não pagou nada</b> por este serviço, não há valor a reter nem
+                  a estornar — o cancelamento não custa nada para você agora.
+                </p>
+              )}
+
               {!semCobranca && !conta.apuracao && (
                 <div className="mt-3 space-y-1 text-sm">
                   <Linha label="Valor do serviço" valor={brl(conta.valorServico)} />

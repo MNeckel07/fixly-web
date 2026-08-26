@@ -63,7 +63,7 @@ export async function processPayment(
 
   const { data: req } = await supabase
     .from("service_requests")
-    .select("id, client_id, provider_id, description, estimated_price, final_price, advance_pct")
+    .select("id, client_id, provider_id, description, estimated_price, final_price, travel_fee, advance_pct")
     .eq("id", requestId)
     .single();
   if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
@@ -80,16 +80,31 @@ export async function processPayment(
     return { ok: false, error: "Este serviço já tem um pagamento em andamento." };
   }
 
-  // valor confiável: proposta aceita (gerada no servidor) > final > estimado
+  /**
+   * Valor confiável: a proposta ACEITA (gerada no servidor) vale mais que
+   * qualquer coisa vinda da tela.
+   *
+   * ⚠️ `proposals.price` é só o SERVIÇO — o frete mora em `travel_fee` desde a
+   * 0036. Somar os dois aqui não é detalhe: sem isso o cliente pagaria só o
+   * serviço e o frete que o profissional combinou sumiria da cobrança, sem
+   * erro nenhum (o `final_price` do pedido já é a soma, mas quem manda nesta
+   * linha é a proposta).
+   */
   const { data: prop } = await supabase
     .from("proposals")
-    .select("price")
+    .select("price, travel_fee")
     .eq("request_id", requestId)
     .eq("status", "aceita")
     .order("price", { ascending: true })
     .limit(1)
     .maybeSingle();
-  const amount = Number(prop?.price ?? req.final_price ?? req.estimated_price ?? 0);
+  const frete = Number(prop?.travel_fee ?? req.travel_fee ?? 0) || 0;
+  const amount =
+    prop?.price != null
+      ? Number(prop.price)
+      : req.final_price != null
+        ? Math.max(Number(req.final_price) - frete, 0)
+        : Number(req.estimated_price ?? 0);
   if (!amount || amount <= 0) return { ok: false, error: "Valor do serviço indefinido" };
 
   // Split: se o prestador conectou a conta dele no gateway, o MP divide na hora.
@@ -118,6 +133,7 @@ export async function processPayment(
   try {
     charge = await createEscrowCharge({
       amount,
+      travelFee: frete,
       method,
       description: req.description ?? "Serviço Fixly",
       payerEmail: user.email ?? undefined,
@@ -526,12 +542,16 @@ export async function cancelService(
     } else {
       /**
        * Parte ficou retida: ela é do PROFISSIONAL (o item 3.2 chama de
-       * compensação pela reserva de agenda), descontada a comissão da
-       * plataforma — a mesma regra de qualquer valor que chega até ele.
-       * Marcar `liberado` é o que faz esse dinheiro aparecer no saldo dele;
-       * deixar `retido` esconderia uma compensação que já está decidida.
+       * compensação pela reserva de agenda). Marcar `liberado` é o que faz esse
+       * dinheiro aparecer no saldo dele; deixar `retido` esconderia uma
+       * compensação que já está decidida.
+       *
+       * ⚠️ A comissão incide sobre a parte de SERVIÇO e **não sobre o frete** —
+       * a mesma regra do pagamento normal. Passar `conta.retido` inteiro aqui
+       * cobraria 15% do deslocamento justo no cancelamento, que é quando o
+       * profissional já gastou a gasolina e não vai executar o serviço.
        */
-      const liquidoDaRetencao = providerNet(conta.retido);
+      const liquidoDaRetencao = providerNet(conta.retidoServico, conta.retidoFrete);
       await admin
         .from("payments")
         .update({
@@ -586,7 +606,7 @@ export async function confirmWalletPayment(
 
   const { data: req } = await supabase
     .from("service_requests")
-    .select("id, client_id, status, final_price, estimated_price, advance_pct, provider_id")
+    .select("id, client_id, status, final_price, estimated_price, travel_fee, advance_pct, provider_id")
     .eq("id", requestId)
     .maybeSingle();
   if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
@@ -613,9 +633,12 @@ export async function confirmWalletPayment(
     .maybeSingle();
   if (existente) return { ok: true };
 
-  const valorServico = Number(req.final_price ?? req.estimated_price ?? 0);
+  // `final_price` JÁ inclui o frete (accept_proposal soma os dois); a comissão
+  // incide só sobre o serviço, então os dois precisam entrar separados.
+  const freteCarteira = Number(req.travel_fee ?? 0) || 0;
+  const valorServico = Math.max(Number(req.final_price ?? req.estimated_price ?? 0) - freteCarteira, 0);
   const metodo: PayMethod = "google_pay"; // a tarifa é a mesma nas duas carteiras
-  const breakdown = paymentBreakdown(valorServico, metodo, Number(req.advance_pct ?? 0));
+  const breakdown = paymentBreakdown(valorServico, metodo, Number(req.advance_pct ?? 0), freteCarteira);
 
   // o que o Stripe diz ter recebido é a verdade
   if (Math.abs(pi.amount - breakdown.amount) > 0.05) {

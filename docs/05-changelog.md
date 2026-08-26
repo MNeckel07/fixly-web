@@ -2,6 +2,37 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v15.1 — O frete não paga comissão (decisão do dono, 26/08/2026)
+
+A Fixly cobra 15% sobre o **serviço**. O frete entra no que o cliente paga e sai
+**inteiro** para o profissional: é reembolso do custo de chegar até a casa do
+cliente, não receita de serviço.
+
+Em números, num serviço de R$ 1.000 com R$ 200 de frete: o cliente paga
+R$ 1.200, a taxa é R$ 150 (15% de 1.000, **não** de 1.200) e o profissional
+recebe R$ 1.050. No cartão o total vira R$ 1.262,89 (acréscimo da operadora) e o
+profissional continua recebendo os mesmos R$ 1.050.
+
+A regra vale também **no cancelamento**: a retenção de 30% (item 3.2) é toda de
+serviço e paga comissão; já a retenção que corresponde à **taxa de
+deslocamento** (item 3.3 quando o frete supera os 50%, e o no-show do cliente do
+item 5.1) vai inteira ao profissional. Por isso `ContaCancelamento` agora separa
+`retidoServico` de `retidoFrete` — somar os dois num número só faria a
+plataforma cobrar comissão do deslocamento justo quando o profissional já gastou
+a gasolina e não vai executar o serviço.
+
+🐛 **A mudança revelou um bug sério da v14, que nunca chegou a rodar em
+produção com dinheiro real:** `processPayment` lê o valor da **proposta aceita**
+(`proposals.price`), e desde a 0036 esse campo é só o serviço. O cliente seria
+cobrado **sem o frete** e o valor combinado pelo profissional sumiria da
+cobrança, sem erro nenhum — o `final_price` do pedido já era a soma, mas quem
+mandava naquela linha era a proposta. Agora o frete é lido junto e passa
+separado para o gateway.
+
+**Provas:** `scripts/checks/frete-sem-comissao.test.ts` (10 casos), incluindo o
+teste de controle `providerNet(1000, 200) ≠ providerNet(1200)` — que é
+exatamente o erro que se comete ao "simplificar" a conta.
+
 ## v15 — A landing virou a raiz de fixly.company
 
 Quem acessa `fixly.company` agora cai na **landing**, e qualquer botão de ação
