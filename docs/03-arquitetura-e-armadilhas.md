@@ -41,6 +41,66 @@ components/  → ui, auth, shell, admin, contratante, prestador, chat, map, prof
 
 ## ⚠️ ARMADILHAS (já custaram debugging — leia!)
 
+### 🔴 `"use server"` só exporta função async — e um export solto derruba a PÁGINA inteira
+Aconteceu em 25/08/2026. `app/app/report.actions.ts` exportava
+`export const MOTIVOS = [...]`. O Next recusa o módulo com
+
+```
+A "use server" file can only export async functions, found object.
+```
+
+E o estrago não fica na denúncia: **o Next junta as ações de toda a página num
+módulo de ações só**, então caíram junto `cancelService`, `updateRequest`,
+`processPayment`, `approveService` — telas que não têm nada a ver com denúncia.
+
+O que o usuário vê é apenas `Minified React error #441`, escrito no lugar do
+texto da caixa de diálogo. **Esse número não diz nada sobre a causa**: é o
+genérico do React (`resolveErrorProd`, no react-server-dom) para "a server
+action explodiu"; a mensagem real só existe no servidor. Procurar o bug dentro
+de `cancelService` não leva a lugar nenhum — o código dela está certo.
+
+**Diagnóstico:** rode `npm run dev` e leia o log do servidor. Em dev a mensagem
+vem inteira, com o nome do export e o `ACTIONS_MODULE` no stack.
+
+**Varredura preventiva** (o que sobrar precisa ser `interface`/`type`):
+```bash
+for f in $(grep -rl '^"use server"' src); do
+  grep -nE '^export ' "$f" | grep -v 'export async function'
+done
+```
+
+**Conserto:** mover a constante para um módulo comum (`src/lib/…`) e importar
+nos dois lados. **Não reexportar** do arquivo de actions — reexport tem o mesmo
+efeito do export.
+
+### 🔴 O prestador NÃO lê o perfil do contratante — cuidado com filtro que depende disso
+`prof_select` libera só: você mesmo, admin, ou **prestador aprovado**. Um
+contratante é invisível para o prestador. Consequência achada em 25/08/2026:
+em `app/prestador/page.tsx`, o filtro do Selo Fixly lia `fix_badge` do cliente
+por `join` — voltava `null`, e
+
+```ts
+if (profile.fix_badge && !cliente?.fix_badge) return false;   // true && !undefined
+```
+
+descartava **todo** pedido. Resultado: **todo profissional com selo via "0
+pedidos na sua região"**, inclusive os mandados direto para ele.
+
+A regra é de pareamento de contas e precisa de um dado que a sessão do prestador
+legitimamente não pode ler → a leitura do `fix_badge` do cliente passou a usar
+`createAdminClient()` (server-only, só esse campo). **Regra geral:** um `join`
+que a RLS pode zerar nunca deve virar condição negativa de filtro. Ou lê com
+chave de servidor, ou a lógica vai para uma função `SECURITY DEFINER`.
+
+### 🔴 Nas provas SQL, leia os ids ANTES de assumir uma sessão
+Nos checks do `dry-run-migration.mjs` a gente troca de usuário com
+`set_config('request.jwt.claims', ...)`. A partir daí a RLS vale para o próprio
+teste: um `select id from profiles where role='admin'` feito "como prestador"
+volta **vazio**, o `sub` do JWT sai nulo, `auth.uid()` vira null e a função
+responde `Sem permissão` — sem nenhuma pista de que o problema era o teste, não
+o código. Capture todos os ids no começo do bloco, antes do primeiro
+`set_config`.
+
 ### 🔴 Redefinir função do banco: partir da versão MAIS RECENTE
 `create or replace function` **substitui a definição inteira**. Copiar a versão
 que aparecer primeiro no `grep` reverte, em silêncio, tudo o que migrações

@@ -2,6 +2,76 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v14 — Rodada de testes "Fixly 11" (migração 0036)
+
+Entrega do PDF *Fixly 11* (teste de usuário feito pela equipe). A comparação
+sintoma → causa importa mais que a lista: **dois relatos diferentes eram o mesmo
+bug, e um terceiro não era nada do que parecia.**
+
+**Bugs, com a causa achada:**
+
+- **"Não dá para cancelar o pedido" + "erro ao editar o pedido"**, os dois com
+  `Minified React error #441` escrito na tela. Não era do cancelamento nem da
+  edição: `app/app/report.actions.ts` (arquivo `"use server"`) exportava uma
+  **constante** (`MOTIVOS`). Um módulo de server actions só pode exportar
+  funções async, e o Next junta as ações de toda a página num módulo só — o
+  erro derrubava `cancelService`, `updateRequest`, `processPayment`,
+  `approveService`, tudo junto. O `#441` é o genérico do React para "a action
+  explodiu"; a mensagem de verdade (`A "use server" file can only export async
+  functions, found object`) **só aparece rodando em dev**. A lista foi para
+  `lib/reports.ts` e existe uma varredura preventiva no `docs/03`.
+
+- **"O perfil do Robson… não aparece os serviços que solicito para ele."** O
+  Robson tem o Selo Fixly — e **todo prestador com selo via "0 pedidos na sua
+  região", sempre**. O filtro de pareamento de contas (0023) lia o `fix_badge`
+  do cliente por um `join`, e a RLS de `profiles` não deixa um prestador ler o
+  perfil de um contratante: o join voltava nulo e
+  `profile.fix_badge && !cliente?.fix_badge` dava `true` para todo pedido. Agora
+  o `fix_badge` do cliente é lido com a chave de servidor, só para o filtro.
+
+- **"Só consigo puxar a alvenaria" no pedido direto.** O link do Profiler leva a
+  categoria **principal** no `?cat=`, e isso pulava a escolha. Com profissional
+  escolhido, o `?cat=` virou atalho, não trava: a tela abre a lista dos serviços
+  dele (todos os 27, no caso do Robson — o `CategoryPicker` também escondia os
+  não-`featured` atrás de "Ver todos").
+
+- **"Arrasto o ponto e ele não muda o endereço."** O pino só mudava a
+  COORDENADA. Agora o ponto novo é traduzido de volta em endereço
+  (reverse geocode) e escrito nos campos. O risco real não era a tela feia: era
+  o pedido sair com a rua de um lugar e a coordenada de outro.
+
+- **"Os valores todos zeraram" (R$ 0,00 na lista).** Enquanto ninguém é
+  escolhido, quem tem preço é a **proposta**, não o pedido. A lista lia
+  `final_price ?? estimated_price ?? 0`. Agora puxa a menor proposta viva
+  ("a partir de R$ X") e, sem nenhuma, escreve "aguardando propostas" — preço
+  que ainda não existe não é R$ 0,00.
+
+**O que entrou de novo:**
+
+- **Frete / taxa de deslocamento** na proposta, guardado **separado** do preço
+  (`proposals.travel_fee`). Não é capricho de modelagem: a política de
+  cancelamento manda reter "o valor da taxa de deslocamento" (itens 3.3 e 5.1) —
+  somado ao preço, não haveria como saber quanto era.
+- **Negociação com fim** (`lib/negotiation.ts` + `counter_proposal`): 4 valores
+  no máximo, alternando contratante → profissional, **dois blocos**, e o último
+  valor é sempre do profissional. "Alterar" a proposta zera as rodadas (senão
+  seria a porta dos fundos do limite).
+- **Filtro das propostas** por Selo Fixly e por quantidade de serviços.
+- **"Propostas recebidas (X)"** na lista quando há mais de uma.
+- **Contestar avaliação abaixo de 3 estrelas** (`dispute_review`): o
+  profissional alega, o suporte decide em Admin → Denúncias. Acolher **esconde**
+  a avaliação da média e do perfil (`review_hidden`); **nunca** reescreve a nota.
+- **Política de cancelamento aplicada de verdade** (`lib/cancellation.ts`): 30%
+  depois do aceite, 50% (ou o frete, o que for maior) depois do deslocamento,
+  frete no no-show do cliente, reembolso integral no no-show do profissional, e
+  **apuração** — sem número automático — com a execução já iniciada. O estorno no
+  gateway virou **parcial**. A caixa de cancelamento mostra a conta e a cláusula
+  **antes** de confirmar.
+
+**Provas:** `scripts/checks/politica-cancelamento.test.ts` (13 casos, sem banco)
+e `scripts/checks/0036_negociacao_e_contestacao.sql` (10 casos, no banco real com
+rollback).
+
 ## v13 — Melhoras "parte 10" (migrações 0029/0030)
 
 Entrega do PDF *Fixly 10* + os quatro pedidos avulsos do dono (animação do

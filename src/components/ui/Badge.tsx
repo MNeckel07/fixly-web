@@ -29,13 +29,21 @@ const labels: Record<string, string> = {
   liberado: "Liberado",
 };
 
-export function Badge({ status }: { status: string }) {
+/**
+ * `count` só faz sentido em "Proposta recebida": com duas ou mais propostas na
+ * mão, o rótulo no singular escondia que havia escolha a fazer ("aqui quando
+ * tem mais de uma podia aparecer, propostas recebidas (X)").
+ */
+export function Badge({ status, count }: { status: string; count?: number }) {
   const tone = tones[status] ?? tones.neutral;
+  const base = labels[status] ?? status;
+  const label =
+    status === "proposta_enviada" && (count ?? 0) > 1 ? `Propostas recebidas (${count})` : base;
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}
     >
-      {labels[status] ?? status}
+      {label}
     </span>
   );
 }

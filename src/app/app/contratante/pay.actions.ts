@@ -5,7 +5,13 @@ import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchC
 import { currentCustomerId, saveCard } from "@/app/app/contratante/cards.actions";
 import { notifySealChanges } from "@/app/app/notify.actions";
 import { revalidatePath } from "next/cache";
-import { paymentBreakdown, settlementDate, type PayMethod, type PaymentBreakdown } from "@/lib/pricing";
+import { paymentBreakdown, settlementDate, providerNet, type PayMethod, type PaymentBreakdown } from "@/lib/pricing";
+import {
+  contaDoCancelamento,
+  prazoDoReembolso,
+  type ContaCancelamento,
+  type MotivoCancelamento,
+} from "@/lib/cancellation";
 
 export interface PayResult {
   ok: boolean;
@@ -390,42 +396,175 @@ export async function approveService(requestId: string): Promise<{ ok: boolean; 
   return { ok: true };
 }
 
-/** Cancela o pedido/serviço. Se já houver pagamento retido, reembolsa (mock). */
-export async function cancelService(requestId: string): Promise<{ ok: boolean; error?: string; refunded?: boolean }> {
+/** Colunas que a política de cancelamento precisa para fechar a conta. */
+const CANCEL_FIELDS =
+  "id, client_id, provider_id, status, mode, urgent, final_price, estimated_price, travel_fee, created_at, accepted_at, departed_at, started_at";
+
+/**
+ * PRÉVIA do cancelamento — a conta ANTES de o cliente confirmar.
+ *
+ * Existe separada de propósito: a caixa de "Cancelar serviço?" precisa dizer
+ * quanto fica retido e quanto volta, com a cláusula que sustenta o número. Um
+ * cancelamento que cobra 50% sem avisar antes é reclamação certa (e com razão).
+ * Usa a MESMA função pura do cancelamento de verdade, então não há como as duas
+ * contas divergirem.
+ */
+export async function previewCancel(
+  requestId: string,
+  motivo: MotivoCancelamento = "desisti",
+): Promise<{ ok: boolean; error?: string; conta?: ContaCancelamento; prazo?: string; pago?: boolean }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Não autenticado" };
 
   const { data: req } = await supabase
     .from("service_requests")
-    .select("id, client_id, status")
+    .select(CANCEL_FIELDS)
+    .eq("id", requestId)
+    .maybeSingle();
+  if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
+
+  const admin = createAdminClient();
+  const { data: pay } = await admin
+    .from("payments")
+    .select("status, method")
+    .eq("request_id", requestId)
+    .maybeSingle();
+
+  const pago = pay?.status === "retido";
+  return {
+    ok: true,
+    pago,
+    conta: contaDoCancelamento(req as any, motivo),
+    prazo: prazoDoReembolso(pay?.method as string | null),
+  };
+}
+
+/**
+ * Cancela o pedido/serviço APLICANDO A POLÍTICA (itens 3, 5, 7 e 8).
+ *
+ * O que mudou em relação à versão anterior, que devolvia sempre 100%:
+ *
+ *  - a conta vem de `contaDoCancelamento` — retenção de 30% depois do aceite,
+ *    50% (ou o frete, o que for maior) depois do deslocamento, frete no no-show
+ *    do cliente, nada nos demais casos;
+ *  - o estorno no gateway é **parcial** quando a política manda reter. Isso já
+ *    era suportado (`refundCharge(id, amount)`), só não era usado;
+ *  - **execução já iniciada não vira número automático**: o item 3.4 fala em
+ *    "etapa efetivamente executada, apurada mediante evidências". O serviço é
+ *    interrompido, o dinheiro fica RETIDO (item 8) e o suporte decide. Inventar
+ *    uma porcentagem aqui seria pagar de menos a um e cobrar de mais do outro.
+ *
+ * A ORDEM importa e não é estética: o gateway é chamado ANTES de marcar o banco.
+ * Se o estorno falhar, nada é gravado e o dinheiro não some do mapa.
+ */
+export async function cancelService(
+  requestId: string,
+  opts?: { motivo?: MotivoCancelamento; reason?: string },
+): Promise<{
+  ok: boolean;
+  error?: string;
+  refunded?: boolean;
+  conta?: ContaCancelamento;
+  prazo?: string;
+}> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const { data: req } = await supabase
+    .from("service_requests")
+    .select(CANCEL_FIELDS)
     .eq("id", requestId)
     .single();
   if (!req || req.client_id !== user.id) return { ok: false, error: "Pedido inválido" };
   if (["concluido", "cancelado"].includes(req.status)) return { ok: false, error: "Este serviço não pode ser cancelado." };
 
+  const motivo: MotivoCancelamento = opts?.motivo ?? "desisti";
+  const conta = contaDoCancelamento(req as any, motivo);
+
   const admin = createAdminClient();
-  let refunded = false;
   const { data: pay } = await admin
     .from("payments")
-    .select("id, status, gateway_id, amount")
+    .select("id, status, gateway_id, amount, method, provider_net")
     .eq("request_id", requestId)
     .maybeSingle();
-  if (pay && pay.status === "retido") {
-    // devolve no gateway antes de marcar no banco: se o estorno falhar,
-    // o pagamento NÃO é marcado como reembolsado (evita dinheiro sumido)
-    if (pay.gateway_id) {
+
+  let refunded = false;
+  const temDinheiroPreso = !!pay && pay.status === "retido";
+
+  if (temDinheiroPreso && !conta.apuracao && conta.reembolso > 0) {
+    /**
+     * Quanto pedir de volta ao gateway: o reembolso da política, limitado ao
+     * que foi realmente cobrado. `amount` é o TOTAL cobrado (serviço + frete +
+     * eventual acréscimo do cartão), e a conta da política roda sobre o valor
+     * combinado — sem o teto, um arredondamento pediria estorno maior que a
+     * cobrança e o gateway recusaria a operação inteira.
+     */
+    const cobrado = Number(pay!.amount ?? 0) || 0;
+    const devolver = Math.min(conta.reembolso, cobrado);
+    const integral = devolver >= cobrado - 0.01;
+
+    if (pay!.gateway_id) {
       try {
-        await refundCharge(pay.gateway_id as string);
+        await refundCharge(pay!.gateway_id as string, integral ? undefined : devolver);
       } catch (e: any) {
         return { ok: false, error: "Não foi possível estornar o pagamento: " + e.message };
       }
     }
-    await admin.from("payments").update({ status: "reembolsado" }).eq("request_id", requestId);
+
+    if (integral) {
+      await admin
+        .from("payments")
+        .update({
+          status: "reembolsado",
+          refunded_amount: devolver,
+          retained_amount: 0,
+          cancel_stage: conta.stage,
+        })
+        .eq("id", pay!.id);
+    } else {
+      /**
+       * Parte ficou retida: ela é do PROFISSIONAL (o item 3.2 chama de
+       * compensação pela reserva de agenda), descontada a comissão da
+       * plataforma — a mesma regra de qualquer valor que chega até ele.
+       * Marcar `liberado` é o que faz esse dinheiro aparecer no saldo dele;
+       * deixar `retido` esconderia uma compensação que já está decidida.
+       */
+      const liquidoDaRetencao = providerNet(conta.retido);
+      await admin
+        .from("payments")
+        .update({
+          status: "liberado",
+          provider_net: liquidoDaRetencao,
+          released_at: new Date().toISOString(),
+          available_at: settlementDate((pay!.method as PayMethod) ?? "pix").toISOString(),
+          refunded_amount: devolver,
+          retained_amount: conta.retido,
+          cancel_stage: conta.stage,
+        })
+        .eq("id", pay!.id);
+    }
     refunded = true;
+  } else if (temDinheiroPreso && conta.apuracao) {
+    // item 8: o valor NÃO se move enquanto a apuração corre
+    await admin
+      .from("payments")
+      .update({ cancel_stage: conta.stage })
+      .eq("id", pay!.id);
   }
-  await supabase.from("service_requests").update({ status: "cancelado" }).eq("id", requestId);
-  return { ok: true, refunded };
+
+  await supabase
+    .from("service_requests")
+    .update({
+      status: "cancelado",
+      cancel_reason: opts?.reason ?? null,
+      cancel_stage: conta.stage,
+      cancelled_by: user.id,
+    })
+    .eq("id", requestId);
+
+  return { ok: true, refunded, conta, prazo: prazoDoReembolso(pay?.method as string | null) };
 }
 
 /**

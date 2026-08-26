@@ -64,7 +64,19 @@ export function SolicitarFlow({
     : null;
   const catalogo = catsDoProvider ?? categories;
   const catUnica = catsDoProvider?.length === 1 ? catsDoProvider[0] : null;
-  const catInicial = catUnica ?? preCat;
+
+  /**
+   * ⚠️ Com profissional escolhido, o `?cat=` da URL NÃO pula a escolha.
+   *
+   * O link do Profiler carrega a categoria PRINCIPAL dele, e isso travava o
+   * pedido nela: "o Robson faz 27 serviços e só consigo puxar a alvenaria".
+   * O pulo continua valendo quando ele realmente só faz uma coisa (`catUnica`)
+   * e no fluxo normal, sem profissional, em que o `?cat=` veio de um clique do
+   * próprio cliente na categoria.
+   */
+  const catInicial = catUnica ?? (provider && catalogo.length > 1 ? null : preCat);
+  /** Já dentro dos detalhes, ainda dá para voltar e trocar o serviço. */
+  const podeTrocarServico = catalogo.length > 1;
 
   const [step, setStep] = useState<Step>(catInicial ? "detalhes" : "categoria");
   const [category, setCategory] = useState<ServiceCategory | null>(catInicial);
@@ -162,12 +174,23 @@ export function SolicitarFlow({
 
       {step === "categoria" && (
         <Card
-          title={mode === "orcamento" ? "Solicitar orçamento para reforma" : "O que você precisa?"}
-          subtitle="Escolha a categoria do serviço"
+          title={
+            provider
+              ? `O que você precisa com ${provider.name.split(" ")[0]}?`
+              : mode === "orcamento"
+                ? "Solicitar orçamento para reforma"
+                : "O que você precisa?"
+          }
+          subtitle={
+            provider
+              ? `Estes são os ${catalogo.length} serviços que ${provider.name.split(" ")[0]} atende`
+              : "Escolha a categoria do serviço"
+          }
         >
           <CategoryPicker
             categories={catalogo}
-            reformaOnly={reformaOnly}
+            reformaOnly={provider ? false : reformaOnly}
+            todosAbertos={!!provider}
             onPick={(c) => {
               setCategory(c);
               setStep("detalhes");
@@ -256,7 +279,7 @@ export function SolicitarFlow({
             </div>
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
-              {!catInicial && <Button variant="ghost" onClick={() => setStep("categoria")}>← Voltar</Button>}
+              {podeTrocarServico && <Button variant="ghost" onClick={() => setStep("categoria")}>← Trocar serviço</Button>}
               <Button fullWidth loading={busy} onClick={submit}>
                 {provider
                   ? "Enviar pedido e conversar"

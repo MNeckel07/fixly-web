@@ -1,6 +1,9 @@
 "use server";
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+// ⚠️ NÃO reexportar daqui: arquivo "use server" só pode exportar funções async
+// (ver o comentário em lib/reports.ts — foi o que quebrou cancelar/editar).
+import { MOTIVOS, type MotivoDenuncia } from "@/lib/reports";
 
 /**
  * DENÚNCIAS
@@ -12,17 +15,6 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
  * O denunciado NÃO enxerga a denúncia (a RLS da 0028 garante isso) — sem esse
  * cuidado o canal viraria motivo de retaliação e ninguém usaria.
  */
-
-export const MOTIVOS = [
-  { id: "fora_da_plataforma", label: "Pediu para pagar por fora do Fixly" },
-  { id: "fraude", label: "Fraude ou tentativa de golpe" },
-  { id: "dano", label: "Dano ao imóvel, a bens ou a terceiros" },
-  { id: "assedio", label: "Assédio, ameaça, violência ou discriminação" },
-  { id: "avaliacao", label: "Manipulação de avaliações" },
-  { id: "outro", label: "Outro motivo" },
-] as const;
-
-export type MotivoDenuncia = (typeof MOTIVOS)[number]["id"];
 
 export async function createReport(input: {
   targetId: string;
@@ -81,6 +73,41 @@ export async function handleReport(input: {
       handled_at: new Date().toISOString(),
     })
     .eq("id", input.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/**
+ * Painel: julgar a CONTESTAÇÃO de uma avaliação (0036).
+ *
+ * Acolher esconde a avaliação da média e do perfil público; negar mantém tudo.
+ * A nota nunca é reescrita — o histórico continua auditável, e o cliente não
+ * perde o que escreveu.
+ *
+ * ⚠️ A checagem de admin é feita DE NOVO aqui, mesmo com o
+ * `resolve_review_dispute` conferindo `is_admin()` no banco. Não é redundância
+ * inútil: a RPC roda com a sessão do usuário, e uma falha de configuração de
+ * `is_admin()` viraria "qualquer logado esconde a própria nota ruim". Duas
+ * portas, dois cadeados.
+ */
+export async function resolveReviewDispute(input: {
+  requestId: string;
+  acolhida: boolean;
+  note?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado" };
+
+  const admin = createAdminClient();
+  const { data: me } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (me?.role !== "admin") return { ok: false, error: "Acesso restrito" };
+
+  const { error } = await supabase.rpc("resolve_review_dispute", {
+    p_request_id: input.requestId,
+    p_acolhida: input.acolhida,
+    p_note: input.note?.trim() || null,
+  });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

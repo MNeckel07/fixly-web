@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Flag, Check, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { createReport, MOTIVOS, type MotivoDenuncia } from "@/app/app/report.actions";
+import { createReport } from "@/app/app/report.actions";
+import { MOTIVOS, type MotivoDenuncia } from "@/lib/reports";
 
 /**
  * Botão "Denunciar" — aparece na tela do serviço e na hora de avaliar.

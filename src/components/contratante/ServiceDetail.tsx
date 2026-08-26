@@ -11,18 +11,19 @@ import { CategoryIcon } from "@/components/ui/icons";
 import { RouteMap } from "@/components/map/RouteMap";
 import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { approveService, approveAdvance, processPayment, skipPayment, cancelService, type CardPayload } from "@/app/app/contratante/pay.actions";
+import { approveService, approveAdvance, processPayment, skipPayment, type CardPayload } from "@/app/app/contratante/pay.actions";
 import { notifyCounter } from "@/app/app/notify.actions";
 import { ServiceChatBox } from "@/components/chat/ServiceChatBox";
 import { ReportButton } from "@/components/ui/ReportButton";
 import { EditRequestDialog } from "@/components/contratante/EditRequestDialog";
+import { CancelServiceDialog } from "@/components/contratante/CancelServiceDialog";
 import { WalletPayButton } from "@/components/contratante/WalletPayButton";
 import { Zap as ZapIcon } from "lucide-react";
 import { CardForm } from "@/components/contratante/CardForm";
 import { PixPanel } from "@/components/contratante/PixPanel";
 import { brl, paymentBreakdown, chargedTotal, type PayMethod } from "@/lib/pricing";
 import { providerReputation } from "@/lib/reputation";
+import { rodadasRestantes, rotuloDaNegociacao } from "@/lib/negotiation";
 
 type Service = {
   id: string;
@@ -34,6 +35,8 @@ type Service = {
   lng: number | null;
   estimated_price: number | null;
   final_price: number | null;
+  /** Taxa de deslocamento combinada — já embutida em `final_price`. */
+  travel_fee: number | null;
   mode: string | null;
   rating: number | null;
   review: string | null;
@@ -47,6 +50,11 @@ type Service = {
   provider_done_at: string | null;
   /** Serviço que correu sem cobrança (Selo Fix nos dois lados). */
   no_charge: boolean | null;
+  /** Carimbos da política de cancelamento (0036). */
+  created_at?: string | null;
+  accepted_at?: string | null;
+  departed_at?: string | null;
+  started_at?: string | null;
   category: { name: string; slug: string } | null;
   provider: { full_name: string; rating: number | null; jobs_done: number | null; avatar_path: string | null; lat: number | null; lng: number | null } | null;
   payment: { amount: number; fee: number; gateway_fee: number; provider_net: number; method: string; status: string; advance_pct: number | null; advance_amount: number | null; advance_fee: number | null } | null;
@@ -55,22 +63,32 @@ type Service = {
 type Proposal = {
   id: string;
   price: number;
+  /** Frete cobrado à parte — o total é `price + travel_fee`. */
+  travel_fee: number | null;
   eta_minutes: number | null;
   advance_pct: number | null;
   counter_price: number | null;
   counter_status: string | null;
   /** Quem fez a última oferta pendente (contratante ou prestador). */
   counter_by: string | null;
+  /** Valores já gastos na negociação (limite de 4 — ver lib/negotiation). */
+  counter_rounds: number | null;
   provider: {
     id: string;
     full_name: string;
     handle: string | null;
     rating: number | null;
     jobs_done: number | null;
+    seal_active: boolean | null;
     avatar_path: string | null;
     category: { name: string; slug: string } | null;
   } | null;
 };
+
+/** Filtros da lista de propostas (pedido do dono: selo e nº de serviços). */
+type FiltroPropostas = "todas" | "selo" | "experientes";
+/** Corte de "experiente" — mesma leitura de "quantidade de serviços prestados". */
+const MIN_SERVICOS_EXPERIENTE = 10;
 
 function avatarUrl(path: string | null | undefined): string | null {
   return path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${path}` : null;
@@ -141,6 +159,7 @@ export function ServiceDetail({
   const [counterFor, setCounterFor] = useState<string | null>(null);
   const [counterValue, setCounterValue] = useState("");
   const [acceptErr, setAcceptErr] = useState("");
+  const [filtro, setFiltro] = useState<FiltroPropostas>("todas");
 
   /**
    * Contra-proposta do contratante. Passa pela RPC `counter_proposal`: a policy
@@ -194,30 +213,24 @@ export function ServiceDetail({
   const canCancel = !["concluido", "cancelado"].includes(service.status);
   const isPaid = ["a_caminho", "em_andamento"].includes(service.status);
 
-  const [cancelErr, setCancelErr] = useState("");
+  const awaiting = !service.provider_id && ["buscando", "proposta_enviada"].includes(service.status);
 
   /**
-   * ⚠️ try/finally não é enfeite: qualquer erro do servidor aqui dentro
-   * rejeitava a promessa e o `setBusy(false)` nunca rodava — o botão "Sim,
-   * cancelar" girava para sempre e o pedido continuava de pé. E o erro
-   * devolvido era ignorado, o que dava o mesmo sintoma sem exceção nenhuma.
+   * Contagens dos filtros. Ficam FORA do filtro aplicado de propósito: o rótulo
+   * do botão precisa dizer quantas existem ("Com Selo Fixly (2)"), e não
+   * quantas sobraram do filtro que já está ligado.
    */
-  async function cancel() {
-    setBusy(true);
-    setCancelErr("");
-    try {
-      const res = await cancelService(service.id);
-      if (!res.ok) return setCancelErr(res.error ?? "Não foi possível cancelar.");
-      setShowCancel(false);
-      router.refresh();
-    } catch (e: any) {
-      setCancelErr(e?.message ?? "Não foi possível cancelar. Tente de novo.");
-    } finally {
-      setBusy(false);
+  const comSelo = proposals.filter(
+    (p) => providerReputation(p.provider?.rating, p.provider?.jobs_done, p.provider?.seal_active).elite,
+  ).length;
+  const experientes = proposals.filter((p) => (p.provider?.jobs_done ?? 0) >= MIN_SERVICOS_EXPERIENTE).length;
+  const propostasVisiveis = proposals.filter((p) => {
+    if (filtro === "selo") {
+      return providerReputation(p.provider?.rating, p.provider?.jobs_done, p.provider?.seal_active).elite;
     }
-  }
-
-  const awaiting = !service.provider_id && ["buscando", "proposta_enviada"].includes(service.status);
+    if (filtro === "experientes") return (p.provider?.jobs_done ?? 0) >= MIN_SERVICOS_EXPERIENTE;
+    return true;
+  });
   const awaitingQuote = service.mode === "orcamento" && !!service.provider_id && !service.final_price && service.status !== "concluido";
   const toPay = service.status === "aceito" && !!service.final_price;
 
@@ -400,9 +413,47 @@ export function ServiceDetail({
       {awaiting && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="font-semibold text-ink">Propostas recebidas</h2>
-            <span className="text-sm text-gray-light">{proposals.length} proposta(s)</span>
+            <h2 className="font-semibold text-ink">
+              Propostas recebidas {proposals.length > 1 && <span className="text-gray-light">({proposals.length})</span>}
+            </h2>
+            <span className="text-sm text-gray-light">
+              {propostasVisiveis.length === proposals.length
+                ? `${proposals.length} proposta(s)`
+                : `${propostasVisiveis.length} de ${proposals.length}`}
+            </span>
           </div>
+
+          {/*
+            FILTRO das propostas — pedido do dono: "filtrar as propostas só de
+            quem tem o selo fixly, ou pela quantidade de serviços prestados".
+            Só aparece com mais de uma proposta: com uma só, filtro é ruído.
+            Nada é escondido para sempre — "Todas" traz de volta, e o contador
+            ao lado diz quantas ficaram de fora.
+          */}
+          {proposals.length > 1 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {([
+                { key: "todas", label: `Todas (${proposals.length})` },
+                { key: "selo", label: `Com Selo Fixly (${comSelo})` },
+                { key: "experientes", label: `${MIN_SERVICOS_EXPERIENTE}+ serviços (${experientes})` },
+              ] as { key: FiltroPropostas; label: string }[]).map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setFiltro(f.key)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                    filtro === f.key
+                      ? "border-primary bg-primary/10 text-ink"
+                      : "border-black/10 text-gray hover:border-primary/40"
+                  }`}
+                >
+                  {f.key === "selo" && <ShieldCheck className="h-3.5 w-3.5" />}
+                  {f.key === "experientes" && <BadgeCheck className="h-3.5 w-3.5" />}
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
           {acceptErr && <p className="text-sm text-danger bg-danger/5 rounded-lg px-4 py-3 mb-3">{acceptErr}</p>}
           {express && proposals.length > 0 && (
             <div className="flex items-start gap-2 rounded-xl bg-danger/5 text-ink px-4 py-3 text-sm mb-3">
@@ -419,11 +470,22 @@ export function ServiceDetail({
                 ? "Pedido enviado direto para o profissional que você escolheu. Assim que ele mandar o valor, você poderá negociar e conversar por aqui — esta página se atualiza sozinha."
                 : "Aguardando os profissionais enviarem propostas — esta página se atualiza sozinha."}
             </div>
+          ) : propostasVisiveis.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-black/5 p-8 text-center text-gray">
+              Nenhuma das {proposals.length} propostas atende a esse filtro.{" "}
+              <button onClick={() => setFiltro("todas")} className="font-semibold text-primary-dark hover:underline">
+                Ver todas
+              </button>
+            </div>
           ) : (
             <div className="space-y-3">
-              {proposals.map((p) => {
-                const rep = providerReputation(p.provider?.rating, p.provider?.jobs_done);
+              {propostasVisiveis.map((p) => {
+                const rep = providerReputation(p.provider?.rating, p.provider?.jobs_done, p.provider?.seal_active);
                 const elite = rep.elite;
+                const frete = Number(p.travel_fee ?? 0) || 0;
+                const totalProposta = p.price + frete;
+                const rodadas = p.counter_rounds ?? 0;
+                const podeContrapor = rodadasRestantes(rodadas) > 0;
                 return (
                   <div key={p.id} className="bg-white rounded-2xl border border-black/5 p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -453,14 +515,26 @@ export function ServiceDetail({
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-lg font-bold text-ink">{brl(p.price)}</p>
+                        <p className="text-lg font-bold text-ink">{brl(totalProposta)}</p>
+                        {frete > 0 && (
+                          /* frete separado não é detalhe: é o piso do que fica
+                             retido se o serviço for cancelado depois que ele
+                             sair para o local (política, item 3.3) */
+                          <p className="text-[11px] text-gray-light">
+                            {brl(p.price)} + {brl(frete)} de frete
+                          </p>
+                        )}
                         {(p.advance_pct ?? 0) > 0 && (
                           <p className="text-[11px] text-gray-light">pede {p.advance_pct}% adiantado</p>
                         )}
                       </div>
                     </div>
 
-                    {/* Negociação — vai e volta entre os dois lados */}
+                    {rodadas > 0 && (
+                      <p className="mt-3 text-[11px] text-gray-light">{rotuloDaNegociacao(rodadas)}</p>
+                    )}
+
+                    {/* Negociação — vai e volta entre os dois lados (com FIM: 0036) */}
                     {p.counter_status === "pendente" && p.counter_by === currentUserId ? (
                       <p className="mt-3 text-xs text-info bg-info/5 rounded-lg px-3 py-2">
                         Contra-proposta de <b>{brl(p.counter_price ?? 0)}</b> enviada — aguardando o profissional.
@@ -474,12 +548,18 @@ export function ServiceDetail({
                           <Button size="sm" loading={busy} onClick={() => answerCounter(p, true)}>
                             Aceitar {brl(p.counter_price ?? 0)}
                           </Button>
-                          <button
-                            onClick={() => { setCounterFor(p.id); setCounterValue(String(Math.round(((p.counter_price ?? 0) + p.price) / 2))); }}
-                            className="text-sm font-medium text-primary-dark hover:underline"
-                          >
-                            Fazer outra proposta
-                          </button>
+                          {podeContrapor ? (
+                            <button
+                              onClick={() => { setCounterFor(p.id); setCounterValue(String(Math.round(((p.counter_price ?? 0) + p.price) / 2))); }}
+                              className="text-sm font-medium text-primary-dark hover:underline"
+                            >
+                              Fazer outra proposta
+                            </button>
+                          ) : (
+                            /* último valor é sempre do profissional: aqui só
+                               resta aceitar ou recusar (ver lib/negotiation) */
+                            <span className="text-xs text-gray-light">Último valor — aceite ou recuse.</span>
+                          )}
                           <button onClick={() => answerCounter(p, false)} disabled={busy} className="text-sm text-gray hover:text-danger">
                             Recusar
                           </button>
@@ -516,7 +596,7 @@ export function ServiceDetail({
                           Ver perfil <ExternalLink className="h-3.5 w-3.5" />
                         </Link>
                       )}
-                      {!p.counter_status && (
+                      {!p.counter_status && podeContrapor && (
                         <button onClick={() => { setCounterFor(p.id); setCounterValue(""); }} className="flex-1 inline-flex items-center justify-center h-10 rounded-xl border border-black/10 text-ink text-sm font-medium hover:bg-black/[0.03]">
                           Negociar
                         </button>
@@ -786,22 +866,14 @@ export function ServiceDetail({
           />
         )}
       </div>
-      <ConfirmDialog
+      {/* A caixa mostra a CONTA da política antes de confirmar — ver
+          CancelServiceDialog e lib/cancellation.ts. */}
+      <CancelServiceDialog
         open={showCancel}
-        title={`Cancelar ${isPaid ? "serviço" : "pedido"}?`}
-        description={
-          cancelErr
-            ? cancelErr
-            : isPaid
-              ? "Como você já pagou, o valor será reembolsado. Esta ação não pode ser desfeita."
-              : "Seu pedido será cancelado. Esta ação não pode ser desfeita."
-        }
-        confirmLabel="Sim, cancelar"
-        cancelLabel="Voltar"
-        variant="danger"
-        loading={busy}
-        onConfirm={cancel}
-        onCancel={() => setShowCancel(false)}
+        requestId={service.id}
+        isPaid={isPaid || !!service.payment}
+        temProfissional={!!service.provider_id}
+        onClose={() => setShowCancel(false)}
       />
     </div>
   );

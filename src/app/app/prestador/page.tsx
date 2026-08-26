@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { haversineKm, providerNet } from "@/lib/pricing";
 import { signRequestPhotoMap } from "@/lib/uploads";
@@ -28,20 +28,53 @@ export default async function PrestadorHome() {
   const { data: open } = await supabase
     .from("service_requests")
     .select(
-      "id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, photos, category_id, target_provider_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city, fix_badge)",
+      "id, client_id, description, urgent, address, estimated_price, estimated_min, estimated_max, status, lat, lng, photos, category_id, target_provider_id, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city, fix_badge)",
     )
     .in("status", ["buscando", "proposta_enviada"])
     .order("created_at", { ascending: false })
     .limit(50);
 
+  /**
+   * 🔴 O SELO DEIXAVA O PROFISSIONAL CEGO — bug encontrado em 25/08/2026.
+   *
+   * O filtro abaixo repete a regra do `dispatch_request` (0023): quem TEM o
+   * Selo Fixly é conta de vitrine e não deve receber pedido de cliente real.
+   * Ele lia `fix_badge` do cliente pelo `join` da consulta acima — e a RLS de
+   * `profiles` **não deixa um prestador ler o perfil de um contratante**
+   * (`prof_select`: só a si mesmo, admin, ou prestador aprovado). O join
+   * voltava NULO, e `profile.fix_badge && !cliente?.fix_badge` virava
+   * `true && !undefined` = **true para todo pedido**.
+   *
+   * Resultado: todo profissional COM selo via "0 pedidos na sua região",
+   * sempre — inclusive os pedidos mandados DIRETO para ele. Foi a queixa do
+   * testador ("o perfil do Robson… não aparece os serviços que solicito para
+   * ele"): o Robson tem selo.
+   *
+   * Por que a chave de servidor: a regra é de PAREAMENTO de contas e precisa de
+   * um dado que a sessão do prestador legitimamente não pode ler. Só o
+   * `fix_badge` é lido aqui, nada mais — e nada disso vai para o navegador.
+   */
+  const clientIds = [...new Set((open ?? []).map((r: any) => r.client_id).filter(Boolean))] as string[];
+  const badgeDoCliente = new Map<string, boolean>();
+  if (clientIds.length > 0) {
+    const { data: badges } = await createAdminClient()
+      .from("profiles")
+      .select("id, fix_badge")
+      .in("id", clientIds);
+    for (const b of (badges ?? []) as { id: string; fix_badge: boolean | null }[]) {
+      badgeDoCliente.set(b.id, !!b.fix_badge);
+    }
+  }
+
   const { data: myProps } = await supabase
     .from("proposals")
-    .select("id, request_id, price, eta_minutes, advance_pct, counter_price, counter_status, counter_by")
+    .select("id, request_id, price, eta_minutes, advance_pct, travel_fee, counter_price, counter_status, counter_by, counter_rounds")
     .eq("provider_id", profile.id);
 
   const propMap: Record<string, {
-    id: string; price: number; eta: number | null; advance_pct: number;
+    id: string; price: number; eta: number | null; advance_pct: number; travel_fee: number;
     counter_price: number | null; counter_status: string | null; counter_by: string | null;
+    counter_rounds: number;
   }> = {};
   (myProps ?? []).forEach((p: any) => {
     propMap[p.request_id] = {
@@ -49,9 +82,11 @@ export default async function PrestadorHome() {
       price: p.price,
       eta: p.eta_minutes,
       advance_pct: p.advance_pct ?? 0,
+      travel_fee: Number(p.travel_fee ?? 0),
       counter_price: p.counter_price,
       counter_status: p.counter_status,
       counter_by: p.counter_by,
+      counter_rounds: Number(p.counter_rounds ?? 0),
     };
   });
 
@@ -115,8 +150,7 @@ export default async function PrestadorHome() {
       // não enxerga pedido de cliente real — evitaria o cliente receber proposta
       // de conta de vitrine. O contrário é permitido: conta com selo alcança
       // prestador real, e aí a cobrança entra em vigor.
-      const cliente = Array.isArray(r.client) ? r.client[0] : r.client;
-      if (profile.fix_badge && !cliente?.fix_badge) return false;
+      if (profile.fix_badge && !badgeDoCliente.get(r.client_id)) return false;
       // só categorias que ele atende
       if (myCategoryIds.size > 0 && r.category_id && !myCategoryIds.has(r.category_id)) return false;
       // respeita o raio de atendimento (quando há coordenadas)

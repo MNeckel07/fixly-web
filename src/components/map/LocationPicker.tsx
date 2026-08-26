@@ -54,8 +54,59 @@ export function LocationPicker({
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const lastRefined = useRef("");
+  /** Valor mais recente do número — o `setTimeout` abaixo fecharia sobre o antigo. */
+  const houseRef = useRef(houseNumber);
+  houseRef.current = houseNumber;
+  const arrastoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isArea = radiusKm != null && onRadiusChange != null;
+
+  /**
+   * PINO MOVIDO À MÃO (arrastar ou tocar no mapa).
+   *
+   * Antes daqui, mover o pino só mudava a COORDENADA: o endereço escrito
+   * continuava o antigo — "arrasto o ponto aqui, mas ele não muda o endereço".
+   * O pior caso não era a tela feia, era o pedido sair com a rua de um lugar e
+   * a coordenada de outro, e o profissional ir para o endereço errado.
+   *
+   * Agora a coordenada manda: o ponto novo é traduzido de volta em endereço
+   * (reverse geocode) e escrito nos campos.
+   */
+  function onPinMoved(l: Loc) {
+    onChange(l);
+    if (arrastoRef.current) clearTimeout(arrastoRef.current);
+    setStatus("Buscando o endereço deste ponto…");
+    // espera o arrasto assentar: o Leaflet dispara vários pontos até parar,
+    // e o Nominatim é de uso gratuito (uma consulta por ajuste, não vinte)
+    arrastoRef.current = setTimeout(async () => {
+      const found = await reverseGeocode(l.lat, l.lng);
+      if (!found?.street) {
+        setStatus("Não identificamos o endereço deste ponto — confira/escreva no campo abaixo.");
+        return;
+      }
+      const numFinal = (found.houseNumber || houseRef.current || "").trim();
+      /**
+       * ⚠️ Marcar ANTES de avisar a tela. O efeito que refina pelo número roda
+       * na mudança de `address`/`houseNumber`; sem esta linha ele dispararia uma
+       * busca nova e o pino voltaria sozinho para o meio da rua, desfazendo o
+       * arrasto na cara do usuário. A chave tem que ser IGUAL à que o efeito
+       * calcula (`rua|número`), por isso o `houseRef`.
+       */
+      lastRefined.current = `${found.street.trim()}|${numFinal}`;
+      if (onHouseNumber) {
+        onAddress?.(found.street);
+        if (found.houseNumber) onHouseNumber(found.houseNumber);
+      } else {
+        // tela sem campo de número separado (editar pedido): vai tudo no texto
+        onAddress?.(found.houseNumber ? `${found.street}, nº ${found.houseNumber}` : found.street);
+      }
+      setStatus(
+        `Endereço atualizado: ${found.street}${found.houseNumber ? `, nº ${found.houseNumber}` : ""}.`,
+      );
+    }, 700);
+  }
+
+  useEffect(() => () => { if (arrastoRef.current) clearTimeout(arrastoRef.current); }, []);
 
   function useGps() {
     setStatus("Solicitando sua localização...");
@@ -203,7 +254,7 @@ export function LocationPicker({
           height={height}
         />
       ) : (
-        <PinPicker value={value ?? DEFAULT} onChange={onChange} height={height} />
+        <PinPicker value={value ?? DEFAULT} onChange={onPinMoved} height={height} />
       )}
     </div>
   );

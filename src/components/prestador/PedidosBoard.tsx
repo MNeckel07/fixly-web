@@ -11,6 +11,7 @@ import { CategoryIcon } from "@/components/ui/icons";
 import { AreaMap } from "@/components/map/AreaMap";
 import { ServiceChatBox } from "@/components/chat/ServiceChatBox";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
+import { MAX_RODADAS_NEGOCIACAO as MAX_RODADAS } from "@/lib/negotiation";
 import { cancelJobAsProvider } from "@/app/app/prestador/actions";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { notifyCounter, notifyProposal } from "@/app/app/notify.actions";
@@ -53,9 +54,13 @@ type Req = {
     price: number;
     eta: number | null;
     advance_pct: number;
+    /** Frete / taxa de deslocamento, cobrado à parte do serviço. */
+    travel_fee: number;
     counter_price: number | null;
     counter_status: string | null;
     counter_by: string | null;
+    /** Quantas idas e voltas de VALOR já foram gastas (limite na 0036). */
+    counter_rounds: number;
   } | null;
 };
 
@@ -252,6 +257,14 @@ function RequestCard({
   const router = useRouter();
   // sem preço-base: o prestador digita o valor de cada serviço
   const [value, setValue] = useState<string>(r.myProposal ? String(r.myProposal.price) : "");
+  /**
+   * FRETE / taxa de deslocamento — pedido do dono ("adicionar frete nas opções
+   * de serviço"). Fica FORA do preço do serviço porque a política de
+   * cancelamento manda reter "o valor da taxa de deslocamento" em duas
+   * situações (itens 3.3 e 5.1): somado ao preço, não haveria como saber
+   * quanto era na hora que a regra vale dinheiro.
+   */
+  const [frete, setFrete] = useState<string>(r.myProposal ? String(r.myProposal.travel_fee || "") : "");
   const [advancePct, setAdvancePct] = useState<number>(Math.min(defaultAdvancePct, 50));
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(!!r.myProposal);
@@ -259,6 +272,7 @@ function RequestCard({
   const [counterStatus, setCounterStatus] = useState<string | null>(r.myProposal?.counter_status ?? null);
   const [counterBy, setCounterBy] = useState<string | null>(r.myProposal?.counter_by ?? null);
   const [counterPrice, setCounterPrice] = useState<number | null>(r.myProposal?.counter_price ?? null);
+  const [rodadas, setRodadas] = useState<number>(r.myProposal?.counter_rounds ?? 0);
   const [myCounter, setMyCounter] = useState("");
   const [showCounter, setShowCounter] = useState(false);
   const photos = r.photos ?? [];
@@ -284,9 +298,13 @@ function RequestCard({
   }
 
   /**
-   * Contra-proposta DO PRESTADOR — o pedido do dono: "ao contratante fazer uma
-   * contraproposta, disponibilize a chance do prestador ainda assim colocar uma
-   * contraproposta". A ida e volta continua até alguém aceitar.
+   * Contra-proposta DO PRESTADOR.
+   *
+   * A ida e volta NÃO é mais infinita ("as propostas tão infinitas"): a 0036
+   * limita a 4 valores — contratante, prestador, contratante, prestador — e o
+   * último é sempre o do profissional. Depois disso o contratante só aceita ou
+   * recusa. O banco recusa de qualquer jeito; aqui a tela apenas para de
+   * oferecer o botão, para o limite não virar erro na cara de quem clicou.
    */
   async function sendMyCounter() {
     if (!r.myProposal) return;
@@ -305,17 +323,24 @@ function RequestCard({
     setCounterPrice(v);
     setCounterStatus("pendente");
     setCounterBy(currentUserId);
+    setRodadas((n) => n + 1);
     setShowCounter(false);
     setMyCounter("");
     router.refresh();
   }
 
   const price = Number(value) || 0;
+  const freteNum = Math.max(Number(frete) || 0, 0);
   const advanceFee = Math.round(((price * advancePct) / 100) * ADVANCE_FEE_RATE * 100) / 100;
-  const net = Math.max(providerNet(price) - advanceFee, 0);
+  // o frete também é receita dele: entra no líquido pela mesma regra do serviço
+  const net = Math.max(providerNet(price + freteNum) - advanceFee, 0);
+
+  /** A negociação acabou: o último valor foi o dele. */
+  const negociacaoNoLimite = rodadas >= MAX_RODADAS;
 
   async function submit() {
     if (!price || price <= 0) return setError("Informe um valor válido.");
+    if (freteNum < 0) return setError("O frete não pode ser negativo.");
     setBusy(true);
     setError("");
     const supabase = createClient();
@@ -325,6 +350,7 @@ function RequestCard({
       p_eta: null,
       p_message: null,
       p_advance_pct: advancePct,
+      p_travel_fee: freteNum,
     });
     setBusy(false);
     if (error) return setError(error.message);
@@ -333,6 +359,7 @@ function RequestCard({
     setCounterStatus(null);
     setCounterBy(null);
     setCounterPrice(null);
+    setRodadas(0);
     await notifyProposal(r.id);
     router.refresh();
   }
@@ -405,6 +432,11 @@ function RequestCard({
           <div className="flex items-center justify-between rounded-xl bg-success/5 px-4 py-3">
             <span className="inline-flex items-center gap-1.5 text-sm text-success font-medium">
               <Check className="h-4 w-4" /> Proposta enviada: {brl(Number(value))}
+              {freteNum > 0 && (
+                <span className="font-normal text-gray">
+                  + {brl(freteNum)} de frete = <b className="text-ink">{brl(Number(value) + freteNum)}</b>
+                </span>
+              )}
             </span>
             {!waitingMe && !waitingThem && (
               <div className="flex items-center gap-3">
@@ -436,13 +468,19 @@ function RequestCard({
               </p>
               <div className="flex flex-wrap items-center gap-3 mt-2">
                 <Button size="sm" loading={busy} onClick={() => respondCounter(true)}>Aceitar {brl(counterPrice)}</Button>
-                <button
-                  onClick={() => { setShowCounter((v) => !v); setMyCounter(String(Math.round(((Number(value) || 0) + counterPrice) / 2))); }}
-                  disabled={busy}
-                  className="text-sm font-medium text-primary-dark hover:underline disabled:opacity-50"
-                >
-                  Fazer outra proposta
-                </button>
+                {!negociacaoNoLimite ? (
+                  <button
+                    onClick={() => { setShowCounter((v) => !v); setMyCounter(String(Math.round(((Number(value) || 0) + counterPrice) / 2))); }}
+                    disabled={busy}
+                    className="text-sm font-medium text-primary-dark hover:underline disabled:opacity-50"
+                  >
+                    Fazer outra proposta ({MAX_RODADAS - rodadas} restante{MAX_RODADAS - rodadas > 1 ? "s" : ""})
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-light">
+                    Limite de negociação atingido — aceite ou recuse.
+                  </span>
+                )}
                 <button onClick={() => respondCounter(false)} disabled={busy} className="text-sm text-gray hover:text-danger">Recusar</button>
               </div>
               {showCounter && (
@@ -499,8 +537,31 @@ function RequestCard({
                 />
               </div>
             </div>
+            <div className="w-32">
+              <label className="text-xs text-gray-light">Frete (deslocamento)</label>
+              <div className="flex items-center rounded-xl border border-black/10 px-3 mt-1 focus-within:border-primary">
+                <span className="text-gray-light text-sm">R$</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={frete}
+                  onChange={(e) => setFrete(e.target.value)}
+                  placeholder="0,00"
+                  className="w-full py-2.5 px-2 outline-none"
+                />
+              </div>
+            </div>
             <Button loading={busy} onClick={submit}>Enviar proposta</Button>
           </div>
+          {freteNum > 0 && (
+            <p className="text-[11px] text-gray-light mt-1.5">
+              O cliente vê <b className="text-ink">{brl(price)}</b> de serviço
+              {" + "}
+              <b className="text-ink">{brl(freteNum)}</b> de frete —
+              total <b className="text-ink">{brl(price + freteNum)}</b>. Se ele cancelar depois
+              de você sair para o local, o frete é o piso do que fica com você.
+            </p>
+          )}
           <div className="mt-3">
             <div className="flex items-center justify-between">
               <label className="text-xs text-gray-light">Receber adiantado: <b className="text-ink">{advancePct}%</b> <span className="text-gray-light">(máx 50%)</span></label>

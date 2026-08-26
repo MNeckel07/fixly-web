@@ -10,18 +10,24 @@ import type { ServiceCategory } from "@/lib/types";
  * Grade de categorias colorida + busca + "Ver todos".
  * Por padrão mostra os serviços em destaque (`featured`); "Ver todos" abre o
  * catálogo completo (menos os ocultos). Em modo reforma, filtra as de obra.
+ *
+ * ⚠️ `todosAbertos` existe para o pedido DIRECIONADO a um profissional: ali a
+ * lista já É a dele, e esconder o que não é `featured` atrás de "Ver todos"
+ * fazia parecer que ele só oferecia dois ou três serviços.
  */
 export function CategoryPicker({
   categories,
   onPick,
   reformaOnly = false,
+  todosAbertos = false,
 }: {
   categories: ServiceCategory[];
   onPick: (c: ServiceCategory) => void;
   reformaOnly?: boolean;
+  todosAbertos?: boolean;
 }) {
   const [q, setQ] = useState("");
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(todosAbertos);
   const query = q.trim().toLowerCase();
 
   const base = useMemo(
@@ -32,7 +38,7 @@ export function CategoryPicker({
     [categories, reformaOnly],
   );
 
-  const hasFeatured = !reformaOnly && base.some((c) => c.featured);
+  const hasFeatured = !reformaOnly && !todosAbertos && base.some((c) => c.featured);
   const list = query
     ? base.filter((c) => c.name.toLowerCase().includes(query))
     : hasFeatured && !showAll

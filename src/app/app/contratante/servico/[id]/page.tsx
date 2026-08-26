@@ -24,7 +24,7 @@ export default async function ServicoPage({
   const { data: svc } = await supabase
     .from("service_requests")
     .select(
-      "id, description, status, urgent, address, lat, lng, estimated_price, final_price, mode, rating, review, provider_id, target_provider_id, photos, advance_pct, advance_approved, provider_done_at, no_charge, created_at, category:service_categories(name, slug), provider:profiles!service_requests_provider_id_fkey(full_name, rating, jobs_done, avatar_path, lat, lng, fix_badge), payment:payments(amount, fee, gateway_fee, provider_net, method, status, advance_pct, advance_amount, advance_fee, available_at), location:service_request_locations(address, lat, lng)",
+      "id, description, status, urgent, address, lat, lng, estimated_price, final_price, travel_fee, mode, rating, review, provider_id, target_provider_id, photos, advance_pct, advance_approved, provider_done_at, no_charge, created_at, accepted_at, departed_at, started_at, cancel_stage, category:service_categories(name, slug), provider:profiles!service_requests_provider_id_fkey(full_name, rating, jobs_done, avatar_path, lat, lng, fix_badge), payment:payments(amount, fee, gateway_fee, provider_net, method, status, advance_pct, advance_amount, advance_fee, available_at), location:service_request_locations(address, lat, lng)",
     )
     .eq("id", id)
     .eq("client_id", userId)
@@ -44,7 +44,7 @@ export default async function ServicoPage({
     const { data: props } = await supabase
       .from("proposals")
       .select(
-        "id, price, eta_minutes, advance_pct, counter_price, counter_status, counter_by, provider:profiles!proposals_provider_id_fkey(id, full_name, handle, rating, jobs_done, avatar_path, category:service_categories!profiles_category_id_fkey(name, slug))",
+        "id, price, travel_fee, eta_minutes, advance_pct, counter_price, counter_status, counter_by, counter_rounds, provider:profiles!proposals_provider_id_fkey(id, full_name, handle, rating, jobs_done, seal_active, avatar_path, category:service_categories!profiles_category_id_fkey(name, slug))",
       )
       .eq("request_id", id)
       .order("price", { ascending: true });
