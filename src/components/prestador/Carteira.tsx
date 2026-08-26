@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Wallet, Clock, Lock, Banknote, ArrowDownToLine, CheckCircle2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { brl, settlementLabel } from "@/lib/pricing";
-import { requestWithdrawal, type Balance } from "@/app/app/prestador/ganhos/actions";
+import { requestWithdrawal, type Balance } from "@/app/(app)/app/prestador/ganhos/actions";
 
 export type Pending = {
   id: string;

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
-import { notifyChatInvite } from "@/app/app/notify.actions";
+import { notifyChatInvite } from "@/app/(app)/app/notify.actions";
 
 type Conv = { id: string; chat_status: string; requested_by: string | null };
 

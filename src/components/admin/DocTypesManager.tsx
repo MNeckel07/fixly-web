@@ -10,7 +10,7 @@ import {
   toggleDocRequired,
   toggleDocActive,
   deleteDocumentType,
-} from "@/app/admin/documentos/actions";
+} from "@/app/(app)/admin/documentos/actions";
 
 type DocType = {
   id: string;

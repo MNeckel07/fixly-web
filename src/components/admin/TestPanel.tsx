@@ -6,7 +6,7 @@ import { FlaskConical, ExternalLink, Plus, Home, Wrench, RefreshCw } from "lucid
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
-import { impersonationLink, createTestRequest, forceStep } from "@/app/admin/testes/actions";
+import { impersonationLink, createTestRequest, forceStep } from "@/app/(app)/admin/testes/actions";
 import { brl } from "@/lib/pricing";
 
 type Account = { id: string; full_name: string; role: string };

@@ -6,7 +6,7 @@ import { Banknote, Check, X, Copy, Clock } from "lucide-react";
 import { PageHeader, StatCard } from "@/components/admin/StatCard";
 import { Button } from "@/components/ui/Button";
 import { brl } from "@/lib/pricing";
-import { settleWithdrawal } from "@/app/admin/saques/actions";
+import { settleWithdrawal } from "@/app/(app)/admin/saques/actions";
 
 type Row = {
   id: string;

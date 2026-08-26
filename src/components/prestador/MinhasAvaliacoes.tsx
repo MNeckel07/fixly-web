@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Star, ShieldAlert, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { disputeReview } from "@/app/app/prestador/actions";
+import { disputeReview } from "@/app/(app)/app/prestador/actions";
 
 export type AvaliacaoRecebida = {
   id: string;

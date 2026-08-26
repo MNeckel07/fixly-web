@@ -8,7 +8,7 @@ import { Input, Label, FieldGroup as Field } from "@/components/ui/Field";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { isPasswordStrong } from "@/lib/password";
 import { ADMIN_PERMISSIONS, ALL_PERM_KEYS } from "@/lib/permissions";
-import { createStaffUser, updateStaffPermissions } from "@/app/admin/usuarios/actions";
+import { createStaffUser, updateStaffPermissions } from "@/app/(app)/admin/usuarios/actions";
 
 type Staff = {
   id: string;

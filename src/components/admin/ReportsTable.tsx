@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Flag, ShieldOff, ShieldCheck, Check, Archive, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { handleReport } from "@/app/app/report.actions";
-import { setSealRevocation } from "@/app/admin/actions";
+import { handleReport } from "@/app/(app)/app/report.actions";
+import { setSealRevocation } from "@/app/(app)/admin/actions";
 import { MOTIVOS } from "@/lib/reports";
 
 type Report = {

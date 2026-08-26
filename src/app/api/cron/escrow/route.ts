@@ -9,7 +9,7 @@ import {
   brl,
   type PayMethod,
 } from "@/lib/pricing";
-import { notifySealChanges } from "@/app/app/notify.actions";
+import { notifySealChanges } from "@/app/(app)/app/notify.actions";
 import { siteUrl } from "@/lib/appRole";
 
 /**

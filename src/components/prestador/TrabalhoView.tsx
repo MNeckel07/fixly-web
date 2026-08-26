@@ -11,7 +11,7 @@ import { ConversationThread } from "@/components/chat/ConversationThread";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
-import { cancelJobAsProvider } from "@/app/app/prestador/actions";
+import { cancelJobAsProvider } from "@/app/(app)/app/prestador/actions";
 import { ReportButton } from "@/components/ui/ReportButton";
 
 type Job = {

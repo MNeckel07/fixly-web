@@ -12,9 +12,9 @@ import { AreaMap } from "@/components/map/AreaMap";
 import { ServiceChatBox } from "@/components/chat/ServiceChatBox";
 import { brl, providerNet, ADVANCE_FEE_RATE } from "@/lib/pricing";
 import { MAX_RODADAS_NEGOCIACAO as MAX_RODADAS } from "@/lib/negotiation";
-import { cancelJobAsProvider } from "@/app/app/prestador/actions";
+import { cancelJobAsProvider } from "@/app/(app)/app/prestador/actions";
 import { UnreadBadge } from "@/components/chat/UnreadBadge";
-import { notifyCounter, notifyProposal } from "@/app/app/notify.actions";
+import { notifyCounter, notifyProposal } from "@/app/(app)/app/notify.actions";
 
 /** Job já atribuído a este prestador (orçamento/reforma ou Express aceito). */
 type MyJob = {

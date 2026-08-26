@@ -2,6 +2,44 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v15 — A landing virou a raiz de fixly.company
+
+Quem acessa `fixly.company` agora cai na **landing**, e qualquer botão de ação
+leva ao sistema no mesmo domínio (`/cadastro/contratante`, `/cadastro/prestador`,
+`/login`). Nada de subdomínio, nada de segundo serviço.
+
+**Por que a landing se mudou, e não o app.** O caminho natural seria o oposto —
+landing na raiz, app em `app.fixly.company`. Isso **quebraria dinheiro em
+silêncio**: a migração 0032 tem `https://fixly.company/api/cron/escrow` escrito
+em SQL dentro do `pg_cron`, e o webhook do Mercado Pago aponta para o mesmo
+domínio. A liberação automática do escrow simplesmente pararia, sem erro
+visível. Servir os dois de serviços separados no Render também foi descartado: o
+plano gratuito hiberna, e a página que mais precisa ser rápida viraria a mais
+lenta do site.
+
+**Como os dois designs convivem.** `src/app/(site)` e `src/app/(app)` são
+**root layouts separados**, cada um com suas fontes e seu CSS. Sem isso a base
+da landing (títulos em Bricolage, `--radius-*` do shadcn, `border-border`
+global) reescreveria o visual do app inteiro — `rounded-xl` sairia de 12 px para
+~17 px em todas as telas. Conferido no navegador: folhas de estilo diferentes,
+`rounded-xl` = 12 px no app, Poppins nos títulos do app e Bricolage nos da
+landing.
+
+**O que a separação original deixou de bom:** a costura de `lib/site.ts`
+funcionou como prometido — a junção custou **três linhas** (as URLs viraram
+relativas) e **nenhum componente da página foi tocado**.
+
+**Ajustes que a mudança exigiu:**
+- `scripts/strip-admin.mjs` apontava para `src/app/admin`, que virou
+  `src/app/(app)/admin`. Um caminho errado ali é silencioso e perigoso (o build
+  passa e o painel vai junto para o site público), então o script ganhou **falha
+  fechada**: se não remover todos os alvos, aborta o build.
+- Os imports de server action passaram a carregar o group
+  (`@/app/(app)/app/contratante/pay.actions`) — 31 arquivos.
+- `robots.ts` teve de ficar **fora** do group (dentro dele o Next não gera a
+  rota, sem avisar) e passou a responder `disallow: /` no domínio do painel.
+- A pasta `Fixly/landing` virou arquivo, com `LEIA-ME-PRIMEIRO.md` explicando.
+
 ## v14 — Rodada de testes "Fixly 11" (migração 0036)
 
 Entrega do PDF *Fixly 11* (teste de usuário feito pela equipe). A comparação

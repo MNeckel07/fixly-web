@@ -9,7 +9,7 @@ import { Input, Label } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { CodeInput } from "@/components/auth/CodeInput";
-import { requestResetCode, confirmResetCode, resetPassword } from "@/app/recuperar-senha/actions";
+import { requestResetCode, confirmResetCode, resetPassword } from "@/app/(app)/recuperar-senha/actions";
 
 type Step = "email" | "codigo" | "senha" | "pronto";
 

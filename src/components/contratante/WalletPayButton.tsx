@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Smartphone } from "lucide-react";
-import { confirmWalletPayment } from "@/app/app/contratante/pay.actions";
+import { confirmWalletPayment } from "@/app/(app)/app/contratante/pay.actions";
 
 /**
  * Apple Pay / Google Pay pelo Stripe.

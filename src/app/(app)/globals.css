@@ -1,4 +1,11 @@
-@import "tailwindcss";
+/* Mesmo motivo do `globals-site.css`: sem escopo, esta folha também carregaria
+   as utilitárias da landing. Aqui entram as telas do produto e tudo que elas
+   usam — `components/site` fica de fora de propósito. */
+@import "tailwindcss" source(none);
+
+@source "./";
+@source "../../components";
+@source "../../lib";
 
 @theme {
   /* ── Paleta Fixly ── */

@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
-import { setUserActive, deleteUser, setFixBadge } from "@/app/admin/usuarios/actions";
+import { setUserActive, deleteUser, setFixBadge } from "@/app/(app)/admin/usuarios/actions";
 
 type U = {
   id: string;

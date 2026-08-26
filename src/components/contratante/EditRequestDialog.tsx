@@ -7,7 +7,7 @@ import { Pencil, AlertTriangle, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Label } from "@/components/ui/Field";
 import { LocationPicker } from "@/components/map/LocationPicker";
-import { updateRequest } from "@/app/app/contratante/request.actions";
+import { updateRequest } from "@/app/(app)/app/contratante/request.actions";
 
 /**
  * Editar o pedido depois de enviado — só enquanto ninguém aceitou.

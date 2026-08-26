@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Field";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { CodeInput } from "@/components/auth/CodeInput";
-import { requestPasswordChangeCode, changePassword } from "@/app/app/senha.actions";
+import { requestPasswordChangeCode, changePassword } from "@/app/(app)/app/senha.actions";
 
 /** Trocar senha estando logado — com confirmação por código no e-mail. */
 export function ChangePassword() {

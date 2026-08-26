@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, CheckCheck, Paperclip, Send, FileText, ShieldAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { notifyNewMessage } from "@/app/app/notify.actions";
+import { notifyNewMessage } from "@/app/(app)/app/notify.actions";
 
 export type Message = {
   id: string;

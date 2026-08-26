@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Check, Clock, Loader2 } from "lucide-react";
-import { checkPaymentStatus } from "@/app/app/contratante/pay.actions";
+import { checkPaymentStatus } from "@/app/(app)/app/contratante/pay.actions";
 
 /**
  * Tela do PIX: QR + copia-e-cola, e conferência automática do pagamento.

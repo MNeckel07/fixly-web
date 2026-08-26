@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Building2 } from "lucide-react";
-import { setEmpreiteiroSubscription } from "@/app/admin/empreiteiros/actions";
+import { setEmpreiteiroSubscription } from "@/app/(app)/admin/empreiteiros/actions";
 
 type Emp = {
   id: string;

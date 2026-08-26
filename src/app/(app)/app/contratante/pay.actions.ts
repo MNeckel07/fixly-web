@@ -2,8 +2,8 @@
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchChargeStatus, isGatewaySandbox } from "@/lib/gateway";
-import { currentCustomerId, saveCard } from "@/app/app/contratante/cards.actions";
-import { notifySealChanges } from "@/app/app/notify.actions";
+import { currentCustomerId, saveCard } from "@/app/(app)/app/contratante/cards.actions";
+import { notifySealChanges } from "@/app/(app)/app/notify.actions";
 import { revalidatePath } from "next/cache";
 import { paymentBreakdown, settlementDate, providerNet, type PayMethod, type PaymentBreakdown } from "@/lib/pricing";
 import {

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, ShieldAlert, Info } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { brl } from "@/lib/pricing";
-import { cancelService, previewCancel } from "@/app/app/contratante/pay.actions";
+import { cancelService, previewCancel } from "@/app/(app)/app/contratante/pay.actions";
 import type { ContaCancelamento, MotivoCancelamento } from "@/lib/cancellation";
 
 /**

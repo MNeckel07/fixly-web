@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Star, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { resolveReviewDispute } from "@/app/app/report.actions";
+import { resolveReviewDispute } from "@/app/(app)/app/report.actions";
 
 export type Contestacao = {
   id: string;

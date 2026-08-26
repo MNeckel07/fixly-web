@@ -8,7 +8,7 @@ import {
   sendEmailBestEffort,
 } from "@/lib/email";
 import type { Role } from "@/lib/brand";
-import { notifySealChanges } from "@/app/app/notify.actions";
+import { notifySealChanges } from "@/app/(app)/app/notify.actions";
 
 async function assertAdmin() {
   const supabase = await createClient();

@@ -3,17 +3,48 @@
 ## Estrutura de pastas (src/)
 ```
 app/
-  login/ · cadastro/[role]/ · aguardando/            # auth
-  app/contratante/  → home, solicitar, servico/[id], historico, suporte,
-                       perfil, profiler, empreiteiros
-  app/prestador/    → home(pedidos), trabalho, ganhos, profiler, suporte, perfil
-  admin/            → (visão), cadastros, usuarios, vendas, servicos, suporte,
-                       mensagens(equipe), documentos, empreiteiros, testes
-  p/[handle]/       → PERFIL PÚBLICO do Profiler (SEM login — fora do proxy)
-lib/         → auth, permissions, pricing, categoryRouter, geo, terms,
-               password, brand, types, supabase/{client,server,middleware}, gateway, mercadopago
-components/  → ui, auth, shell, admin, contratante, prestador, chat, map, profiler, support, empreiteiros
+  robots.ts                                          # ⚠️ na RAIZ (ver armadilha)
+  api/                                               # route handlers (sem layout)
+  (site)/           → A LANDING pública, raiz de fixly.company
+    layout.tsx        · root layout PRÓPRIO (Bricolage/Poppins/Azeret)
+    globals-site.css  · CSS PRÓPRIO (zinco frio + shadcn)
+    page.tsx · sitemap.ts
+  (app)/            → O PRODUTO
+    layout.tsx        · root layout do app (Poppins)
+    globals.css       · CSS do app (paleta Fixly)
+    login/ · cadastro/[role]/ · aguardando/          # auth
+    app/contratante/  → home, solicitar, servico/[id], historico, suporte,
+                         perfil, profiler, empreiteiros
+    app/prestador/    → home(pedidos), trabalho, ganhos, profiler, suporte, perfil
+    admin/            → (visão), cadastros, usuarios, vendas, servicos, suporte,
+                         mensagens(equipe), documentos, empreiteiros, testes
+    p/[handle]/       → PERFIL PÚBLICO do Profiler (SEM login — fora do proxy)
+lib/         → auth, permissions, pricing, categoryRouter, geo, terms, site (costura
+               da landing), cancellation, negotiation, reports, password, brand, types,
+               supabase/{client,server,middleware}, gateway, mercadopago
+components/  → ui, site (landing), auth, shell, admin, contratante, prestador, chat,
+               map, profiler, support, empreiteiros
 ```
+
+### Por que DOIS route groups, e não uma pasta só
+`(site)` e `(app)` são **root layouts separados** — cada um com seu `<html>`,
+suas fontes e seu CSS. Não é organização: é a única forma de os dois designs
+coexistirem. A landing traz uma base opinativa (`h1,h2,h3` em Bricolage,
+`* { border-border }`, `--radius-*` do shadcn, `scroll-behavior: smooth`) que,
+num `globals.css` compartilhado, **reescreveria o visual do app inteiro** —
+`rounded-xl` iria de 12 px para ~17 px em todas as telas, e todo título viraria
+Bricolage. Com dois root layouts, `/` carrega uma folha e `/login` carrega
+outra; conferido no navegador (hashes diferentes, `rounded-xl` = 12 px no app).
+
+⚠️ **Route group não aparece na URL.** `/admin` continua `/admin`; o que mudou
+foi o caminho em disco — e é por isso que `scripts/strip-admin.mjs` teve de ser
+atualizado e ganhou falha fechada.
+
+⚠️ Os imports de server action carregam o group: `@/app/(app)/app/contratante/pay.actions`.
+É feio e é de propósito — o alias que esconderia isso faria o código mentir
+sobre onde os arquivos estão.
+
+
 - **Proxy** (`proxy.ts` → `lib/supabase/middleware.ts`): protege `/app` e `/admin`
   (redireciona pra /login sem sessão). **Não** protege `/p/...` (público). O papel
   (role) é reforçado nos layouts via `requireRole()`.
@@ -91,6 +122,17 @@ legitimamente não pode ler → a leitura do `fix_badge` do cliente passou a usa
 `createAdminClient()` (server-only, só esse campo). **Regra geral:** um `join`
 que a RLS pode zerar nunca deve virar condição negativa de filtro. Ou lê com
 chave de servidor, ou a lógica vai para uma função `SECURITY DEFINER`.
+
+### `robots.ts` dentro de route group NÃO gera rota (e não avisa)
+Com `src/app/(site)/robots.ts` o `/robots.txt` **some da tabela de rotas do
+build**: sem erro, sem aviso, e o site sobe sem robots. O que torna a falha fácil
+de não notar é que o `sitemap.ts` **no mesmo diretório funciona normalmente**.
+Solução: `robots.ts` fica em `src/app/`, fora dos groups. Depois de qualquer
+mexida, confira `/robots.txt` na tabela de rotas do `npm run build`.
+
+⚠️ E ele responde nos DOIS domínios: no painel (`fixly.fun`) precisa de
+`disallow: "/"`, senão um `allow` desfaz numa linha todo o cuidado do
+`lib/appRole.ts`.
 
 ### 🔴 Nas provas SQL, leia os ids ANTES de assumir uma sessão
 Nos checks do `dry-run-migration.mjs` a gente troca de usuário com

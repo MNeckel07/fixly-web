@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { writeRemember } from "@/lib/session";
-import { loginWithIdentifier } from "@/app/login/actions";
+import { loginWithIdentifier } from "@/app/(app)/login/actions";
 
 /**
  * Login do PAINEL (fixly.fun).

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Search, Plus, Sparkles, Star, ArrowRight, UserSearch } from "lucide-react";
 import { CategoryIcon } from "@/components/ui/icons";
 import { Button } from "@/components/ui/Button";
-import { searchServices, type SearchResponse } from "@/app/app/contratante/search.actions";
+import { searchServices, type SearchResponse } from "@/app/(app)/app/contratante/search.actions";
 import { providerReputation } from "@/lib/reputation";
 import type { ServiceCategory } from "@/lib/types";
 

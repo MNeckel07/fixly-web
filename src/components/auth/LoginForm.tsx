@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { ROLE_HOME, ROLE_LABELS, type Role } from "@/lib/brand";
 import { writeRemember } from "@/lib/session";
-import { loginWithIdentifier } from "@/app/login/actions";
+import { loginWithIdentifier } from "@/app/(app)/login/actions";
 
 const ROLES: { role: Role; icon: LucideIcon; hint: string }[] = [
   { role: "contratante", icon: Home, hint: "Preciso de um serviço" },

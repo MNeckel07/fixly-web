@@ -11,7 +11,7 @@ import { Input, Label, Textarea, Select } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
 import { CategoryIcon } from "@/components/ui/icons";
 import { LocationPicker } from "@/components/map/LocationPicker";
-import { createAccount, requestSignupCode, resendSignupCode, confirmSignupCode } from "@/app/cadastro/actions";
+import { createAccount, requestSignupCode, resendSignupCode, confirmSignupCode } from "@/app/(app)/cadastro/actions";
 import { PasswordField } from "@/components/auth/PasswordField";
 import { CodeInput } from "@/components/auth/CodeInput";
 import { isPasswordStrong } from "@/lib/password";

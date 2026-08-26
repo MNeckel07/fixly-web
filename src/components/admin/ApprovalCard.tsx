@@ -5,7 +5,7 @@ import { Check, MessageSquare, FileText, Wrench, Home } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { ConversationThread } from "@/components/chat/ConversationThread";
-import { approveProfile, rejectProfile, getDocumentUrl } from "@/app/admin/actions";
+import { approveProfile, rejectProfile, getDocumentUrl } from "@/app/(app)/admin/actions";
 import { ROLE_LABELS, type Role } from "@/lib/brand";
 
 type Doc = { id: string; kind: string; file_path: string };

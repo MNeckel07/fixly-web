@@ -1,0 +1,289 @@
+/* ⚠️ `source(none)` + `@source` explícito: sem isto o Tailwind detecta conteúdo
+   sozinho e varre o PROJETO INTEIRO — inclusive as ~160 telas do app, que nunca
+   aparecem aqui. A folha da landing saltava de 41 KB para 74 KB (≈ +5 KB
+   gzipped) só de utilitária que ninguém usa, justo na página cujo argumento é
+   abrir rápido em 4G (LCP medido: 692 ms).
+   Ao criar componente novo da landing FORA destes caminhos, acrescente-o aqui —
+   senão a classe simplesmente não existe e o estilo some sem erro. */
+@import "tailwindcss" source(none);
+@import "shadcn/tailwind.css";
+
+@source "./";
+@source "../../components/site";
+@source "../../components/ui/accordion.tsx";
+@source "../../lib/site.ts";
+@source "../../lib/faq.ts";
+
+/* ═══════════════════════════════════════════════════════════════
+   FIXLY — AMARELO DE SEGURANÇA SOBRE ZINCO GALVANIZADO
+
+   O âmbar da marca (#ffc107) não é tratado como "cor de startup": é a mesma
+   família do amarelo de fita de risco, bolha de nível e cabo de ferramenta.
+   Por isso os neutros puxam para o FRIO/esverdeado, não para o creme — o
+   contraste quente-sobre-frio é o que ancora a página no mundo da obra em vez
+   do mundo do aplicativo.
+
+   A página assume UM tema (claro), de propósito. `color-scheme: light` no html
+   impede o navegador de forçar escuro por cima.
+   ═══════════════════════════════════════════════════════════════ */
+
+@theme {
+  /* ── marca ── */
+  --color-amarelo: #ffc107;
+  --color-amarelo-fundo: #fff6dd;
+  --color-amarelo-borda: #f0dca4;
+  /* âmbar puro não passa contraste como texto; esta é a versão legível */
+  --color-amarelo-tinta: #7a5600;
+
+  /* ── tinta ── */
+  --color-tinta: #1f2329;
+  --color-tinta-suave: #2a2f37;
+  --color-grafite: #565d66;
+  --color-grafite-claro: #868d95;
+
+  /* ── zinco galvanizado (neutros frios) ── */
+  --color-zinco: #e4e7e4;
+  --color-zinco-claro: #f1f3f1;
+  --color-canvas: #fafafa;
+
+  /* ── semântica, só onde significa estado ── */
+  --color-verde: #16a34a;
+  --color-verde-fundo: #eaf6ee;
+
+  /* ── tipografia ── */
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-azeret), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --shadow-placa: 0 1px 2px rgba(31, 35, 41, 0.04), 0 12px 32px -20px rgba(31, 35, 41, 0.28);
+  --shadow-alta: 0 2px 4px rgba(31, 35, 41, 0.05), 0 24px 56px -28px rgba(31, 35, 41, 0.35);
+}
+
+/* ── Ponte para o shadcn ────────────────────────────────────────
+   O accordion do FAQ usa utilitárias como `border-border` e `ring-ring`, que
+   NÃO existem sozinhas: elas nascem deste `@theme inline`, que liga a variável
+   à utilitária. Sem este bloco o build quebra em
+   "Cannot apply unknown utility class `border-border`". */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+/* ── Tokens do shadcn remapeados para a paleta Fixly ────────────
+   Sem este remapeamento o accordion apareceria em cinza neutro de fábrica no
+   meio de uma página de neutros frios. */
+:root {
+  --background: #fafafa;
+  --foreground: #1f2329;
+  --card: #ffffff;
+  --card-foreground: #1f2329;
+  --popover: #ffffff;
+  --popover-foreground: #1f2329;
+  --primary: #ffc107;
+  --primary-foreground: #1f2329;
+  --secondary: #f1f3f1;
+  --secondary-foreground: #1f2329;
+  --muted: #f1f3f1;
+  --muted-foreground: #565d66;
+  --accent: #fff6dd;
+  --accent-foreground: #7a5600;
+  --destructive: #dc2626;
+  --border: #e4e7e4;
+  --input: #e4e7e4;
+  --ring: #7a5600;
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+    /* o cabeçalho é fixo: âncora não pode parar embaixo dele */
+    scroll-padding-top: 5.5rem;
+  }
+
+  body {
+    background: var(--color-canvas);
+    color: var(--color-tinta);
+    font-family: var(--font-sans);
+  }
+
+  /* Foco de teclado visível em TODA a página, sem exceção. */
+  :focus-visible {
+    outline: 3px solid var(--color-amarelo-tinta);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /* Toque no celular.
+     `manipulation` mata o atraso de ~300 ms que o navegador guarda esperando um
+     possível toque duplo — sem ele, todo botão parece lento no telefone.
+     O realce de toque é declarado de propósito (um âmbar bem apagado) em vez de
+     ficar no cinza-azulado padrão do sistema, que destoa da marca. */
+  a,
+  button,
+  summary,
+  [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgb(255 193 7 / 0.18);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+    letter-spacing: -0.03em;
+    line-height: 1.04;
+  }
+
+  /* Dígitos que se comparam entre linhas precisam de largura fixa. */
+  table,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* ═══════════════ MOVIMENTO ═══════════════
+   Cada animação abaixo tem função declarada. Nenhuma existe para enfeitar. */
+
+/* 1. Revelação por rolagem — serve à HIERARQUIA: a seção entra depois do
+      título, então o olho lê na ordem certa em vez de tudo de uma vez.
+      Estado inicial só é aplicado quando o JS confirma que vai observar
+      (`data-reveal-armed`), senão o conteúdo ficaria invisível sem JS. */
+[data-reveal][data-reveal-armed="1"] {
+  opacity: 0;
+  transform: translateY(14px);
+}
+[data-reveal][data-reveal-armed="1"][data-reveal-visivel] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 2. Disparo do pedido — serve a MOSTRAR O FLUXO: o pedido sai de um lugar só
+      e alcança vários profissionais. É o argumento em movimento.
+      Roda DEPOIS do LCP: o texto do hero nunca espera por isto. */
+@keyframes fixly-pulso-linha {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  45% {
+    opacity: 1;
+  }
+}
+@keyframes fixly-chega {
+  0% {
+    opacity: 0.35;
+    transform: translateY(4px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.linha-disparo {
+  animation: fixly-pulso-linha 2.6s ease-in-out infinite;
+}
+.chip-prestador {
+  animation: fixly-chega 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 3. Liberação do escrow — serve à RESPOSTA AO TOQUE: quando a pessoa aprova,
+      a ficha ANDA. É o mecanismo virado em gesto, o único lugar da página onde
+      o movimento é o próprio argumento. */
+.ficha-escrow {
+  transition:
+    left 0.85s cubic-bezier(0.65, 0, 0.35, 1),
+    background-color 0.4s ease,
+    border-color 0.4s ease;
+}
+.trilho-preenchido {
+  transition: width 0.85s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal][data-reveal-armed="1"],
+  [data-reveal][data-reveal-armed="1"][data-reveal-visivel] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .linha-disparo,
+  .chip-prestador {
+    animation: none;
+    opacity: 1;
+  }
+  /* O estado ainda muda — só não desliza. A informação continua chegando. */
+  .ficha-escrow,
+  .trilho-preenchido {
+    transition: none;
+  }
+}
+
+/* Accordion do FAQ (shadcn/radix) — a altura vem da variável do Radix. */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+.animate-accordion-down {
+  animation: accordion-down 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-accordion-down,
+  .animate-accordion-up {
+    animation: none;
+  }
+}

@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { CreditCard, Lock, Plus, Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
-import type { CardPayload } from "@/app/app/contratante/pay.actions";
-import { listSavedCards, removeSavedCard } from "@/app/app/contratante/cards.actions";
+import type { CardPayload } from "@/app/(app)/app/contratante/pay.actions";
+import { listSavedCards, removeSavedCard } from "@/app/(app)/app/contratante/cards.actions";
 import type { SavedCard } from "@/lib/types";
 import { maskCardNumber, maskCardExpiry, maskCpf, onlyDigits } from "@/lib/format";
 

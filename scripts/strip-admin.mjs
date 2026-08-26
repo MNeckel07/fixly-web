@@ -27,7 +27,13 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const alvos = ["src/app/admin", "src/components/admin"];
+// ⚠️ O painel mudou de lugar quando a landing entrou: as rotas do sistema
+// passaram para o route group `(app)`. Route group não aparece na URL, então
+// `/admin` continua `/admin` — mas o CAMINHO EM DISCO mudou, e este script
+// apaga por caminho. Se ficar desatualizado ele não falha: apenas não remove
+// nada, e as 17 server actions do admin voltam a ser endpoints acionáveis no
+// fixly.company. Por isso a conferência logo abaixo é obrigatória, não enfeite.
+const alvos = ["src/app/(app)/admin", "src/components/admin"];
 
 const papel = (process.env.APP_ROLE ?? "").trim().toLowerCase();
 const noRender = process.env.RENDER === "true";
@@ -55,6 +61,16 @@ for (const alvo of alvos) {
     console.log(`[strip-admin] removido: ${alvo}`);
     removidos++;
   }
+}
+
+// 3) Falha FECHADA. Um caminho errado aqui é silencioso e perigoso: o build
+//    passa, o site sobe, e o painel vai junto sem ninguém notar.
+if (removidos !== alvos.length) {
+  console.error(
+    `[strip-admin] ⛔ esperava remover ${alvos.length} alvos e removi ${removidos}.` +
+      " Algum caminho mudou de lugar — corrija `alvos` antes de publicar.",
+  );
+  process.exit(1);
 }
 
 console.log(
