@@ -143,7 +143,7 @@ export function CancelServiceDialog({
               {!semCobranca && !conta.apuracao && (
                 <div className="mt-3 space-y-1 text-sm">
                   <Linha label="Valor do serviço" valor={brl(conta.valorServico)} />
-                  {conta.frete > 0 && <Linha label="Frete (deslocamento)" valor={brl(conta.frete)} />}
+                  {conta.frete > 0 && <Linha label="Deslocamento" valor={brl(conta.frete)} />}
                   <Linha
                     label={conta.percentual > 0 ? `Fica retido (${Math.round(conta.percentual * 100)}%)` : "Fica retido"}
                     valor={brl(conta.retido)}

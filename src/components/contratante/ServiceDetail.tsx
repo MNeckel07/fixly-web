@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Star, MessageSquare, CheckCircle2, Lock, ShieldCheck, BadgeCheck, ExternalLink, Zap, CreditCard, AlertTriangle, Smartphone } from "lucide-react";
+import { ArrowLeft, Star, MessageSquare, CheckCircle2, Lock, ShieldCheck, BadgeCheck, ExternalLink, Zap, CreditCard, AlertTriangle, Smartphone, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -63,7 +63,7 @@ type Service = {
 type Proposal = {
   id: string;
   price: number;
-  /** Frete cobrado à parte — o total é `price + travel_fee`. */
+  /** Deslocamento cobrado à parte — o total é `price + travel_fee`. */
   travel_fee: number | null;
   eta_minutes: number | null;
   advance_pct: number | null;
@@ -88,7 +88,15 @@ type Proposal = {
 /** Filtros da lista de propostas (pedido do dono: selo e nº de serviços). */
 type FiltroPropostas = "todas" | "selo" | "experientes";
 /** Corte de "experiente" — mesma leitura de "quantidade de serviços prestados". */
-const MIN_SERVICOS_EXPERIENTE = 10;
+/**
+ * Valor INICIAL do filtro "N+ serviços" — não é mais um teto fixo.
+ *
+ * Até o Fixly 12 isto era uma constante e o botão dizia sempre "10+ serviços".
+ * O dono pediu campo livre: *"o usuário escolhe quantos serviços ele deseja que
+ * o prestador tenha executado"*. O 10 continua sendo o que aparece de saída,
+ * porque era o número que ele já conhecia.
+ */
+const MIN_SERVICOS_PADRAO = 10;
 
 function avatarUrl(path: string | null | undefined): string | null {
   return path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${path}` : null;
@@ -160,6 +168,7 @@ export function ServiceDetail({
   const [counterValue, setCounterValue] = useState("");
   const [acceptErr, setAcceptErr] = useState("");
   const [filtro, setFiltro] = useState<FiltroPropostas>("todas");
+  const [minServicos, setMinServicos] = useState<number>(MIN_SERVICOS_PADRAO);
 
   /**
    * Contra-proposta do contratante. Passa pela RPC `counter_proposal`: a policy
@@ -223,12 +232,12 @@ export function ServiceDetail({
   const comSelo = proposals.filter(
     (p) => providerReputation(p.provider?.rating, p.provider?.jobs_done, p.provider?.seal_active).elite,
   ).length;
-  const experientes = proposals.filter((p) => (p.provider?.jobs_done ?? 0) >= MIN_SERVICOS_EXPERIENTE).length;
+  const experientes = proposals.filter((p) => (p.provider?.jobs_done ?? 0) >= minServicos).length;
   const propostasVisiveis = proposals.filter((p) => {
     if (filtro === "selo") {
       return providerReputation(p.provider?.rating, p.provider?.jobs_done, p.provider?.seal_active).elite;
     }
-    if (filtro === "experientes") return (p.provider?.jobs_done ?? 0) >= MIN_SERVICOS_EXPERIENTE;
+    if (filtro === "experientes") return (p.provider?.jobs_done ?? 0) >= minServicos;
     return true;
   });
   const awaitingQuote = service.mode === "orcamento" && !!service.provider_id && !service.final_price && service.status !== "concluido";
@@ -435,7 +444,6 @@ export function ServiceDetail({
               {([
                 { key: "todas", label: `Todas (${proposals.length})` },
                 { key: "selo", label: `Com Selo Fixly (${comSelo})` },
-                { key: "experientes", label: `${MIN_SERVICOS_EXPERIENTE}+ serviços (${experientes})` },
               ] as { key: FiltroPropostas; label: string }[]).map((f) => (
                 <button
                   key={f.key}
@@ -448,10 +456,40 @@ export function ServiceDetail({
                   }`}
                 >
                   {f.key === "selo" && <ShieldCheck className="h-3.5 w-3.5" />}
-                  {f.key === "experientes" && <BadgeCheck className="h-3.5 w-3.5" />}
                   {f.label}
                 </button>
               ))}
+
+              {/*
+                O "N+ serviços" é um CAMPO, não um botão de valor fixo. Digitar
+                no número já liga o filtro: obrigar a digitar e depois clicar
+                faria a lista mudar de tamanho sem nada acontecer na tela, que é
+                exatamente o tipo de silêncio que faz a pessoa achar que quebrou.
+              */}
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  filtro === "experientes"
+                    ? "border-primary bg-primary/10 text-ink"
+                    : "border-black/10 text-gray hover:border-primary/40"
+                }`}
+              >
+                <BadgeCheck className="h-3.5 w-3.5 shrink-0" />
+                <input
+                  type="number"
+                  min={1}
+                  value={minServicos}
+                  aria-label="Mínimo de serviços já executados"
+                  onChange={(e) => {
+                    const n = Math.max(1, Number(e.target.value) || 1);
+                    setMinServicos(n);
+                    setFiltro("experientes");
+                  }}
+                  className="w-11 bg-transparent text-center outline-none font-semibold"
+                />
+                <button type="button" onClick={() => setFiltro("experientes")}>
+                  + serviços ({experientes})
+                </button>
+              </span>
             </div>
           )}
           {acceptErr && <p className="text-sm text-danger bg-danger/5 rounded-lg px-4 py-3 mb-3">{acceptErr}</p>}
@@ -521,7 +559,7 @@ export function ServiceDetail({
                              retido se o serviço for cancelado depois que ele
                              sair para o local (política, item 3.3) */
                           <p className="text-[11px] text-gray-light">
-                            {brl(p.price)} + {brl(frete)} de frete
+                            {brl(p.price)} + {brl(frete)} de deslocamento
                           </p>
                         )}
                         {(p.advance_pct ?? 0) > 0 && (
@@ -673,7 +711,7 @@ export function ServiceDetail({
                 <Row label="Profissional" value={service.provider?.full_name ?? "—"} />
                 <Row label="Valor do serviço" value={brl(bd.serviceAmount)} />
                 {bd.travelFee > 0 && (
-                  <Row label="Frete (deslocamento)" value={`+ ${brl(bd.travelFee)}`} />
+                  <Row label="Deslocamento" value={`+ ${brl(bd.travelFee)}`} />
                 )}
                 {bd.surcharge > 0 && (
                   <Row label="Acréscimo do cartão" value={`+ ${brl(bd.surcharge)}`} muted />
@@ -684,9 +722,9 @@ export function ServiceDetail({
                 <Row label="Taxa da plataforma (15%)" value={`- ${brl(bd.platformFee)}`} muted />
                 {bd.travelFee > 0 && (
                   /* dizer isto em voz alta evita a pergunta "vocês ficam com
-                     parte do meu frete?" — que é justamente o que NÃO acontece */
+                     parte do meu deslocamento?" — que é justamente o que NÃO acontece */
                   <p className="text-[11px] text-gray-light">
-                    A taxa incide só sobre o serviço. O frete vai inteiro para o profissional.
+                    A taxa incide só sobre o serviço. O deslocamento vai inteiro para o profissional.
                   </p>
                 )}
                 {bd.advancePct > 0 && (
@@ -862,6 +900,33 @@ export function ServiceDetail({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/*
+        ADICIONAL DE SERVIÇOS (Fixly 12) — o dono pediu "depois que está feito o
+        serviço, colocar a opção de adicional de serviços", e escolheu a leitura
+        (ii): é o CLIENTE aproveitando que aquele profissional já é conhecido
+        para pedir outra coisa.
+
+        Por isso não é cobrança extra em cima do serviço fechado — seria mexer
+        em escrow, comissão e estorno de um pagamento já liberado. É um atalho
+        que abre um pedido NOVO já direcionado a ele: preço próprio, aceite
+        próprio, pagamento próprio. O serviço concluído continua concluído.
+      */}
+      {(done || inProgress) && service.provider_id && service.provider && (
+        <div className="rounded-2xl border border-black/5 bg-white p-5">
+          <h3 className="font-semibold text-ink">Precisa de mais alguma coisa?</h3>
+          <p className="text-sm text-gray mt-0.5">
+            Peça outro serviço para {service.provider.full_name.split(" ")[0]} sem procurar de
+            novo. Ele recebe o pedido direto, com valor e prazo à parte deste.
+          </p>
+          <Link
+            href={`/app/contratante/solicitar?prestador=${service.provider_id}&modo=express`}
+            className="inline-flex items-center gap-1.5 mt-3 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-ink hover:brightness-95 transition"
+          >
+            <Plus className="h-4 w-4" /> Pedir outro serviço
+          </Link>
         </div>
       )}
 

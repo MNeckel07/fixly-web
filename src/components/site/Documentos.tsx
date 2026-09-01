@@ -61,11 +61,10 @@ export function Documentos() {
 
       <Reveal>
         <p className="mt-8 max-w-2xl text-[16px] leading-relaxed text-grafite">
-          É por isso que o seu cadastro também passa por conferência —{" "}
+          É por isso que o seu cadastro também passa por conferência.{" "}
           <strong className="font-semibold text-tinta">
-            a porta é a mesma para os dois lados
+            A porta é a mesma para os dois lados.
           </strong>
-          , e é o que faz valer a pena estar aqui.
         </p>
       </Reveal>
 

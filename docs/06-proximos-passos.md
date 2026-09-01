@@ -1,5 +1,269 @@
 # 06 — Próximos passos e instruções para a próxima sessão
 
+# 📍 PONTO DE PARADA — 01/09/2026 (rodada *Fixly 12* · IMPLEMENTADA, NÃO PUBLICADA)
+
+Fonte: `Ideia do Projeto/Fixly parte 12.pdf` (5 páginas, 16 recortes de tela),
+mais as **8 respostas do dono** de 01/09.
+
+## ⚠️ ESTADO: pronto na árvore, NADA no ar ainda
+
+`npx tsc --noEmit` limpo, `npm run build` compila, 23 provas sem banco passando
+e as 18 provas novas da máscara rodadas **no banco real com rollback**.
+
+**Três coisas ainda NÃO aconteceram, e as três são decisão do dono:**
+
+1. **Nada foi commitado nem publicado.** O `autoDeploy` do Render publica no
+   push, então o push é o deploy.
+2. **A migração 0037 NÃO foi aplicada** — só ensaiada com rollback. Sem ela, a
+   categoria "Frete e carreto" não existe e a máscara velha continua valendo.
+3. **A conta do Mercado Pago continua pessoal (CPF)**, então o e-mail de
+   cobrança segue com a marca de outra empresa. É o item 1.2 abaixo, e não tem
+   linha de código que resolva.
+
+## O que ficou de fora, e por quê
+
+- **1.2 (conta do MP)** — é cadastro no painel do Mercado Pago, não código.
+- **Qual meio de pagamento travou (PIX ou cartão)** — a pergunta ao dono segue
+  aberta. A reconciliação implementada cobre os dois casos, mas saber qual foi
+  muda o que procurar no log de entregas do painel do MP.
+- **5.2 (testar o mapa do Express)** — depende de o pagamento andar; é teste do
+  dono na tela, não código.
+
+Abaixo, o plano como foi escrito, com o que foi feito em cada item.
+
+⚠️ **Leia primeiro:** o dono escreveu no PDF *"não passei do pagamento mais"*.
+O pagamento está travando o teste dele, então metade do fluxo (Express, mapa,
+avaliação) **não foi testada** — não confunda "não relatado" com "funciona".
+Por isso o bloco 1 vem primeiro.
+
+---
+
+## BLOCO 1 — Pagamento (destrava o teste do dono)
+
+### 1.1 🔴 Pagou em PRODUÇÃO, o dinheiro entrou, e o pedido não andou
+
+Resposta do dono (A): *"Foi em produção, recebi o valor teste na minha conta do
+Mercado Pago, o valor saiu da conta do usuário e foi para a minha, mas não
+continuou o fluxo após o pagamento ter sido localizado e aprovado."*
+
+**Não é falta de configuração — isso já foi descartado por medição.** Um POST
+sem assinatura em `https://fixly.company/api/pagamentos/webhook` respondeu:
+
+```
+{"error":"assinatura: assinatura ausente"}   HTTP 401
+```
+
+`verifyWebhookSignature` (`lib/mercadopago.ts:297`) testa `!secret` **antes** de
+testar a assinatura. Como a resposta foi "assinatura ausente" e não
+"MP_WEBHOOK_SECRET não configurada", a variável **está** no Render. E como não
+veio 503, `isConfigured()` também passa: as credenciais do MP estão lá.
+
+Sobram quatro causas, e três delas **falham em silêncio devolvendo 200**:
+
+| # | Onde | Por que some sem erro |
+|---|---|---|
+| a | Painel do MP | A URL do webhook pode não estar cadastrada. O MP nunca chama. |
+| b | `MP_WEBHOOK_SECRET` ≠ a do painel do MP | Toda chamada real vira 401 "assinatura inválida". O MP tenta de novo e desiste. |
+| c | `webhook/route.ts:69` | `.eq("gateway_id", payment.id)` não acha a linha → `{ok:true, ignored:"pagamento desconhecido"}`. **200, sem log, sem nada.** |
+| d | `webhook/route.ts:85` | `.update({status:"a_caminho"}).eq("id",...).eq("status","aceito")` — se o status não for exatamente `aceito` naquele instante, o update casa **zero linhas** e não devolve erro. |
+
+**E existe um buraco estrutural, independente de qual das quatro for:** a única
+rede de segurança é o polling de `checkPaymentStatus`, e ele só é chamado de
+dentro do `PixPanel.tsx:35`, de 5 em 5 segundos, **enquanto aquela tela está
+montada e visível**. Se o cliente fechou a aba, pagou pelo celular, ou pagou no
+cartão que caiu em análise e só foi aprovado depois, **não existe nenhuma
+reconciliação**: o pedido fica em "aguardando pagamento" para sempre, com o
+dinheiro já na conta.
+
+**O que fazer, nesta ordem:**
+
+1. No painel do MP: conferir se a URL está cadastrada e **ler o log de entregas**
+   (ele mostra o código de resposta de cada tentativa). Isso separa (a) e (b)
+   de (c) e (d) em dois minutos, sem tocar em código.
+2. Conferir na tabela `payments` o `gateway_id` daquele pagamento contra o id
+   que o MP mostra. Resolve (c).
+3. **Reconciliação ao abrir a tela** (server-side): se existe `payment` pendente
+   com `gateway_id`, perguntar ao gateway ao carregar a página do serviço, não
+   só dentro do `PixPanel`. É o que fecha o buraco estrutural.
+4. **Nada de 200 mudo.** Os três caminhos de "ignorado" do webhook têm que
+   gravar em algum lugar (coluna `gateway_status` já serve). Um webhook que
+   descarta em silêncio é um bug que não deixa rastro.
+
+❓ **Falta saber do dono:** foi PIX ou cartão? Muda qual dos quatro é o suspeito
+principal.
+
+### 1.2 🔴 O e-mail de cobrança chega com a marca de OUTRA empresa
+
+O recorte da página 4 mostra *"Olá Luiz! Faça o pagamento a **Caminhos da
+Virtude**"*, com avatar **"Necket Store"**. Não é código: é a conta do MP, que
+segue sendo **pessoal (CPF)** — pendência aberta desde 12/08.
+
+Enquanto isso não virar conta empresarial da Fixly, todo cliente que pagar vê o
+nome de um negócio que não é o Fixly. A reação normal a isso não é rir: é achar
+que caiu num golpe e não pagar. **É o item mais urgente da rodada e não depende
+de mim.**
+
+---
+
+## BLOCO 2 — Bugs com causa já rastreada
+
+### 2.1 ✅ RASTREADO — Pedido pelo Profiler não chega (e é o mesmo bug do "mais de um serviço")
+
+Os dois relatos da página 4 são **um defeito só**, e não é no banco:
+`dispatch_request` (`0026:558`) trata pedido direto como "o alcance é ele e mais
+ninguém", e a RLS (`0026:493`) deixa o profissional ler a linha.
+
+O problema é a tela. `app/(app)/app/prestador/page.tsx:148-161` roda três
+filtros **antes** de olhar se o pedido é direto — Selo (153), categoria (155) e
+raio (157-160) — e só na linha 180 calcula
+`direct: r.target_provider_id === profile.id`. O banco entrega, a tela joga
+fora.
+
+**Correção:** calcular `direct` primeiro e, sendo direto, pular os três. Se o
+cliente escolheu aquele profissional a dedo, Selo, categoria e raio não têm o
+que dizer.
+
+### 2.2 ✅ RASTREADO — Endereço não muda ao editar (falha em silêncio)
+
+`EditRequestDialog.tsx:49` só manda o endereço `if (mexeuNoLocal && loc)` — ou
+seja, **só se o pino for arrastado**. E `request.actions.ts:63` só grava se
+vierem `address` **e** `lat` **e** `lng`. O dono trocou `Ap31` → `Ap32`
+digitando: o campo nunca saiu do navegador, e a tela disse que salvou.
+
+**Decisão do dono (D):** texto mudou e o pino não → **mantém a coordenada**; se
+a mudança for grande (rua/número, não complemento), a tela **pede confirmação
+no mapa** antes de salvar.
+
+### 2.3 ✅ RASTREADO — A máscara de contato é furada
+
+`mask_contact_info` (`0026:454-457`) tem três regras, e a última é `\d{8,}` —
+oito dígitos **seguidos**. O `9 9 5 4 0 0 1 9 5` do teste passou porque não há
+oito dígitos seguidos.
+
+**Correção:** uma regra que aceite separador entre dígitos, algo como
+`(\d[\s.\-_]*){8,}`. Não fecha o número escrito por extenso, mas fecha o
+caminho preguiçoso, que é o que quase todo mundo usa. O dono achou "inevitável"
+— não é.
+
+---
+
+## BLOCO 3 — Produto
+
+| # | O quê | Decisão do dono |
+|---|---|---|
+| 3.1 | Categoria **"Frete/Carreto"** (levar armário, cama para outra casa) | — |
+| 3.2 | Renomear a taxa `Frete (deslocamento)` → só **"Deslocamento"** | resposta do PDF |
+| 3.3 | Aceitos saem de **Pedidos** e ficam só em **Trabalho** | ver regra abaixo (G) |
+| 3.4 | **Mais fotos** ao editar o pedido | — |
+| 3.5 | Filtro de propostas por nº de serviços — **campo livre** | (H) |
+| 3.6 | **Verde** no selo "Propostas recebidas" (hoje azul, igual a "Buscando") | — |
+| 3.7 | **E-mail** "você recebeu uma proposta pelo seu Profiler" | — |
+| 3.8 | **Adicional de serviços** depois do serviço feito — **opção (ii)** | (F) |
+
+**3.1 + 3.2 andam juntos, no mesmo commit.** Hoje "frete" é o nome da taxa de
+deslocamento. Se "Frete" virar categoria de serviço, a palavra fica ocupada — e
+é por isso que a taxa passa a se chamar só "Deslocamento". Separar os dois
+deixaria "frete" significando duas coisas na mesma tela.
+
+**3.3 — a regra que o dono deu (G), literal:** *"quando o pedido for aprovado,
+pago e etc., apenas faltar a ida do prestador pra ir ao local e executar os
+serviços/orçamentos, deixe apenas em trabalho; quando o mesmo estiver pendente,
+em negociação, proposta e etc., deixe em pedidos."*
+
+Traduzindo para status: `a_caminho`, `em_andamento` → **só Trabalho**.
+`buscando`, `proposta_enviada`, `aceito` (aceito mas ainda **não pago**) →
+**Pedidos**. Repare que o corte **não é o aceite, é o pagamento** — o que
+resolve sozinho a dúvida do contador "3 em aberto".
+
+**3.5 — campo livre**, não lista fixa: *"o usuário escolhe quantos serviços ele
+deseja que o prestador tenha executado."* O chip "10+ serviços" de hoje vira um
+campo numérico. Manter o filtro do Selo ao lado.
+
+**3.8 — opção (ii)**: é o **cliente** que pede outro serviço aproveitando que o
+profissional está ali. Isso é um atalho para abrir pedido novo já com
+`target_provider_id` preenchido — **não** mexe em escrow, comissão nem estorno.
+(A opção (i), profissional cobrando trabalho extra, foi descartada.)
+
+---
+
+## BLOCO 4 — Landing
+
+### 4.1 ✅ RASTREADO — "O amarelo do X está diferente": são DOIS amarelos
+
+O mesmo logotipo é desenhado por dois componentes diferentes, porque o site e o
+produto têm root layouts e CSS separados (v15):
+
+| onde | arquivo | como pinta o X |
+|---|---|---|
+| produto | `components/ui/Logo.tsx:35` | `color: "#FFC107"` — o amarelo de verdade |
+| landing | `components/site/Marca.tsx:52` | `text-amarelo-tinta` |
+
+E `--color-amarelo-tinta` vale **`#7a5600`** (`globals-site.css:36`) — um marrom
+escuro. Não é um amarelo diferente: **na landing o X não é amarelo.** Duas
+linhas acima, no mesmo arquivo, existe `--color-amarelo: #ffc107`, que é o
+certo.
+
+⚠️ **Por que alguém pegou o token errado, e por que não basta trocar de volta:**
+`amarelo-tinta` é a versão escura feita para **texto**, porque `#FFC107` em
+letra pequena sobre fundo branco não passa em contraste. Trocar direto conserta
+a cor e piora a acessibilidade.
+
+**A saída está no logotipo oficial** (`Visual/logo1.png`): ali o "Fixly" é
+**inteiro escuro** e o amarelo é o **pingo do "i"**, não o X. Adotando a marca
+de verdade, o problema de contraste some junto — pingo de "i" é elemento
+gráfico, não texto.
+
+⚠️ **`logo1.png` não dá para usar como arquivo.** É um mockup 3D de fachada:
+1536×1024, fundo cinza borrado, brilho, sem transparência. Serve para dizer
+**onde o amarelo vai**, não para publicar. Falta um SVG ou PNG com fundo
+transparente — ou eu reproduzo a assinatura em código.
+
+### 4.2 Texto mais direto e mais curto
+
+Decisão do dono (C), literal: *"Troque apenas algumas palavras para uma escolha
+mais direta e encurte um pouco o texto para facilitar a leitura do usuário.
+Cuidado com pontuação e vírgula e retire todos estes travessões."*
+
+**Regra desta rodada: nenhum travessão (—) no texto da landing.** Frase que
+hoje depende de travessão é reescrita em duas frases ou com vírgula.
+Não é reescrever do zero: é trocar palavra por palavra mais direta e cortar.
+Alvo principal, o "Como funciona" (hoje: *"Foto de torneira pingando vale mais
+que três parágrafos"*, *"Achou caro?"*).
+
+### 4.3 A tabela de preço: "Comissão da Fixly (15%)" → **"Taxa da plataforma"**
+
+Decisão do dono (E): a linha **fica**, muda só o nome. A tabela inteira existe
+para ser transparente; esconder justamente a linha da comissão é o que faria o
+cliente desconfiar.
+
+### 4.4 A landing só fala com o contratante
+
+Três recados do PDF que são a mesma lacuna: CTA **"Quero trabalhar na Fixly"**
+no cabeçalho, uma **seção para o profissional** (Profiler, cartão automático,
+divulgar a empresa) e **falar do Selo**. Vale fazer como uma coisa só: seção
+nova, e o CTA do cabeçalho aponta para ela.
+
+---
+
+## BLOCO 5 — Acabamento e teste
+
+- **5.1** Barras do splash "Carregando seus serviços…" dessincronizadas
+  (`(app)/globals.css:137`).
+- **5.2** Testar o mapa do Express depois que o pagamento funcionar. Depende do
+  bloco 1 — é teste do dono, não código.
+
+---
+
+## Ordem sugerida
+
+1. **1.2** (conta do MP) — é do dono e destrava a confiança do cliente.
+2. **1.1** (webhook + reconciliação) — destrava o teste do dono.
+3. **Bloco 2** (2.1, 2.2, 2.3) — causa já achada, mudança pequena.
+4. **Bloco 3** (produto).
+5. **Bloco 4** (landing) — 4.1 depende de um arquivo de logo limpo.
+6. **Bloco 5**.
+
+
 # 📍 PONTO DE PARADA — 26/08/2026 (rodada *Fixly 11* + landing · NO AR)
 
 `main` = **`3accd79`**, árvore limpa, tudo publicado e **conferido em

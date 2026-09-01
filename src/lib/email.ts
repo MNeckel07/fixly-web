@@ -21,7 +21,7 @@ export function approvalEmailHtml(name: string, role: Role, loginEmail?: string)
 <body style="margin:0;background:#FAFAFA;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1F2329">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
     <div style="text-align:center;padding:8px 0 24px">
-      <span style="font-size:28px;font-weight:700;color:#1F2329">Fi<span style="color:#FFC107">x</span>ly</span>
+      <span style="font-size:28px;font-weight:700;color:#1F2329">Fixly</span>
     </div>
     <div style="background:#FFFFFF;border-radius:20px;overflow:hidden;box-shadow:0 4px 24px -8px rgba(31,35,41,.12)">
       <div style="background:linear-gradient(135deg,#FFC107,#E6A800);padding:40px 32px;text-align:center">
@@ -81,7 +81,7 @@ export function serviceNotificationEmailHtml(opts: {
 <body style="margin:0;background:#FAFAFA;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1F2329">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
     <div style="text-align:center;padding:8px 0 24px">
-      <span style="font-size:28px;font-weight:700;color:#1F2329">Fi<span style="color:#FFC107">x</span>ly</span>
+      <span style="font-size:28px;font-weight:700;color:#1F2329">Fixly</span>
     </div>
     <div style="background:#FFFFFF;border-radius:20px;padding:32px;box-shadow:0 4px 24px -8px rgba(31,35,41,.12)">
       <h1 style="font-size:22px;margin:0 0 12px">${opts.title}</h1>
@@ -133,7 +133,7 @@ export function sealEmailHtml(opts: {
 <body style="margin:0;background:#FAFAFA;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1F2329">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
     <div style="text-align:center;padding:8px 0 24px">
-      <span style="font-size:28px;font-weight:700;color:#1F2329">Fi<span style="color:#FFC107">x</span>ly</span>
+      <span style="font-size:28px;font-weight:700;color:#1F2329">Fixly</span>
     </div>
     <div style="background:#FFFFFF;border-radius:20px;padding:32px;box-shadow:0 4px 24px -8px rgba(31,35,41,.12)">
       <h1 style="font-size:22px;margin:0 0 12px;color:${cor}">${titulo}</h1>
@@ -159,7 +159,7 @@ export function rejectionEmailHtml(name: string, role: Role, reason?: string) {
 <body style="margin:0;background:#FAFAFA;font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#1F2329">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
     <div style="text-align:center;padding:8px 0 24px">
-      <span style="font-size:28px;font-weight:700">Fi<span style="color:#FFC107">x</span>ly</span>
+      <span style="font-size:28px;font-weight:700">Fixly</span>
     </div>
     <div style="background:#FFFFFF;border-radius:20px;padding:32px;box-shadow:0 4px 24px -8px rgba(31,35,41,.12)">
       <h1 style="font-size:22px;margin:0 0 12px">Sobre o seu cadastro</h1>
@@ -199,7 +199,7 @@ export function verificationCodeEmailHtml(
 <body style="margin:0;background:#FAFAFA;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1F2329">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
     <div style="text-align:center;padding:8px 0 24px">
-      <span style="font-size:28px;font-weight:700;color:#1F2329">Fi<span style="color:#FFC107">x</span>ly</span>
+      <span style="font-size:28px;font-weight:700;color:#1F2329">Fixly</span>
     </div>
     <div style="background:#FFFFFF;border-radius:20px;padding:32px;box-shadow:0 4px 24px -8px rgba(31,35,41,.12)">
       <h1 style="font-size:22px;margin:0 0 12px">${title}</h1>

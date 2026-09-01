@@ -101,13 +101,28 @@ export default async function PrestadorHome() {
     .is("provider_done_at", null);
   const busy = (activeCount ?? 0) > 0;
 
-  // Orçamentos / reformas já atribuídos a ele (o contratante escolheu o profissional
-  // direto). Aparecem aqui também, além da aba Trabalho.
+  /**
+   * O QUE AINDA É "PEDIDO" PARA O PROFISSIONAL (regra do dono, Fixly 12).
+   *
+   * *"Quando o pedido for aprovado, pago e etc., apenas faltar a ida do
+   * prestador pra ir ao local e executar, deixe apenas em Trabalho; quando o
+   * mesmo estiver pendente, em negociação, proposta e etc., deixe em Pedidos."*
+   *
+   * Repare que o corte NÃO é o aceite, é o PAGAMENTO. `aceito` quer dizer "o
+   * cliente escolheu você e ainda não pagou" — ninguém vai a lugar nenhum
+   * ainda, então isso é pendência e fica aqui. Assim que o dinheiro entra o
+   * status vira `a_caminho`, e daí em diante o serviço é da aba Trabalho e
+   * some daqui.
+   *
+   * Efeito colateral bem-vindo: o contador "X em aberto" volta a significar
+   * uma coisa só — quantos serviços esperam algo DELE —, em vez de somar
+   * trabalho em andamento com pendência.
+   */
   const { data: mine } = await supabase
     .from("service_requests")
     .select("id, description, status, address, mode, final_price, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city), location:service_request_locations(address)")
     .eq("provider_id", profile.id)
-    .in("status", ["aceito", "a_caminho", "em_andamento"])
+    .eq("status", "aceito")
     .order("created_at", { ascending: false });
   const myJobs = (mine ?? []).map((j: any) => ({
     id: j.id,
@@ -146,6 +161,24 @@ export default async function PrestadorHome() {
   const radius = profile.service_radius_km ?? 10;
   const requests = (open ?? [])
     .filter((r: any) => {
+      /**
+       * PEDIDO DIRETO PASSA NA FRENTE DE TODOS OS FILTROS (Fixly 12).
+       *
+       * Os três filtros abaixo servem para MONTAR uma vitrine: de tudo que
+       * está aberto por aí, mostrar o que faz sentido para este profissional.
+       * Pedido direto não é vitrine — é o cliente apontando o dedo para ELE,
+       * pelo Profiler ou pelo perfil público. Nesse caso Selo, categoria e
+       * raio não têm o que opinar: o banco já decidiu o destinatário em
+       * `dispatch_request` (0026), e a RLS já autorizou a leitura da linha.
+       *
+       * Sem esta linha, o pedido direto era descartado AQUI, depois de o banco
+       * o ter entregue corretamente — e o profissional (o Robson do teste, que
+       * tem Selo e 27 serviços) via "0 pedidos" para sempre. Era o mesmo
+       * defeito por trás de dois relatos diferentes do Fixly 12: "solicitei
+       * pelo Profiler e não chega" e "quem tem mais de um serviço está bugado".
+       */
+      if (r.target_provider_id === profile.id) return true;
+
       // SELO FIX (mesma regra do `dispatch_request`, 0023): prestador COM selo
       // não enxerga pedido de cliente real — evitaria o cliente receber proposta
       // de conta de vitrine. O contrário é permitido: conta com selo alcança

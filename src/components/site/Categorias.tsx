@@ -55,7 +55,7 @@ export function Categorias() {
           </span>
           <p className="text-[15.5px] leading-relaxed text-tinta">
             <strong className="font-semibold">Precisa hoje?</strong> Marque como
-            urgente. A Fixly não cobra nada a mais por isso — quem decide se a
+            urgente. A Fixly não cobra nada a mais por isso. Quem decide se a
             pressa muda o preço é o profissional, no orçamento dele.
           </p>
         </div>

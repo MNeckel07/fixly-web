@@ -17,11 +17,11 @@ export const PERGUNTAS = [
   },
   {
     p: "Por que meu cadastro precisa ser aprovado? Eu só quero contratar.",
-    r: "Porque o profissional que vai até a sua casa também quer saber quem está do outro lado. A conferência vale para os dois — é ela que faz bons profissionais aceitarem trabalhar aqui em vez de comprar contato de desconhecido. Nossa equipe confere e avisa por e-mail quando estiver liberado, normalmente em até 24 horas.",
+    r: "Porque o profissional que vai até a sua casa também quer saber quem está do outro lado. A conferência vale para os dois. É ela que faz bons profissionais aceitarem trabalhar aqui em vez de comprar contato de desconhecido. Nossa equipe confere e avisa por e-mail quando estiver liberado, normalmente em até 24 horas.",
   },
   {
     p: "E se o serviço ficar mal feito?",
-    r: "O dinheiro fica retido na Fixly até você aprovar. Se o serviço não ficou bom, não aprove: converse pelo chat do serviço e, se não resolver, abra uma denúncia — nossa equipe olha caso a caso antes de qualquer valor ser liberado.",
+    r: "O dinheiro fica retido na Fixly até você aprovar. Se o serviço não ficou bom, não aprove: converse pelo chat do serviço e, se não resolver, abra uma denúncia. Nossa equipe olha caso a caso antes de qualquer valor ser liberado.",
   },
   {
     p: "Como vocês conferem os profissionais?",
@@ -29,11 +29,11 @@ export const PERGUNTAS = [
   },
   {
     p: "O profissional vai saber onde eu moro?",
-    r: "Só depois que você aceitar a proposta dele. Antes disso ele vê o bairro e um círculo de aproximadamente 1 km — o suficiente para calcular deslocamento, longe o bastante para não ser o seu endereço. Telefone e e-mail digitados no chat são apagados automaticamente.",
+    r: "Só depois que você aceitar a proposta dele. Antes disso ele vê o bairro e um círculo de aproximadamente 1 km, o suficiente para calcular deslocamento e longe o bastante para não ser o seu endereço. Telefone e e-mail digitados no chat são apagados automaticamente.",
   },
   {
     p: "Preciso pagar antes do serviço?",
-    r: "O pagamento é feito antes, mas o valor não vai para o profissional: fica retido. É o que dá segurança aos dois lados — você sabe que ele só recebe se entregar, e ele sabe que o dinheiro existe antes de pegar a ferramenta.",
+    r: "O pagamento é feito antes, mas o valor não vai para o profissional: fica retido. É o que dá segurança aos dois lados: você sabe que ele só recebe se entregar, e ele sabe que o dinheiro existe antes de pegar a ferramenta.",
   },
   {
     p: "E se ninguém responder meu pedido?",

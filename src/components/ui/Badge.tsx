@@ -3,7 +3,12 @@ const tones: Record<string, string> = {
   aprovado: "bg-success/10 text-success",
   reprovado: "bg-danger/10 text-danger",
   buscando: "bg-info/10 text-info",
-  proposta_enviada: "bg-info/10 text-info",
+  /**
+   * VERDE, e não azul como "Buscando" (Fixly 12). Os dois estados são vizinhos
+   * na mesma lista e viviam com a mesma cor, então o olho não achava onde havia
+   * decisão a tomar. "Buscando" é espera; proposta recebida é a vez do cliente.
+   */
+  proposta_enviada: "bg-success/10 text-success",
   aceito: "bg-primary/15 text-primary-dark",
   a_caminho: "bg-primary/15 text-primary-dark",
   em_andamento: "bg-primary/15 text-primary-dark",

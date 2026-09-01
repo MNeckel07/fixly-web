@@ -31,7 +31,9 @@ export function BrandLoading({ texto = "Carregando" }: { texto?: string }) {
           >
             <span
               className="block h-full w-full origin-left rounded-full bg-primary animate-swipe"
-              style={{ animationDelay: `${i * 0.18}s` }}
+              /* 0,5 s = um terço exato do ciclo de 1,5 s do `fixly-swipe`.
+                 Os dois números são um par: ver o comentário no globals.css. */
+              style={{ animationDelay: `${i * 0.5}s` }}
             />
           </span>
         ))}

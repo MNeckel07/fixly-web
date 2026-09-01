@@ -53,8 +53,8 @@ export function Hero() {
             Eletricista, encanador, pintor e mais. Todo profissional aqui teve{" "}
             <strong className="font-semibold text-tinta">
               sete documentos conferidos por uma pessoa
-            </strong>{" "}
-            — e o seu dinheiro fica retido até você aprovar o serviço.
+            </strong>
+            . O seu dinheiro fica retido até você aprovar o serviço.
           </p>
 
           <div className="mt-8">

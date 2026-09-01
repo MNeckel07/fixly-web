@@ -25,6 +25,7 @@ import {
   Cctv,
   Network,
   Cpu,
+  Truck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,6 +62,7 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   redes_logica: Network,
   automacao: Cpu,
   pequenos_reparos: Hammer,
+  frete: Truck,
 };
 
 export function CategoryIcon({

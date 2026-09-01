@@ -240,6 +240,25 @@ const LEXICON: Lexicon = {
     "pequeno reparo": 10, "reparo rapido": 9, "manutencao pequena": 8,
     reparo: 6, reparos: 6, consertos: 6, ajuste: 5, retoque: 6,
   },
+  /**
+   * Frete e carreto (0037). O dono descreveu o caso em duas frases —
+   * "preciso levar este armário para outra casa", "preciso levar esta cama
+   * para outro lugar" —, então o que decide aqui é o VERBO DE TRANSPORTE
+   * junto do móvel, não o móvel sozinho: "montar o armário" é montador e
+   * "levar o armário" é frete.
+   *
+   * Por isso `armario`, `cama` e `sofa` NÃO entram nesta lista: eles já
+   * pertencem ao montador, e repetir o termo aqui com peso alto roubaria
+   * dele toda montagem de móvel. Quem carrega o pedido para cá são
+   * "mudanca", "carreto", "transportar", "levar".
+   */
+  frete: {
+    "mudanca de casa": 10, "frete de mudanca": 10, "levar movel": 9,
+    "transportar movel": 9, "buscar movel": 8, "tirar entulho": 8,
+    frete: 10, carreto: 10, mudanca: 9, transporte: 8, transportar: 8,
+    caminhao: 7, caminhonete: 7, entrega: 6, carregar: 6, levar: 5,
+    entulho: 7, descarte: 6, bagulho: 5, motorista: 5, "van": 5,
+  },
 };
 
 /**

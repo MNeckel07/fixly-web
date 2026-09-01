@@ -10,6 +10,7 @@ import { Hero } from "@/components/site/Hero";
 import { Perfis } from "@/components/site/Perfis";
 import { Privacidade } from "@/components/site/Privacidade";
 import { QuantoCusta } from "@/components/site/QuantoCusta";
+import { ParaProfissionais } from "@/components/site/ParaProfissionais";
 import { PERGUNTAS } from "@/lib/faq";
 import { CATEGORIAS, SITE_ORIGIN, links } from "@/lib/site";
 
@@ -105,6 +106,7 @@ export default function Home() {
         <Documentos />
         <Privacidade />
         <QuantoCusta />
+        <ParaProfissionais />
         <Perfis />
         <Faq />
         <Fecho />

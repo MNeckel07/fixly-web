@@ -9,6 +9,12 @@ import { Secao } from "./Secao";
  * não precisa embutir esse custo no orçamento. Por isso a conta aparece inteira,
  * inclusive a nossa parte.
  *
+ * ⚠️ A linha da nossa parte CONTINUA NA TABELA (decisão do dono, Fixly 12). Ele
+ * cogitou tirar; a tabela inteira existe para ser transparente, e esconder
+ * justamente a linha da plataforma é o que faria o cliente desconfiar. O que
+ * mudou foi só o nome: "Comissão da Fixly" virou "Taxa da plataforma", que é
+ * como o produto já chamava em `ServiceDetail`.
+ *
  * ⚠️ NÚMEROS CONFERIDOS, não estimados. Batem com `lib/pricing.ts` do produto:
  *    PLATFORM_FEE_RATE = 0.15            → R$ 200 × 15% = R$ 30
  *    GATEWAY_FEE_RATES.cartao = 0.0498   → chargedTotal = 200 / (1 - 0,0498)
@@ -22,8 +28,8 @@ import { Secao } from "./Secao";
 const LINHAS = [
   { rotulo: "Você paga", pix: "R$ 200,00", cartao: "R$ 210,48", destaque: true },
   { rotulo: "O profissional recebe", pix: "R$ 170,00", cartao: "R$ 170,00", destaque: false },
-  { rotulo: "Comissão da Fixly (15%)", pix: "R$ 30,00", cartao: "R$ 30,00", destaque: false },
-  { rotulo: "Tarifa do cartão", pix: "—", cartao: "R$ 10,48", destaque: false },
+  { rotulo: "Taxa da plataforma (15%)", pix: "R$ 30,00", cartao: "R$ 30,00", destaque: false },
+  { rotulo: "Tarifa do cartão", pix: "não tem", cartao: "R$ 10,48", destaque: false },
 ];
 
 export function QuantoCusta() {
@@ -33,7 +39,7 @@ export function QuantoCusta() {
       tom="branco"
       eyebrow="Quanto custa"
       titulo="Você não paga nada para usar a Fixly."
-      lead="A Fixly ganha uma comissão de 15% sobre o serviço, e só quando o serviço acontece. O profissional não paga para ver o seu pedido, não paga mensalidade e não compra “lead” — por isso ele não precisa embutir esse custo no orçamento que te manda."
+      lead="A Fixly cobra uma taxa de 15% sobre o serviço, e só quando o serviço acontece. O profissional não paga para ver o seu pedido, não paga mensalidade e não compra “lead”. Por isso ele não precisa embutir esse custo no orçamento que te manda."
     >
       <Reveal>
         <figure className="mt-12 m-0">
@@ -100,11 +106,11 @@ export function QuantoCusta() {
 
       <Reveal>
         <p className="mt-6 max-w-2xl text-[15.5px] leading-relaxed text-grafite">
-          No Pix, a tarifa sai da nossa comissão —{" "}
+          No Pix, a tarifa sai da nossa taxa.{" "}
           <strong className="font-semibold text-tinta">
-            o preço combinado é o preço
-          </strong>
-          . No cartão ela aparece porque a escolha do cartão foi sua. Nos dois
+            O preço combinado é o preço.
+          </strong>{" "}
+          No cartão ela aparece porque a escolha do cartão foi sua. Nos dois
           casos o profissional recebe os mesmos R$ 170.
         </p>
       </Reveal>

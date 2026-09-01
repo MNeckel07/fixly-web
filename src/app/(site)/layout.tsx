@@ -51,7 +51,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),
-  title: "Fixly — profissional conferido para o serviço da sua casa",
+  title: "Fixly: profissional conferido para o serviço da sua casa",
   description:
     "Eletricista, encanador, pintor e mais. Sete documentos conferidos por uma pessoa antes de entrar, e o pagamento fica retido até você aprovar o serviço. Cadastro gratuito.",
   alternates: { canonical: "/" },
@@ -60,13 +60,13 @@ export const metadata: Metadata = {
     locale: "pt_BR",
     url: SITE_ORIGIN,
     siteName: "Fixly",
-    title: "Fixly — profissional conferido para o serviço da sua casa",
+    title: "Fixly: profissional conferido para o serviço da sua casa",
     description:
       "Sete documentos conferidos por uma pessoa antes de o profissional entrar. O pagamento fica retido até você aprovar o serviço.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Fixly — profissional conferido para o serviço da sua casa",
+    title: "Fixly: profissional conferido para o serviço da sua casa",
     description:
       "Sete documentos conferidos por uma pessoa antes de o profissional entrar. O pagamento fica retido até você aprovar o serviço.",
   },

@@ -64,7 +64,7 @@ export function Privacidade() {
             <p className="mt-2.5 text-[15px] leading-relaxed text-grafite">
               Telefone e e-mail digitados no chat são apagados automaticamente
               antes de a mensagem chegar do outro lado. Não é regra de boa
-              conduta — é o banco de dados que apaga, e não tem como contornar
+              conduta. É o banco de dados que apaga, e não tem como contornar
               pelo aplicativo.
             </p>
 

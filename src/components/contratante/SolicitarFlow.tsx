@@ -12,6 +12,7 @@ import { PhotoPicker } from "@/components/contratante/PhotoPicker";
 import { MapPin } from "lucide-react";
 import { descriptionExample } from "@/lib/categoryRouter";
 import { uploadRequestPhotos } from "@/lib/uploads";
+import { notifyDirectRequest } from "@/app/(app)/app/notify.actions";
 import type { ServiceCategory } from "@/lib/types";
 
 type ClientInfo = {
@@ -156,6 +157,16 @@ export function SolicitarFlow({
      * horas depois que não havia ninguém na categoria/raio dele.
      */
     const { data: alcance } = await supabase.rpc("dispatch_request", { p_request_id: req.id });
+
+    /**
+     * Pedido escolhido a dedo avisa o profissional por e-mail (Fixly 12).
+     * Fica DEPOIS do dispatch porque é ele quem grava o alcance; e é
+     * best-effort de propósito — e-mail que não sai não pode impedir o cliente
+     * de chegar na tela do pedido que ele acabou de criar.
+     */
+    if (provider) {
+      try { await notifyDirectRequest(req.id); } catch { /* avisar é melhor-esforço */ }
+    }
 
     router.push(`/app/contratante/servico/${req.id}${Number(alcance) === 0 ? "?alcance=0" : ""}`);
     router.refresh();

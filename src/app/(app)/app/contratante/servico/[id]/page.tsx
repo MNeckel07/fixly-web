@@ -5,6 +5,7 @@ import { signRequestPhotos } from "@/lib/uploads";
 import { walletPaymentsEnabled } from "@/lib/gateway";
 import { ServiceDetail } from "@/components/contratante/ServiceDetail";
 import { AutoRefresh } from "@/components/ui/AutoRefresh";
+import { checkPaymentStatus } from "@/app/(app)/app/contratante/pay.actions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,38 @@ export default async function ServicoPage({
   const supabase = await createClient();
   const { userId } = await getProfile();
   if (!userId) redirect("/login");
+
+  /**
+   * RECONCILIAÇÃO DO PAGAMENTO AO ABRIR A TELA (Fixly 12).
+   *
+   * O relato do dono: pagou em PRODUÇÃO, o dinheiro saiu da conta dele e caiu
+   * na conta do Fixly, e o pedido continuou dizendo "aguardando o pagamento".
+   *
+   * A confirmação oficial é o webhook do Mercado Pago. Só que até aqui a única
+   * rede de segurança para um webhook perdido morava dentro do `PixPanel`, num
+   * `setInterval` que **só roda enquanto aquela tela está montada e visível**.
+   * Quem fechou a aba, pagou pelo celular, ou pagou no cartão que ficou em
+   * análise e só foi aprovado depois, não tinha NINGUÉM perguntando ao gateway:
+   * o pedido ficava parado para sempre com o dinheiro já recebido.
+   *
+   * Agora quem abre a tela pergunta. `status = "aceito"` é exatamente o estado
+   * travado (proposta aceita, pagamento não reconhecido); em qualquer outro a
+   * consulta seria chamada de API à toa. A função já confere dono e valor, e
+   * sai barata quando o pagamento não existe.
+   *
+   * ⚠️ Roda ANTES da leitura do pedido de propósito — se ela promover o status,
+   * o `select` abaixo já lê o valor novo e a tela abre certa na primeira vez,
+   * em vez de exigir um F5.
+   */
+  const { data: travado } = await supabase
+    .from("service_requests")
+    .select("status")
+    .eq("id", id)
+    .eq("client_id", userId)
+    .maybeSingle();
+  if (travado?.status === "aceito") {
+    try { await checkPaymentStatus(id); } catch { /* gateway fora do ar não pode derrubar a tela */ }
+  }
 
   const { data: svc } = await supabase
     .from("service_requests")

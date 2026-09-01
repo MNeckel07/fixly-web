@@ -96,14 +96,28 @@ export function QrCard({ url, name, handle, category, headline, avatarUrl, elite
       ctx.drawImage(symbol, padX, top - symH * 0.78, symW, symH);
       textX = padX + symW + 12;
     }
+    /**
+     * O nome sai INTEIRO branco e o amarelo é o PINGO DO "i" — a mesma regra do
+     * componente `Wordmark`. Aqui não dá para reaproveitar aquele componente
+     * (isto é canvas, não DOM), então a proporção está repetida à mão: se o
+     * logotipo mudar, os dois lugares mudam juntos.
+     *
+     * Antes o X é que saía amarelo, e não é assim no logotipo (`Visual/logo1.png`).
+     */
     ctx.font = `800 ${logoFont}px Poppins, system-ui, sans-serif`;
     ctx.fillStyle = "#FFFFFF";
-    ctx.fillText("Fi", textX, top);
-    const fi = ctx.measureText("Fi").width;
+    ctx.fillText("Fixly", textX, top);
+
+    // o pingo cobre o do "i": mede o "F" para achar onde a letra começa
+    const larguraF = ctx.measureText("F").width;
+    const larguraI = ctx.measureText("i").width;
+    const centroDoI = textX + larguraF + larguraI / 2;
+    ctx.beginPath();
     ctx.fillStyle = AMBER;
-    ctx.fillText("x", textX + fi, top);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fillText("ly", textX + fi + ctx.measureText("x").width, top);
+    // centro do pingo: 0,7833 em acima da baseline menos metade da altura
+    // (0,1633 em). Medidas do glifo real da Poppins 700 — ver `Wordmark.tsx`.
+    ctx.arc(centroDoI, top - logoFont * 0.7017, logoFont * 0.0875, 0, Math.PI * 2);
+    ctx.fill();
 
     // badge da categoria (topo-direita), pílula amber
     if (category) {

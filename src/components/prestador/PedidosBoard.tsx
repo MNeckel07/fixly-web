@@ -54,7 +54,14 @@ type Req = {
     price: number;
     eta: number | null;
     advance_pct: number;
-    /** Frete / taxa de deslocamento, cobrado à parte do serviço. */
+    /**
+     * Taxa de DESLOCAMENTO, cobrada à parte do serviço.
+     *
+     * ⚠️ O nome na tela era "Frete (deslocamento)" até a 0037. Virou só
+     * "Deslocamento" porque "Frete e carreto" passou a ser uma CATEGORIA de
+     * serviço (levar um móvel para outra casa): a mesma palavra significaria
+     * duas coisas na mesma tela. A coluna do banco segue `travel_fee`.
+     */
     travel_fee: number;
     counter_price: number | null;
     counter_status: string | null;
@@ -146,12 +153,15 @@ export function PedidosBoard({
         </div>
       </div>
 
-      {/* Orçamentos / reformas e serviços já seus — o contratante escolheu você direto */}
+      {/* Serviços já seus que ainda esperam o pagamento do cliente. Depois que
+          o dinheiro entra, o serviço passa a viver só na aba Trabalho (Fixly 12). */}
       {myJobs.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold text-ink">Seus serviços e orçamentos</h2>
-            <span className="text-sm text-gray-light">{myJobs.length} em aberto</span>
+            <span className="text-sm text-gray-light">
+              {myJobs.length} aguardando pagamento
+            </span>
           </div>
           <div className="space-y-3">
             {myJobs.map((j) => (
@@ -439,7 +449,7 @@ function RequestCard({
               <Check className="h-4 w-4" /> Proposta enviada: {brl(Number(value))}
               {freteNum > 0 && (
                 <span className="font-normal text-gray">
-                  + {brl(freteNum)} de frete = <b className="text-ink">{brl(Number(value) + freteNum)}</b>
+                  + {brl(freteNum)} de deslocamento = <b className="text-ink">{brl(Number(value) + freteNum)}</b>
                 </span>
               )}
             </span>
@@ -543,7 +553,7 @@ function RequestCard({
               </div>
             </div>
             <div className="w-32">
-              <label className="text-xs text-gray-light">Frete (deslocamento)</label>
+              <label className="text-xs text-gray-light">Deslocamento</label>
               <div className="flex items-center rounded-xl border border-black/10 px-3 mt-1 focus-within:border-primary">
                 <span className="text-gray-light text-sm">R$</span>
                 <input
@@ -562,9 +572,9 @@ function RequestCard({
             <p className="text-[11px] text-gray-light mt-1.5">
               O cliente vê <b className="text-ink">{brl(price)}</b> de serviço
               {" + "}
-              <b className="text-ink">{brl(freteNum)}</b> de frete —
+              <b className="text-ink">{brl(freteNum)}</b> de deslocamento —
               total <b className="text-ink">{brl(price + freteNum)}</b>. Se ele cancelar depois
-              de você sair para o local, o frete é o piso do que fica com você.
+              de você sair para o local, o deslocamento é o piso do que fica com você.
             </p>
           )}
           <div className="mt-3">

@@ -124,6 +124,53 @@ export async function notifyProposal(requestId: string) {
   await logNotification(admin, req.client_id, "proposta", prop.id);
 }
 
+/**
+ * Pedido DIRETO (Profiler / perfil público) → avisa o profissional escolhido.
+ *
+ * Pedido comum cai na vitrine e ele descobre quando abre o app. Pedido direto
+ * não: é uma pessoa que escolheu ELE pelo nome, e ficar horas sem responder
+ * porque não abriu o app é justamente o que faz o cliente desistir e ligar
+ * para outro. Foi o pedido do dono no Fixly 12 — *"colocar uma notificação por
+ * email: você recebeu uma proposta de serviço pelo seu profiler"*.
+ *
+ * ⚠️ O destinatário NÃO vem de quem chamou: sai de `target_provider_id`, lido
+ * do banco. Assim nem uma tela adulterada consegue disparar e-mail para um
+ * terceiro qualquer.
+ */
+export async function notifyDirectRequest(requestId: string) {
+  const uid = await me();
+  if (!uid) return;
+  const admin = createAdminClient();
+
+  const { data: req } = await admin
+    .from("service_requests")
+    .select("id, client_id, target_provider_id, description, category:service_categories(name)")
+    .eq("id", requestId)
+    .maybeSingle();
+  // só o dono do pedido dispara, e só quando ele é mesmo direcionado
+  if (!req || !req.target_provider_id || req.client_id !== uid) return;
+
+  if (await alreadyNotified(admin, req.target_provider_id, "pedido_direto", req.id)) return;
+
+  const prestador = await contactOf(admin, req.target_provider_id);
+  const cliente = await contactOf(admin, req.client_id);
+  if (!prestador || !cliente) return;
+  const categoria = (Array.isArray(req.category) ? req.category[0] : req.category)?.name ?? "serviço";
+
+  await sendEmailBestEffort({
+    to: prestador.email,
+    subject: "Você recebeu um pedido pelo seu Profiler",
+    html: serviceNotificationEmailHtml({
+      name: prestador.name,
+      title: "Você recebeu um pedido pelo seu Profiler",
+      lead: `<b>${cliente.name}</b> pediu um serviço de <b>${categoria}</b> escolhendo você diretamente pelo seu Profiler. Ele está esperando o seu valor: "${escapeHtml(req.description ?? "")}"`,
+      cta: "Ver o pedido e enviar o valor",
+      url: `${APP_URL}/app/prestador`,
+    }),
+  });
+  await logNotification(admin, req.target_provider_id, "pedido_direto", req.id);
+}
+
 /** Alguém fez uma contra-proposta → avisa o outro lado. */
 export async function notifyCounter(proposalId: string) {
   const uid = await me();

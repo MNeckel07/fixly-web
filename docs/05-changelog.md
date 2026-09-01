@@ -2,6 +2,95 @@
 
 Ordem cronológica das grandes entregas. Detalhe fino está no `git log`.
 
+## v16 — Rodada *Fixly 12* (migração 0037)
+
+Entrega do PDF *Fixly 12* (5 páginas de anotações sobre recortes de tela) mais
+as 8 respostas do dono de 01/09. Como na v14, a **causa importa mais que a
+lista** — e de novo dois relatos diferentes eram o mesmo defeito.
+
+**Bugs, com a causa achada:**
+
+- **"Pelo Profiler não chega o serviço" + "quem tem mais de um serviço está
+  bugado" eram O MESMO BUG, e não era no banco.** `dispatch_request` (0026)
+  entrega o pedido direto certinho e a RLS deixa o profissional ler a linha:
+  quem descartava era a TELA. `prestador/page.tsx` rodava três filtros de
+  vitrine — Selo, categoria e raio — **antes** de calcular
+  `direct: r.target_provider_id === profile.id`, que só aparecia 25 linhas
+  depois. O Robson tem Selo e 27 serviços, então caía no primeiro filtro
+  sempre. Agora pedido direto sai na frente dos três: se o cliente apontou o
+  dedo para aquele profissional, vitrine não tem o que opinar.
+
+- **"Só o endereço continua o mesmo quando altera" — e falhava em SILÊNCIO.**
+  `EditRequestDialog` só mandava o endereço `if (mexeuNoLocal && loc)`, isto é,
+  só se o pino fosse arrastado; e a action só gravava com `lat` E `lng`. Quem
+  trocava "Ap31" por "Ap32" **digitando** via a tela dizer que salvou, e nada
+  mudava. Agora o texto sozinho basta e a coordenada atual é preservada. Se a
+  mudança for na RUA ou no NÚMERO (e não no complemento), a tela **exige**
+  confirmar o ponto no mapa — senão o pedido sairia com a rua de um lugar e a
+  coordenada de outro, que é o risco que a v14 já tinha corrigido.
+
+- **A máscara de contato era furada, e não era "inevitável".** O dono escreveu
+  `9 9 5 4 0 0 1 9 5` no chat e passou inteiro. Detalhe no `docs/04` (0037).
+  Ao escrever as provas apareceu um **furo antigo**: celular sem DDD
+  (`99540-0195`) também passava, e ninguém tinha visto.
+
+- **"Paguei e não atualizou", em PRODUÇÃO, com o dinheiro já na conta.** A
+  configuração foi descartada por medição: um POST sem assinatura na rota
+  responde `assinatura ausente`, e não `MP_WEBHOOK_SECRET não configurada` —
+  logo a variável existe no Render. O que faltava era **reconciliação**: a
+  única rede de segurança vivia dentro do `PixPanel`, num `setInterval` que só
+  roda com aquela tela montada e visível. Fechou a aba, pagou pelo celular, ou
+  o cartão foi aprovado depois da análise? Ninguém perguntava ao gateway.
+  Agora a página do serviço reconcilia ao abrir, e **nenhum caminho de
+  "ignorado" do webhook é mudo** (os três respondiam 200 sem log — do lado de
+  fora, idêntico a um webhook nunca chamado).
+
+**O que entrou de novo:**
+
+- **Categoria "Frete e carreto"** + a taxa de deslocamento deixando de se
+  chamar "Frete" na tela (as duas coisas no mesmo commit, senão a palavra
+  significaria duas coisas na mesma tela).
+- **Aceitos saem de Pedidos.** O corte é o **pagamento**, não o aceite:
+  `a_caminho`/`em_andamento` viram assunto só da aba Trabalho; `aceito` (que
+  quer dizer "esperando o cliente pagar") fica em Pedidos. O contador voltou a
+  significar uma coisa só.
+- **Mais fotos ao editar o pedido**, com o append feito no servidor (duas abas
+  abertas se apagariam entre si se a tela concatenasse).
+- **Filtro de propostas por nº de serviços vira campo livre** (era "10+" fixo).
+- **Verde** no selo "Propostas recebidas", que era azul igual a "Buscando".
+- **E-mail de pedido direto pelo Profiler.**
+- **"Pedir outro serviço"** ao profissional depois do serviço feito: abre pedido
+  NOVO já direcionado a ele, sem mexer em escrow, comissão ou estorno do que já
+  foi pago.
+
+**Marca e landing:**
+
+- **O "amarelo do X" eram DOIS amarelos, e os dois errados.** O nome era
+  desenhado em dois componentes (um por root layout, desde a v15) e a cópia da
+  landing usava `text-amarelo-tinta` = `#7a5600`, que é **marrom**: ali o X
+  nunca foi amarelo. E no logotipo oficial o "Fixly" é inteiro escuro, com o
+  amarelo no **pingo do "i"**. Nasceu o `components/ui/Wordmark.tsx`, fonte
+  única para os dois lados, com a geometria do pingo **medida no glifo** da
+  Poppins 700 pixel a pixel (0,1633 em de altura, 0,7833 em acima da baseline),
+  não estimada. Isso também encerra a briga que criou o `amarelo-tinta`: o
+  contraste que forçou a cor escura vale para TEXTO, e pingo não é texto.
+- **Texto mais curto e direto, sem nenhum travessão** (conferido no HTML
+  servido: zero no texto renderizado, título da aba incluído).
+- **"Comissão da Fixly (15%)" virou "Taxa da plataforma (15%)".** A linha
+  **fica** na tabela: a tabela inteira existe para ser transparente, e esconder
+  justamente a nossa parte é o que faria o cliente desconfiar.
+- **Seção nova "Para o profissional"** (Profiler, cartão digital, anúncio da
+  empresa e o Selo) + atalho "Trabalhe na Fixly" no cabeçalho, como TEXTO e não
+  como segundo botão amarelo — a página continua com uma ação principal só.
+
+**Acabamento:** as três barras do splash estavam mesmo dessincronizadas — 1,2 s
+de ciclo com 0,18 s de atraso, e 0,18 não é um terço de 1,2. Viraram 1,5 s com
+0,5 s.
+
+**Provas:** 18 casos da máscara rodados **no banco real com rollback** (metade
+deles negativos: preço, data, hora e medida não podem sumir), mais os 23 casos
+sem banco que já existiam, todos passando.
+
 ## v15.1 — O frete não paga comissão (decisão do dono, 26/08/2026)
 
 A Fixly cobra 15% sobre o **serviço**. O frete entra no que o cliente paga e sai

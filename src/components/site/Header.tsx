@@ -14,16 +14,29 @@ import { Marca } from "./Marca";
  *
  * "Entrar" é link de texto, nunca botão: existe só como saída para quem já tem
  * conta, e não pode competir com a única ação da página.
+ *
+ * ⚠️ "Trabalhe na Fixly" (Fixly 12) segue a MESMA regra, e por isso também é
+ * texto. O dono pediu o atalho para o profissional aqui em cima; transformá-lo
+ * num segundo botão amarelo criaria duas ações de mesmo peso lado a lado, e a
+ * página voltaria a não ter uma ação principal. Ele leva para a seção
+ * `#para-profissionais`, não direto para o cadastro: quem clica aqui está
+ * decidindo se entra, e ainda não decidiu.
  */
 export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-zinco bg-canvas/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
-        <a href="#topo" className="rounded-md" aria-label="Fixly — início">
+        <a href="#topo" className="rounded-md" aria-label="Fixly, início">
           <Marca size={24} prioridade />
         </a>
 
         <div className="flex items-center gap-2 sm:gap-5">
+          <a
+            href="#para-profissionais"
+            className="hidden rounded-md px-1 py-2 text-[14.5px] font-medium text-grafite transition-colors hover:text-tinta sm:inline-flex"
+          >
+            Trabalhe na Fixly
+          </a>
           <a
             href={links.login}
             className="rounded-md px-1 py-2 text-[14.5px] font-medium text-grafite transition-colors hover:text-tinta"

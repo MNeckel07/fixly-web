@@ -6,6 +6,8 @@
  * terminarem na mesma altura. `size` continua sendo a referência do texto, então
  * nenhuma chamada existente precisa mudar de número.
  */
+import { Wordmark } from "@/components/ui/Wordmark";
+
 const SYMBOL_RATIO = 1.3; // altura do símbolo ÷ tamanho da fonte do nome
 
 export function Logo({
@@ -17,7 +19,6 @@ export function Logo({
   variant?: "light" | "dark";
   symbolOnly?: boolean;
 }) {
-  const color = variant === "light" ? "#FFFFFF" : "#1F2329";
   const fontSize = size * 0.92;
   const symbolHeight = fontSize * SYMBOL_RATIO;
 
@@ -30,11 +31,9 @@ export function Logo({
         style={{ height: symbolHeight, width: "auto" }}
         className="block shrink-0"
       />
-      {!symbolOnly && (
-        <span style={{ fontSize, color }} className="font-bold tracking-tight">
-          Fi<span style={{ color: "#FFC107" }}>x</span>ly
-        </span>
-      )}
+      {/* O nome vem do `Wordmark`: era aqui que a cópia do produto e a da
+          landing divergiam (ver o cabeçalho daquele arquivo). */}
+      {!symbolOnly && <Wordmark fontSize={fontSize} variant={variant} />}
     </span>
   );
 }

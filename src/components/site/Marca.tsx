@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { Wordmark } from "@/components/ui/Wordmark";
 
 /**
  * Assinatura da marca — símbolo + "Fixly".
@@ -38,12 +39,9 @@ export function Marca({
         className="block shrink-0 w-auto"
         style={{ height: symbolHeight }}
       />
-      <span
-        style={{ fontSize }}
-        className="font-sans font-semibold tracking-tight text-tinta"
-      >
-        Fi<span className="text-amarelo-tinta">x</span>ly
-      </span>
+      {/* Mesmo componente do produto. Antes eram dois desenhos diferentes e o
+          X daqui saía em `#7a5600` (marrom), não em amarelo. */}
+      <Wordmark fontSize={fontSize} className="font-sans" />
     </span>
   );
 }

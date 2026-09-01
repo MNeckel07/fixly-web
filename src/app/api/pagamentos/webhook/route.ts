@@ -40,6 +40,14 @@ export async function POST(req: NextRequest) {
     dataId,
   });
   if (!check.ok) {
+    /**
+     * Recusa registrada: se a `MP_WEBHOOK_SECRET` do Render não for a mesma do
+     * painel do Mercado Pago, TODA notificação real morre aqui com 401. O MP
+     * tenta algumas vezes e desiste — e do lado de fora fica igual a um
+     * webhook que nunca foi cadastrado. Sem esta linha, os dois casos são
+     * indistinguíveis (Fixly 12).
+     */
+    console.warn("[webhook MP] recusado", { motivo: check.reason, dataId });
     return NextResponse.json({ error: `assinatura: ${check.reason}` }, { status: 401 });
   }
 
@@ -65,10 +73,34 @@ export async function POST(req: NextRequest) {
     .eq("gateway_id", payment.id)
     .maybeSingle();
 
-  if (!pay) return NextResponse.json({ ok: true, ignored: "pagamento desconhecido" });
+  /**
+   * ⚠️ NENHUM CAMINHO DE "IGNORADO" PODE SER MUDO (Fixly 12).
+   *
+   * Este `return` respondia 200 e sumia. Se o `gateway_id` gravado na criação
+   * não for o mesmo id que o MP manda na notificação, TODO pagamento cai aqui:
+   * o dinheiro entra, o webhook responde "ok", o MP considera entregue e o
+   * pedido nunca anda. Do lado de fora é idêntico a um webhook que nunca foi
+   * chamado — e foi exatamente esse silêncio que custou o diagnóstico.
+   *
+   * O 200 continua (senão o MP reenvia para sempre um evento que não é nosso),
+   * mas agora fica escrito no log do Render com o id que não casou.
+   */
+  if (!pay) {
+    console.warn("[webhook MP] pagamento desconhecido", {
+      gatewayId: payment.id,
+      status: payment.status,
+      valor: payment.amount,
+    });
+    return NextResponse.json({ ok: true, ignored: "pagamento desconhecido" });
+  }
 
   // confere o valor: se não bate com o que cobramos, não promove nada
   if (Math.abs(Number(pay.amount) - payment.amount) > 0.02) {
+    console.warn("[webhook MP] valor divergente", {
+      requestId: pay.request_id,
+      cobrado: Number(pay.amount),
+      pago: payment.amount,
+    });
     await admin.from("payments").update({ gateway_status: `divergencia:${payment.status}` }).eq("id", pay.id);
     return NextResponse.json({ ok: true, warning: "valor divergente" });
   }
@@ -78,12 +110,34 @@ export async function POST(req: NextRequest) {
       .from("payments")
       .update({ status: "retido", gateway_status: payment.status })
       .eq("id", pay.id);
-    // pagamento entrou → o serviço pode começar
-    await admin
+
+    /**
+     * Pagamento entrou → o serviço pode começar.
+     *
+     * ⚠️ O `.eq("status","aceito")` é uma trava proposital (não promover um
+     * pedido cancelado, por exemplo), mas um update que casa ZERO linhas não
+     * devolve erro nenhum no Supabase. O pagamento ficava marcado como retido
+     * e o pedido parado, sem uma linha de log dizendo por quê. Agora o
+     * resultado é conferido e o desencontro fica gravado na própria linha do
+     * pagamento, onde quem for investigar vai olhar primeiro.
+     */
+    const { data: promovido } = await admin
       .from("service_requests")
       .update({ status: "a_caminho" })
       .eq("id", pay.request_id)
-      .eq("status", "aceito");
+      .eq("status", "aceito")
+      .select("id");
+
+    if (!promovido || promovido.length === 0) {
+      console.warn("[webhook MP] pago, mas o pedido não estava em 'aceito'", {
+        requestId: pay.request_id,
+        gatewayId: payment.id,
+      });
+      await admin
+        .from("payments")
+        .update({ gateway_status: `${payment.status}:pedido_nao_promovido` })
+        .eq("id", pay.id);
+    }
   } else if (payment.mapped === "recusado") {
     await admin.from("payments").update({ gateway_status: payment.status }).eq("id", pay.id);
   } else {

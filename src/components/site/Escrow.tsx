@@ -42,7 +42,7 @@ export function Escrow() {
           <p className="mt-5 text-[16.5px] leading-relaxed text-zinco">
             Quando você fecha, o valor sai da sua conta mas não vai para o
             profissional. Fica retido na Fixly. Ele trabalha sabendo que o
-            dinheiro já existe — e você acompanha sabendo que ele ainda não é
+            dinheiro já existe, e você acompanha sabendo que ele ainda não é
             dele.
           </p>
         </header>
@@ -136,7 +136,7 @@ export function Escrow() {
                 <>
                   <strong className="font-semibold text-white">Liberado.</strong>{" "}
                   No dia seguinte ele pode sacar. Dos R$ 200 do serviço, R$ 30
-                  ficaram com a Fixly — a comissão de 15%, cobrada só porque o
+                  ficaram com a Fixly. É a taxa de 15%, cobrada só porque o
                   serviço aconteceu.
                 </>
               ) : (

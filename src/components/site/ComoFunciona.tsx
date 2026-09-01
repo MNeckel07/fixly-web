@@ -12,24 +12,24 @@ import { Secao } from "./Secao";
 
 const PASSOS = [
   {
-    titulo: "Conte o problema",
+    titulo: "Descreva o serviço",
     texto:
-      "Categoria, descrição e fotos. Foto de torneira pingando vale mais que três parágrafos.",
+      "Escolha a categoria, escreva o que precisa e envie fotos. Uma foto explica mais que três parágrafos.",
   },
   {
-    titulo: "O pedido vai para vários de uma vez",
+    titulo: "Vários profissionais recebem de uma vez",
     texto:
-      "Você não liga para ninguém, não pede orçamento a três empresas, não espera retorno. Quem atende a sua categoria na sua região recebe o pedido.",
+      "Você não liga para ninguém nem espera retorno. Quem atende a sua categoria na sua região recebe o pedido na hora.",
   },
   {
     titulo: "As propostas chegam",
     texto:
-      "Cada profissional manda o preço dele e o prazo. Achou caro? Faça uma contra-proposta. Ele pode responder com outro valor. Vai e volta até fechar.",
+      "Cada profissional envia o preço e o prazo dele. Se achar caro, faça uma contraproposta. A negociação vai e volta até fechar.",
   },
   {
-    titulo: "Acompanhe e avalie",
+    titulo: "Acompanhe e aprove",
     texto:
-      "Você vê o profissional a caminho no mapa. No fim, você aprova o serviço — e é essa aprovação que solta o pagamento.",
+      "Você vê o profissional a caminho no mapa. No fim, a sua aprovação é o que libera o pagamento.",
   },
 ];
 
