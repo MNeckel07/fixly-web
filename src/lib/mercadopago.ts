@@ -258,6 +258,52 @@ export async function getMercadoPagoPayment(id: string) {
 }
 
 /**
+ * Procura um pagamento pela NOSSA referência (`external_reference` = id do
+ * pedido), em vez de pelo id do gateway.
+ *
+ * ⚠️ POR QUE ISTO PRECISA EXISTIR (Fixly 12, 01/09/2026).
+ *
+ * Todo o resto do sistema acha o pagamento pelo `payments.gateway_id`. Isso
+ * pressupõe que a linha em `payments` existe — e foi exatamente essa
+ * pressuposição que quebrou em produção: o dono pagou um Pix de teste, o
+ * dinheiro entrou na conta do Mercado Pago e **não havia linha nenhuma** no
+ * nosso banco. Sem linha, não há `gateway_id`; sem `gateway_id`, nem o webhook
+ * nem o polling conseguiam sequer formular a pergunta. O pedido ficava travado
+ * para sempre com o dinheiro já recebido.
+ *
+ * A referência é o contrário: ela é NOSSA, viaja na criação da cobrança
+ * (`external_reference: requestId`) e existe no lado do MP mesmo que a nossa
+ * gravação tenha falhado. É o único caminho que sobrevive a um banco que não
+ * registrou o pagamento.
+ *
+ * Devolve o pagamento mais recente que não foi recusado, ou `null`.
+ */
+export async function findMercadoPagoPaymentByReference(reference: string) {
+  const busca = await mpFetch(
+    `/v1/payments/search?external_reference=${encodeURIComponent(reference)}&sort=date_created&criteria=desc`,
+    { method: "GET" },
+  );
+  const achados: any[] = Array.isArray(busca?.results) ? busca.results : [];
+  if (achados.length === 0) return null;
+
+  // aprovado ganha de pendente, e pendente ganha de recusado: o que interessa
+  // é saber se ALGUM dinheiro entrou, não qual foi a última tentativa
+  const ordem = (st: string) => (st === "approved" || st === "authorized" ? 0 : st === "rejected" || st === "cancelled" ? 2 : 1);
+  achados.sort((a, b) => ordem(String(a.status)) - ordem(String(b.status)));
+  const p = achados[0];
+
+  return {
+    id: String(p.id),
+    status: String(p.status),
+    statusDetail: String(p.status_detail ?? ""),
+    amount: Number(p.transaction_amount ?? 0),
+    externalReference: p.external_reference ? String(p.external_reference) : null,
+    method: p.payment_method_id ? String(p.payment_method_id) : null,
+    mapped: mapStatus(String(p.status)),
+  };
+}
+
+/**
  * Liberação do escrow. No modo SPLIT o MP já dividiu na captura — não há o que
  * liberar aqui. No modo ESCROW o valor está na conta do Fixly e sai para o
  * prestador no saque (fila em `withdrawals`, ver `request_withdrawal`).

@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchChargeStatus, isGatewaySandbox } from "@/lib/gateway";
+import { createEscrowCharge, releaseEscrow, releaseAdvance, refundCharge, fetchChargeStatus, findChargeByReference, isGatewaySandbox } from "@/lib/gateway";
 import { currentCustomerId, saveCard } from "@/app/(app)/app/contratante/cards.actions";
 import { notifySealChanges } from "@/app/(app)/app/notify.actions";
 import { revalidatePath } from "next/cache";
@@ -182,7 +182,20 @@ export async function processPayment(
   }
 
   const { breakdown } = charge;
-  await admin.from("payments").insert({
+  /**
+   * ⚠️ ESTE INSERT NÃO PODE FALHAR CALADO (Fixly 12, 01/09/2026).
+   *
+   * A cobrança JÁ existe no gateway quando chegamos aqui — no Pix, o QR já foi
+   * gerado e é pagável. Se a gravação falhar e nós devolvermos o QR assim
+   * mesmo, o cliente paga um dinheiro que o Fixly não sabe que existe: sem
+   * linha em `payments` não há `gateway_id`, e sem `gateway_id` nem o webhook
+   * nem o polling conseguem sequer formular a pergunta.
+   *
+   * Foi o que aconteceu em produção: a tabela `payments` não recebia uma linha
+   * desde 29/07 (as 14 que existiam eram todas `mock_`), e o Pix de teste do
+   * dono entrou na conta do Mercado Pago sem deixar rastro nenhum aqui.
+   */
+  const { error: erroInsert } = await admin.from("payments").insert({
     request_id: requestId,
     amount: breakdown.amount,
     fee: breakdown.platformFee,
@@ -199,6 +212,25 @@ export async function processPayment(
     // 'retido' só quando o dinheiro entrou; PIX pendente fica aguardando webhook
     status: charge.status === "retido" ? "retido" : "pendente",
   });
+
+  if (erroInsert) {
+    console.error("[pagamento] cobrança criada no gateway e NÃO gravada", {
+      requestId,
+      gatewayId: charge.id,
+      gateway: charge.gateway,
+      erro: erroInsert.message,
+    });
+    /**
+     * Não devolvemos o QR: mandar o cliente pagar agora seria criar o problema
+     * de propósito. A cobrança fica no gateway e a reconciliação por
+     * `external_reference` (em `checkPaymentStatus`) recupera se ele pagar
+     * assim mesmo por outro caminho.
+     */
+    return {
+      ok: false,
+      error: "Não foi possível registrar a cobrança. Não pague ainda — tente de novo em instantes.",
+    };
+  }
 
   if (charge.status === "retido") {
     await supabase.from("service_requests").update({ status: "a_caminho" }).eq("id", requestId);
@@ -283,6 +315,70 @@ export async function skipPayment(requestId: string): Promise<{ ok: boolean; err
 }
 
 /**
+ * Último recurso: o gateway recebeu dinheiro para este pedido e nós não temos
+ * linha nenhuma. Reconstrói a linha a partir do que o gateway responde.
+ *
+ * ⚠️ O VALOR NÃO VEM DO GATEWAY. A conta é refeita aqui do jeito de sempre (a
+ * proposta aceita manda) e só então comparada com o que o gateway diz ter
+ * recebido. Aceitar o valor de fora seria deixar o dinheiro definir a comissão
+ * — e um pagamento a menos passaria a valer como serviço pago.
+ */
+async function recuperarPagamentoPerdido(
+  requestId: string,
+  userId: string,
+): Promise<{ status: "retido" | "pendente" | "recusado" | "desconhecido" }> {
+  const admin = createAdminClient();
+
+  const { data: req } = await admin
+    .from("service_requests")
+    .select("id, client_id, status, final_price, estimated_price, travel_fee, advance_pct")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (!req || req.client_id !== userId) return { status: "desconhecido" };
+  if (["concluido", "cancelado"].includes(req.status)) return { status: "desconhecido" };
+
+  const achado = await findChargeByReference(requestId);
+  if (!achado || achado.status !== "retido") return { status: achado ? "pendente" : "desconhecido" };
+
+  const frete = Number(req.travel_fee ?? 0) || 0;
+  const valorServico = Math.max(Number(req.final_price ?? req.estimated_price ?? 0) - frete, 0);
+  const metodo: PayMethod = achado.method === "pix" ? "pix" : "cartao";
+  const breakdown = paymentBreakdown(valorServico, metodo, Number(req.advance_pct ?? 0), frete);
+
+  // o gateway tem que ter recebido o que a nossa conta diz — senão é caso de suporte
+  if (Math.abs(achado.amount - breakdown.amount) > 0.05) {
+    console.error("[pagamento] recuperação abortada: valor divergente", {
+      requestId, gatewayId: achado.id, recebido: achado.amount, esperado: breakdown.amount,
+    });
+    return { status: "pendente" };
+  }
+
+  console.warn("[pagamento] linha recriada a partir do external_reference", {
+    requestId, gatewayId: achado.id,
+  });
+
+  const { error } = await admin.from("payments").insert({
+    request_id: requestId,
+    amount: breakdown.amount,
+    fee: breakdown.platformFee,
+    gateway_fee: breakdown.gatewayFee,
+    provider_net: breakdown.providerNet,
+    advance_pct: breakdown.advancePct,
+    advance_amount: breakdown.advanceAmount,
+    advance_fee: breakdown.advanceFee,
+    method: metodo,
+    gateway: "mercadopago",
+    gateway_id: achado.id,
+    gateway_status: "recuperado",
+    status: "retido",
+  });
+  if (error) return { status: "pendente" };
+
+  await admin.from("service_requests").update({ status: "a_caminho" }).eq("id", requestId);
+  return { status: "retido" };
+}
+
+/**
  * Consulta o pagamento no gateway (a tela do PIX chama isto de tempo em tempo).
  * Se o gateway já confirmou, promove o pedido — evita que um webhook perdido
  * deixe o cliente travado com o QR na tela.
@@ -300,7 +396,21 @@ export async function checkPaymentStatus(
     .select("id, gateway_id, status, request_id, service_requests!inner(client_id)")
     .eq("request_id", requestId)
     .maybeSingle();
-  if (!pay) return { status: "desconhecido" };
+
+  /**
+   * SEM LINHA EM `payments`, PERGUNTE AO GATEWAY MESMO ASSIM (Fixly 12).
+   *
+   * Este `return "desconhecido"` era o fim da linha, e é onde o dinheiro do
+   * dono ficou preso: ele pagou um Pix, o valor entrou na conta do Mercado
+   * Pago e o nosso banco não tinha linha nenhuma para consultar. Sem linha não
+   * há `gateway_id`, e todo o resto do sistema procura por `gateway_id`.
+   *
+   * A saída é a referência, que é NOSSA: `external_reference` viaja na criação
+   * da cobrança valendo o id do pedido, e existe no lado do MP mesmo quando a
+   * nossa gravação falhou. Se houver dinheiro aprovado lá, a linha que faltava
+   * é criada aqui e o pedido anda.
+   */
+  if (!pay) return await recuperarPagamentoPerdido(requestId, user.id);
   const requestOwner = Array.isArray(pay.service_requests)
     ? pay.service_requests[0]
     : pay.service_requests;

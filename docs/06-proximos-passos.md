@@ -20,6 +20,57 @@ e as 18 provas novas da máscara rodadas **no banco real com rollback**.
    cobrança segue com a marca de outra empresa. É o item 1.2 abaixo, e não tem
    linha de código que resolva.
 
+## 🔴 ACHADO DE 01/09 (depois do deploy): NENHUM pagamento real foi gravado, NUNCA
+
+O dono confirmou que o pagamento travado foi **Pix**. Isso derrubou a primeira
+hipótese — no Pix a rede de segurança já existia (o `PixPanel` consulta o
+gateway de 5 em 5 segundos) —, então fui olhar o dado de produção. O que o
+banco respondeu:
+
+| pergunta | resposta |
+|---|---|
+| linhas em `payments` | **14** |
+| quantas com `gateway_id` real | **0** (todas `mock_*`) |
+| última linha gravada | **29/07/2026** |
+| pedidos criados desde 20/08 | 9, **nenhum com pagamento** |
+| o pedido do teste (26/08, express, R$ 2,00 + R$ 1,00) | `aceito`, **0 pagamentos** |
+
+Ou seja: **a tabela `payments` nunca recebeu um pagamento de verdade.** O
+dinheiro do Pix de teste entrou na conta do Mercado Pago e o Fixly não tem
+registro nenhum dele.
+
+**Por que isso escapava de todo o resto:** o sistema inteiro acha o pagamento
+por `payments.gateway_id`. Sem linha não há `gateway_id`, e sem `gateway_id`
+nem o webhook nem o polling **conseguem formular a pergunta**. A reconciliação
+que eu tinha acabado de escrever também não resolvia — ela chamava
+`checkPaymentStatus`, que devolvia `desconhecido` e ia embora.
+
+E o insert em `processPayment` **nunca teve o erro conferido**: a cobrança é
+criada no gateway, o QR volta pagável para a tela, e se a gravação falhar
+ninguém fica sabendo. É a forma nº 1 da falha silenciosa
+(ver a memória sobre isto).
+
+**O que foi feito (commit seguinte ao da rodada):**
+
+1. `processPayment` confere o erro do insert e, se não conseguir gravar,
+   **não devolve o QR** — mandar pagar agora seria criar o problema de
+   propósito.
+2. Reconciliação por `external_reference` (`findMercadoPagoPaymentByReference`
+   → `findChargeByReference` → `recuperarPagamentoPerdido`): a referência é
+   NOSSA, vale o id do pedido e existe no MP mesmo quando a nossa gravação
+   falhou. Se houver dinheiro aprovado lá, a linha que faltava é recriada e o
+   pedido anda. ⚠️ O VALOR não vem do gateway: a conta é refeita aqui e só
+   então comparada com o recebido.
+3. O log de "pagamento desconhecido" do webhook passa a incluir o
+   `external_reference`, que é o que permite achar o serviço sem a linha.
+
+**⚠️ O QUE AINDA NÃO SE SABE:** *por que* o insert falhava. Não dá para
+descobrir daqui — o `.env.local` tem credencial de TESTE (`TEST-`), então não
+consigo consultar a conta real do Mercado Pago, e o log do Render de agosto já
+rolou. A partir de agora o erro aparece no log. **Da próxima cobrança, olhe o
+log do Render procurando `[pagamento] cobrança criada no gateway e NÃO
+gravada`** — a mensagem traz o motivo exato do Postgres.
+
 ## O que ficou de fora, e por quê
 
 - **1.2 (conta do MP)** — é cadastro no painel do Mercado Pago, não código.

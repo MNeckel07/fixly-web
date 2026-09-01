@@ -157,6 +157,28 @@ export async function fetchChargeStatus(
   }
 }
 
+/**
+ * Procura no gateway um pagamento feito para ESTE pedido, sem depender de nada
+ * gravado do nosso lado. É a rede de segurança de último recurso: serve
+ * justamente para o caso em que a linha em `payments` não existe.
+ *
+ * Só o Mercado Pago responde a isto — é ele quem recebe o dinheiro de verdade.
+ * No mock e sem credencial, devolve `null`: nada a recuperar.
+ */
+export async function findChargeByReference(
+  requestId: string,
+): Promise<{ id: string; status: ChargeResult["status"]; amount: number; method: string | null } | null> {
+  if (!isMercadoPagoConfigured()) return null;
+  const mp = await import("./mercadopago");
+  try {
+    const p = await mp.findMercadoPagoPaymentByReference(requestId);
+    if (!p) return null;
+    return { id: p.id, status: p.mapped, amount: p.amount, method: p.method };
+  } catch {
+    return null;
+  }
+}
+
 /** Libera o valor retido ao prestador após a aprovação do contratante. */
 export async function releaseEscrow(chargeId: string): Promise<void> {
   if (isMercadoPagoConfigured()) {

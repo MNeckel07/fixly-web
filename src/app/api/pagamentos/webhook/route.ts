@@ -90,6 +90,9 @@ export async function POST(req: NextRequest) {
       gatewayId: payment.id,
       status: payment.status,
       valor: payment.amount,
+      // a referência é o id do PEDIDO: com ela dá para achar o serviço mesmo
+      // quando não existe linha em `payments` (foi o caso em produção)
+      requestId: payment.externalReference,
     });
     return NextResponse.json({ ok: true, ignored: "pagamento desconhecido" });
   }
