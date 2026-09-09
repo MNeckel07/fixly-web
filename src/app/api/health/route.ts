@@ -39,6 +39,23 @@ export function GET() {
         heap: Math.round(mem.heapUsed / 1048576),
       },
     },
-    { headers: { "Cache-Control": "no-store" } },
+    {
+      headers: {
+        "Cache-Control": "no-store",
+        /**
+         * ⚠️ FORA DO ÍNDICE, mas continua PÚBLICO.
+         *
+         * O `robots.txt` já pede para não rastrear `/api/`, só que robots não
+         * remove do índice o que já foi indexado — e nem todo buscador o
+         * respeita. `X-Robots-Tag: noindex` é a instrução que de fato tira a
+         * página dos resultados.
+         *
+         * O endpoint NÃO pode ser fechado: é o `healthCheckPath` do Render (é
+         * ele que decide quando a instância nova recebe tráfego) e o alvo do
+         * monitor externo que impede a hibernação do plano free.
+         */
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    },
   );
 }

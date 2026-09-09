@@ -285,16 +285,20 @@ nav[data-nav]::-webkit-scrollbar {
     max-width: none !important;
     margin: 0 auto !important;
   }
+  /* `max-width` e não `width`: ver o comentário em Missao.tsx — com `width`
+     cravado e `max-height` cortando, a foto estica na horizontal. */
   [data-cena="a"] img {
     left: 50% !important;
     transform: translateX(-50%);
-    width: min(84%, calc(64% * 0.931)) !important;
+    max-width: min(84%, calc(64% * 0.931)) !important;
+    width: auto !important;
     max-height: 64% !important;
   }
   [data-cena="b"] img {
     right: 50% !important;
     transform: translateX(50%);
-    width: min(96%, calc(62% * 1.514)) !important;
+    max-width: min(96%, calc(62% * 1.514)) !important;
+    width: auto !important;
     max-height: 62% !important;
   }
 

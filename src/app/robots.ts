@@ -27,8 +27,22 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     return { rules: [{ userAgent: "*", disallow: "/" }] };
   }
 
+  /**
+   * ⚠️ `/api/` FORA DO ÍNDICE.
+   *
+   * O dono abriu o site e caiu no JSON do `/api/health` — que é público de
+   * propósito (é o `healthCheckPath` do Render) e, sem esta linha, era
+   * rastreável e indexável como qualquer página. Um endpoint de saúde num
+   * resultado de busca é péssima porta de entrada: quem procura "Fixly" acha
+   * `{"ok":true,...}` em vez da landing.
+   *
+   * ⚠️ `/admin` NÃO entra aqui, e a ausência é deliberada: no domínio do site
+   * o painel já responde 404 (`lib/appRole.ts`), e listá-lo no robots.txt
+   * anunciaria a existência dele para quem estiver varrendo. Robots é arquivo
+   * público — o que se escreve nele é um mapa do que existe.
+   */
   return {
-    rules: [{ userAgent: "*", allow: "/" }],
+    rules: [{ userAgent: "*", allow: "/", disallow: "/api/" }],
     sitemap: `${SITE_ORIGIN}/sitemap.xml`,
   };
 }

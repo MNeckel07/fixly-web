@@ -124,7 +124,23 @@ export function Missao() {
               position: "absolute",
               left: "-11%",
               bottom: 0,
-              width: "min(58%,calc(98% * 0.931))",
+              /*
+               * ⚠️ `maxWidth`, NUNCA `width`.
+               *
+               * O design escrevia `width: min(58%, 98% * 0.931)` — o `0.931` é
+               * a proporção real do arquivo (845x908), a ideia sendo "largura =
+               * altura × proporção". Só que as duas porcentagens têm BASES
+               * DIFERENTES: a largura é % do contêiner na horizontal e o
+               * `max-height` é % dele na vertical. Quando o `max-height` corta,
+               * a largura fica cravada e a imagem ESTICA — medido em produção:
+               * 844x730, proporção 1,157 contra 0,931 do original, 24% a mais
+               * na horizontal.
+               *
+               * Com `max-width` + `max-height` e as duas dimensões em `auto`, o
+               * navegador encolhe proporcionalmente até caber nos dois limites.
+               */
+              maxWidth: "min(58%,calc(98% * 0.931))",
+              width: "auto",
               height: "auto",
               maxHeight: "98%",
               filter: "saturate(0.86) drop-shadow(0 40px 60px rgba(0,0,0,0.4))",
@@ -142,7 +158,9 @@ export function Missao() {
               position: "absolute",
               right: 0,
               bottom: 0,
-              width: "min(52%,calc(88% * 1.514))",
+              /* mesma correção da cena A (aqui a proporção é 1378x910). */
+              maxWidth: "min(52%,calc(88% * 1.514))",
+              width: "auto",
               height: "auto",
               maxHeight: "88%",
               filter: "saturate(0.86) drop-shadow(0 40px 60px rgba(0,0,0,0.4))",
