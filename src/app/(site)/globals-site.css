@@ -1,289 +1,363 @@
-/* ⚠️ `source(none)` + `@source` explícito: sem isto o Tailwind detecta conteúdo
-   sozinho e varre o PROJETO INTEIRO — inclusive as ~160 telas do app, que nunca
-   aparecem aqui. A folha da landing saltava de 41 KB para 74 KB (≈ +5 KB
-   gzipped) só de utilitária que ninguém usa, justo na página cujo argumento é
-   abrir rápido em 4G (LCP medido: 692 ms).
-   Ao criar componente novo da landing FORA destes caminhos, acrescente-o aqui —
-   senão a classe simplesmente não existe e o estilo some sem erro. */
-@import "tailwindcss" source(none);
-@import "shadcn/tailwind.css";
-
-@source "./";
-@source "../../components/site";
-@source "../../components/ui/accordion.tsx";
-@source "../../lib/site.ts";
-@source "../../lib/faq.ts";
-
 /* ═══════════════════════════════════════════════════════════════
-   FIXLY — AMARELO DE SEGURANÇA SOBRE ZINCO GALVANIZADO
+   FIXLY — LANDING (design aprovado no Claude Design, 08/09/2026)
 
-   O âmbar da marca (#ffc107) não é tratado como "cor de startup": é a mesma
-   família do amarelo de fita de risco, bolha de nível e cabo de ferramenta.
-   Por isso os neutros puxam para o FRIO/esverdeado, não para o creme — o
-   contraste quente-sobre-frio é o que ancora a página no mundo da obra em vez
-   do mundo do aplicativo.
+   Esta folha é CSS PURO, sem Tailwind. A versão anterior importava o
+   Tailwind com `source(none)` + `@source` para não varrer o app inteiro;
+   agora nem isso é preciso: o design novo é inteiramente estilo inline nos
+   componentes, e o que sobra aqui é o que inline não alcança — base,
+   keyframes, estados de :hover e as media queries.
 
-   A página assume UM tema (claro), de propósito. `color-scheme: light` no html
-   impede o navegador de forçar escuro por cima.
+   Menos CSS é o ponto: a landing é a página cujo argumento é abrir rápido no
+   4G (LCP medido em 692 ms na versão anterior). Não há utilitária baixada à
+   toa aqui.
+
+   ⚠️ SE VOLTAR A USAR TAILWIND nesta rota, volte também o `source(none)` e a
+   lista de `@source`. Sem isso a folha varre as ~160 telas do app.
    ═══════════════════════════════════════════════════════════════ */
 
-@theme {
-  /* ── marca ── */
-  --color-amarelo: #ffc107;
-  --color-amarelo-fundo: #fff6dd;
-  --color-amarelo-borda: #f0dca4;
-  /* âmbar puro não passa contraste como texto; esta é a versão legível */
-  --color-amarelo-tinta: #7a5600;
-
-  /* ── tinta ── */
-  --color-tinta: #1f2329;
-  --color-tinta-suave: #2a2f37;
-  --color-grafite: #565d66;
-  --color-grafite-claro: #868d95;
-
-  /* ── zinco galvanizado (neutros frios) ── */
-  --color-zinco: #e4e7e4;
-  --color-zinco-claro: #f1f3f1;
-  --color-canvas: #fafafa;
-
-  /* ── semântica, só onde significa estado ── */
-  --color-verde: #16a34a;
-  --color-verde-fundo: #eaf6ee;
-
-  /* ── tipografia ── */
-  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-azeret), ui-monospace, SFMono-Regular, Menlo, monospace;
-
-  --shadow-placa: 0 1px 2px rgba(31, 35, 41, 0.04), 0 12px 32px -20px rgba(31, 35, 41, 0.28);
-  --shadow-alta: 0 2px 4px rgba(31, 35, 41, 0.05), 0 24px 56px -28px rgba(31, 35, 41, 0.35);
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-/* ── Ponte para o shadcn ────────────────────────────────────────
-   O accordion do FAQ usa utilitárias como `border-border` e `ring-ring`, que
-   NÃO existem sozinhas: elas nascem deste `@theme inline`, que liga a variável
-   à utilitária. Sem este bloco o build quebra em
-   "Cannot apply unknown utility class `border-border`". */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #fafafa;
+  color: #1f2329;
+  /* Manrope entra por next/font (ver layout.tsx) — a variável, não um <link>. */
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /*
+   * A página assume UM tema (claro), de propósito: o hero é escuro por
+   * composição, não por preferência do sistema. `color-scheme: light` impede
+   * o navegador de inverter cores por cima do design.
+   */
+  color-scheme: light;
 }
 
-/* ── Tokens do shadcn remapeados para a paleta Fixly ────────────
-   Sem este remapeamento o accordion apareceria em cinza neutro de fábrica no
-   meio de uma página de neutros frios. */
-:root {
-  --background: #fafafa;
-  --foreground: #1f2329;
-  --card: #ffffff;
-  --card-foreground: #1f2329;
-  --popover: #ffffff;
-  --popover-foreground: #1f2329;
-  --primary: #ffc107;
-  --primary-foreground: #1f2329;
-  --secondary: #f1f3f1;
-  --secondary-foreground: #1f2329;
-  --muted: #f1f3f1;
-  --muted-foreground: #565d66;
-  --accent: #fff6dd;
-  --accent-foreground: #7a5600;
-  --destructive: #dc2626;
-  --border: #e4e7e4;
-  --input: #e4e7e4;
-  --ring: #7a5600;
-  --radius: 0.75rem;
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  html {
-    color-scheme: light;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-    scroll-behavior: smooth;
-    /* o cabeçalho é fixo: âncora não pode parar embaixo dele */
-    scroll-padding-top: 5.5rem;
-  }
-
-  body {
-    background: var(--color-canvas);
-    color: var(--color-tinta);
-    font-family: var(--font-sans);
-  }
-
-  /* Foco de teclado visível em TODA a página, sem exceção. */
-  :focus-visible {
-    outline: 3px solid var(--color-amarelo-tinta);
-    outline-offset: 3px;
-    border-radius: 4px;
-  }
-
-  /* Toque no celular.
-     `manipulation` mata o atraso de ~300 ms que o navegador guarda esperando um
-     possível toque duplo — sem ele, todo botão parece lento no telefone.
-     O realce de toque é declarado de propósito (um âmbar bem apagado) em vez de
-     ficar no cinza-azulado padrão do sistema, que destoa da marca. */
-  a,
-  button,
-  summary,
-  [role="button"] {
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: rgb(255 193 7 / 0.18);
-  }
-
-  h1,
-  h2,
-  h3 {
-    font-family: var(--font-display);
-    text-wrap: balance;
-    letter-spacing: -0.03em;
-    line-height: 1.04;
-  }
-
-  /* Dígitos que se comparam entre linhas precisam de largura fixa. */
-  table,
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
+img {
+  max-width: 100%;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
+:focus-visible {
+  outline: 2px solid #ffc107;
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
-/* ═══════════════ MOVIMENTO ═══════════════
-   Cada animação abaixo tem função declarada. Nenhuma existe para enfeitar. */
-
-/* 1. Revelação por rolagem — serve à HIERARQUIA: a seção entra depois do
-      título, então o olho lê na ordem certa em vez de tudo de uma vez.
-      Estado inicial só é aplicado quando o JS confirma que vai observar
-      (`data-reveal-armed`), senão o conteúdo ficaria invisível sem JS. */
-[data-reveal][data-reveal-armed="1"] {
-  opacity: 0;
-  transform: translateY(14px);
-}
-[data-reveal][data-reveal-armed="1"][data-reveal-visivel] {
-  opacity: 1;
-  transform: none;
-  transition:
-    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* 2. Disparo do pedido — serve a MOSTRAR O FLUXO: o pedido sai de um lugar só
-      e alcança vários profissionais. É o argumento em movimento.
-      Roda DEPOIS do LCP: o texto do hero nunca espera por isto. */
-@keyframes fixly-pulso-linha {
+/* ── movimento ─────────────────────────────────────────────── */
+@keyframes fx-float {
   0%,
   100% {
-    opacity: 0.25;
+    transform: translateY(0);
   }
-  45% {
-    opacity: 1;
-  }
-}
-@keyframes fixly-chega {
-  0% {
-    opacity: 0.35;
-    transform: translateY(4px) scale(0.97);
-  }
-  100% {
-    opacity: 1;
-    transform: none;
+  50% {
+    transform: translateY(-10px);
   }
 }
 
-.linha-disparo {
-  animation: fixly-pulso-linha 2.6s ease-in-out infinite;
-}
-.chip-prestador {
-  animation: fixly-chega 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+/* as órbitas pontilhadas do hero: o traço corre, o arco fica parado */
+@keyframes fx-dash {
+  to {
+    stroke-dashoffset: -40;
+  }
 }
 
-/* 3. Liberação do escrow — serve à RESPOSTA AO TOQUE: quando a pessoa aprova,
-      a ficha ANDA. É o mecanismo virado em gesto, o único lugar da página onde
-      o movimento é o próprio argumento. */
-.ficha-escrow {
-  transition:
-    left 0.85s cubic-bezier(0.65, 0, 0.35, 1),
-    background-color 0.4s ease,
-    border-color 0.4s ease;
+/* a esteira de categorias: a lista é duplicada no componente, então -50%
+   volta exatamente ao ponto de partida e o laço não tem emenda visível */
+@keyframes fx-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }
-.trilho-preenchido {
-  transition: width 0.85s cubic-bezier(0.65, 0, 0.35, 1);
+
+/* ── estados de hover ───────────────────────────────────────
+   O design traz `style-hover` (atributo do canvas do Claude Design), que não
+   existe no navegador. Aqui ele vira CSS de verdade. Cada classe abaixo
+   corresponde a um `style-hover` do arquivo original. */
+
+.fx-nav-link:hover {
+  color: #fff;
+}
+
+.fx-btn-amarelo:hover {
+  background: #ffca2b;
+}
+
+.fx-btn-fantasma:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.fx-cat:hover {
+  color: #7a5600;
+}
+
+.fx-rodape-link:hover {
+  color: #1f2329;
+}
+
+.fx-faq-cta:hover {
+  background: #ffca2b;
+  transform: translateY(-2px);
+}
+
+/* ── cartões "escolha o seu lado" ───────────────────────────
+   A troca de foto (uma pessoa → o trio) era JavaScript no design. Aqui é
+   :hover puro: funciona antes da hidratação, não gasta um componente de
+   cliente e não depende de listener nenhum.
+
+   ⚠️ Só vale acima de 900px. Abaixo disso o cartão é empilhado, o trio é
+   escondido (`[data-clip]{display:none}` lá embaixo) e o CTA fica sempre
+   visível — senão o segundo estado nunca apareceria no celular. */
+.fx-lado:hover {
+  transform: translateY(-6px);
+}
+
+@media (hover: hover) and (min-width: 901px) {
+  .fx-lado:hover [data-foto="uma"],
+  .fx-lado:focus-visible [data-foto="uma"] {
+    opacity: 0;
+    transform: translateX(-14px) scale(0.98);
+  }
+  .fx-lado:hover [data-foto="tres"],
+  .fx-lado:focus-visible [data-foto="tres"] {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  .fx-lado:hover [data-copy],
+  .fx-lado:focus-visible [data-copy] {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  .fx-lado:hover [data-hovercta],
+  .fx-lado:focus-visible [data-hovercta] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .fx-lado:hover [data-casca],
+  .fx-lado:focus-visible [data-casca] {
+    box-shadow: 0 40px 70px -30px rgba(31, 35, 41, 0.65);
+    border-color: rgba(255, 193, 7, 0.5);
+  }
+}
+
+/* ── FAQ ────────────────────────────────────────────────────
+   O acordeão em si é estado React (Faq.tsx). Só o realce de hover mora aqui. */
+.fx-faq-card:hover {
+  border-color: rgba(255, 193, 7, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+/* ── navegação rolável ──────────────────────────────────────
+   Abaixo de 900px o menu vira uma faixa rolável em vez de quebrar linha. A
+   barra de rolagem some, mas o alvo de toque continua com 44px de altura. */
+nav[data-nav] > a {
+  white-space: nowrap;
+}
+nav[data-nav]::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  nav[data-nav] {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  nav[data-nav] > a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 2px;
+  }
+}
+
+/* ── ordem visual do "passo a passo" ────────────────────────
+   No HTML o <h2> vem ANTES dos cartões, e tem que ser assim: os títulos dos
+   cartões são <h3>, e um h3 antes do h2 quebra a hierarquia de cabeçalhos
+   (reprovava em `heading-order` no Lighthouse — leitor de tela perde a
+   estrutura da seção).
+
+   Visualmente o desktop quer os cartões à ESQUERDA, então quem reordena é o
+   CSS, não o HTML. Abaixo de 900px a ordem natural volta e o título fica em
+   cima, que é o que o design pede lá. */
+[data-passos-cards] {
+  order: -1;
+}
+
+/* ── responsivo ─────────────────────────────────────────────
+   Copiado do design. O dono avisou que a parte responsiva ainda vai receber
+   ajustes; o desktop é o que está fechado. */
+@media (max-width: 900px) {
+  [data-hero-sub] {
+    max-width: 34ch;
+  }
+  [data-hero-fones] img {
+    width: 78% !important;
+  }
+
+  [data-passos-grid] {
+    grid-template-columns: 1fr !important;
+    justify-items: center;
+  }
+  [data-passos-cards] {
+    order: 0 !important;
+  }
+  [data-passos-texto] {
+    margin: 0 auto 6px !important;
+    padding-left: 0 !important;
+    text-align: center;
+    max-width: 34ch !important;
+  }
+  [data-passos-texto] h2,
+  [data-passos-texto] p {
+    max-width: none !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  [data-passos-cards] {
+    margin: 0 auto !important;
+  }
+  [data-blob-cinza] {
+    display: none !important;
+  }
+
+  [data-prop-grid] {
+    grid-template-columns: 1fr !important;
+    justify-items: center;
+    text-align: center;
+  }
+  [data-prop-titulo],
+  [data-prop-grid] p {
+    max-width: 34ch !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+  [data-prop-fone] {
+    width: min(100%, 420px);
+    margin: 0 auto;
+  }
+
+  [data-lado] [data-foto="uma"] {
+    -webkit-mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
+  }
+
+  [data-texto="a"],
+  [data-texto="b"] {
+    align-self: start !important;
+    justify-self: center !important;
+    text-align: center !important;
+    width: min(94%, 22ch) !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+  }
+  [data-cena="a"] img {
+    left: 50% !important;
+    transform: translateX(-50%);
+    width: min(84%, calc(64% * 0.931)) !important;
+    max-height: 64% !important;
+  }
+  [data-cena="b"] img {
+    right: 50% !important;
+    transform: translateX(50%);
+    width: min(96%, calc(62% * 1.514)) !important;
+    max-height: 62% !important;
+  }
+
+  /* cartões "escolha o seu lado" empilhados */
+  [data-lado] {
+    height: auto !important;
+    padding-bottom: 4px;
+  }
+  [data-lado] [data-foto="uma"] {
+    position: static !important;
+    display: block !important;
+    height: auto !important;
+    width: min(60%, 210px) !important;
+    margin: -44px auto 0 !important;
+    right: auto !important;
+  }
+  [data-lado] [data-copy] {
+    width: 100% !important;
+    text-align: center;
+    padding-top: 6px !important;
+    overflow: visible !important;
+  }
+  [data-lado] [data-clip] {
+    display: none !important;
+  }
+  [data-lado] [data-hovercta] {
+    position: static !important;
+    display: flex !important;
+    width: fit-content;
+    margin: 2px auto 18px !important;
+    left: auto !important;
+    bottom: auto !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  [data-lados-grid] {
+    grid-template-columns: 1fr !important;
+  }
+  /* a anotação ao lado dos celulares não cabe e viraria ruído */
+  [data-anota] {
+    display: none;
+  }
+}
+
+/* sem hover (toque): o botão do cartão não pode depender de passar o mouse */
+@media (hover: none) {
+  [data-hovercta] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-reveal][data-reveal-armed="1"],
-  [data-reveal][data-reveal-armed="1"][data-reveal-visivel] {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-  .linha-disparo,
-  .chip-prestador {
-    animation: none;
-    opacity: 1;
-  }
-  /* O estado ainda muda — só não desliza. A informação continua chegando. */
-  .ficha-escrow,
-  .trilho-preenchido {
-    transition: none;
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
 }
 
-/* Accordion do FAQ (shadcn/radix) — a altura vem da variável do Radix. */
-@keyframes accordion-down {
-  from {
-    height: 0;
-  }
-  to {
-    height: var(--radix-accordion-content-height);
-  }
+/* ── pular para o conteúdo ──────────────────────────────────
+   Fica fora da tela até receber foco pelo teclado. É o primeiro alvo de quem
+   navega por Tab e não quer atravessar o menu inteiro em toda visita. */
+.fx-pular {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 60;
 }
-@keyframes accordion-up {
-  from {
-    height: var(--radix-accordion-content-height);
-  }
-  to {
-    height: 0;
-  }
-}
-.animate-accordion-down {
-  animation: accordion-down 0.24s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.animate-accordion-up {
-  animation: accordion-up 0.2s ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .animate-accordion-down,
-  .animate-accordion-up {
-    animation: none;
-  }
+
+.fx-pular:focus {
+  left: 12px;
+  top: 12px;
+  position: fixed;
+  padding: 10px 18px;
+  border-radius: 10px;
+  background: #1f2329;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
 }

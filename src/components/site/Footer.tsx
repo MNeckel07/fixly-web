@@ -1,71 +1,50 @@
+import Link from "next/link";
+import { Marca } from "@/components/site/Marca";
 import { links } from "@/lib/site";
-import { Marca } from "./Marca";
 
 /**
- * Rodapé.
+ * Rodapé — e a única entrada dedicada ao PROFISSIONAL fora dos cartões.
  *
- * ⚠️ Não referencia o painel administrativo em lugar nenhum. O painel vive em
- * outro domínio e responde 404 aqui de propósito — anunciar o endereço da
- * equipe numa página pública é entregar superfície de ataque de graça.
+ * O `id="profissionais"` mora aqui porque é para cá que o item "Para
+ * profissionais" do menu leva. É de propósito que o menu do topo, feito para o
+ * dono de casa, termine apontando para a porta do outro lado em vez de abrir
+ * uma segunda navegação competindo com a primeira.
  */
-
-const NAVEGACAO = [
-  { href: "#como-funciona", texto: "Como funciona" },
-  { href: "#seguranca", texto: "Segurança" },
-  { href: "#quanto-custa", texto: "Quanto custa" },
-  { href: "#perguntas", texto: "Perguntas frequentes" },
-];
-
 export function Footer() {
   return (
-    <footer className="border-t border-zinco bg-canvas py-14">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
-        <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <Marca size={22} />
-            <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-grafite">
-              Serviços para casa e comércio, com profissional conferido e
-              pagamento retido até você aprovar.
-            </p>
-          </div>
+    <footer id="profissionais" style={{ background: "#fff", borderTop: "1px solid #e4e7e4" }}>
+      <div
+        style={{
+          maxWidth: 1200,
+          margin: "0 auto",
+          padding: "36px clamp(16px,4vw,32px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 20,
+          flexWrap: "wrap",
+        }}
+      >
+        <a href="#topo" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <Marca tamanhoTexto={19} alturaSimbolo={26} cor="#1f2329" />
+        </a>
 
-          <nav aria-label="Rodapé">
-            <ul className="flex flex-col gap-3 sm:items-end">
-              {NAVEGACAO.map(({ href, texto }) => (
-                <li key={href}>
-                  <a
-                    href={href}
-                    className="-my-1 inline-block rounded py-1 text-[14.5px] text-grafite transition-colors hover:text-tinta"
-                  >
-                    {texto}
-                  </a>
-                </li>
-              ))}
-              <li>
-                <a
-                  href={links.cadastroPrestador}
-                  className="-my-1 inline-block rounded py-1 text-[14.5px] text-grafite transition-colors hover:text-tinta"
-                >
-                  Sou profissional
-                </a>
-              </li>
-              <li>
-                <a
-                  href={links.login}
-                  className="-my-1 inline-block rounded py-1 text-[14.5px] text-grafite transition-colors hover:text-tinta"
-                >
-                  Entrar
-                </a>
-              </li>
-            </ul>
-          </nav>
-        </div>
+        <nav style={{ display: "flex", gap: 28, fontSize: 14, color: "#565d66" }}>
+          <a href="#como-funciona" className="fx-rodape-link">
+            Como funciona
+          </a>
+          <Link href={links.cadastroPrestador} className="fx-rodape-link">
+            Sou profissional
+          </Link>
+          <Link href={links.login} className="fx-rodape-link">
+            Entrar
+          </Link>
+        </nav>
 
-        <div className="mt-12 border-t border-zinco pt-6">
-          <p className="font-mono text-[11.5px] tracking-[0.06em] text-grafite-claro">
-            © {new Date().getFullYear()} Fixly
-          </p>
-        </div>
+        {/* #6b727a e não o #868d95 do design: sobre branco aquele dava 3,36:1 e
+            reprovava no contraste (WCAG AA pede 4,5:1 para texto pequeno).
+            Este dá 4,87:1 e é visualmente quase o mesmo cinza. */}
+        <p style={{ margin: 0, fontSize: 12.5, color: "#6b727a" }}>© 2026 Fixly</p>
       </div>
     </footer>
   );

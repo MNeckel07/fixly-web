@@ -1,44 +1,41 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Poppins, Azeret_Mono } from "next/font/google";
+import { Manrope, Caveat } from "next/font/google";
 import { SITE_ORIGIN } from "@/lib/site";
 import "./globals-site.css";
 
 /**
- * TIPOGRAFIA
- * ==========
- * Display: Bricolage Grotesque. A escolha é semântica antes de estética —
- * *bricolagem* é literalmente o assunto da página, e as proporções irregulares
- * da fonte leem como feito à mão, não como corporativo.
+ * TIPOGRAFIA — duas fontes, e nenhuma delas vem do Google em tempo de execução
+ * ===========================================================================
  *
- * Corpo: Poppins, a mesma do produto. Quem clicar no botão cai numa tela com a
- * mesma voz; a landing e o app não podem parecer duas empresas.
+ * O design aprovado usa **Manrope** em tudo (400 a 800: corpo, títulos e os
+ * pesos grossos do "Missão dada") e **Caveat** nas palavras manuscritas em
+ * âmbar — "apostar", "hoje", "contratar", "Fixly".
  *
- * ⚠️ `next/font` baixa e SERVE as fontes do nosso próprio domínio. É por isso
- * que o CSP em `next.config.ts` não precisa liberar o Google Fonts: nenhuma
- * requisição sai daqui. Trocar isto por um `<link>` para fonts.googleapis.com
- * faria as fontes sumirem em silêncio, sem erro nenhum no console.
+ * ⚠️ O ARQUIVO DO DESIGN CARREGA AS FONTES COM `<link>` PARA
+ * fonts.googleapis.com. AQUI ISSO NÃO PODE. O CSP em `next.config.ts` não
+ * libera o Google Fonts, de propósito: `next/font` baixa as fontes no build e
+ * as SERVE do nosso próprio domínio, então nenhuma requisição sai daqui.
+ * Copiar o `<link>` do design faria as duas fontes caírem no fallback do
+ * sistema — sem erro no console, sem nada quebrado, só a página inteira com a
+ * tipografia errada.
+ *
+ * Saíram daqui Bricolage Grotesque, Poppins e Azeret Mono: eram da landing
+ * anterior, que o design novo substitui por completo. Fonte declarada e não
+ * usada é woff2 baixado à toa na página cujo argumento é abrir rápido.
  */
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
   display: "swap",
-  // 600 saiu: o display só é usado em 700 (h3) e 800 (h1/h2). Peso não usado é
-  // um arquivo woff2 baixado à toa.
-  weight: ["700", "800"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
-const poppins = Poppins({
-  variable: "--font-poppins",
+const caveat = Caveat({
+  variable: "--font-caveat",
   subsets: ["latin"],
   display: "swap",
-  weight: ["400", "500", "600"],
-});
-
-const azeret = Azeret_Mono({
-  variable: "--font-azeret",
-  subsets: ["latin"],
-  display: "swap",
-  weight: ["500"],
+  // 600 e 700: o design usa os dois (700 nos destaques grandes)
+  weight: ["600", "700"],
 });
 
 export const viewport: Viewport = {
@@ -75,11 +72,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="pt-BR"
-      className={`${bricolage.variable} ${poppins.variable} ${azeret.variable} h-full`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="pt-BR" className={`${manrope.variable} ${caveat.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }

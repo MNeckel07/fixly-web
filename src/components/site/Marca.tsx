@@ -1,47 +1,70 @@
-import Image from "next/image";
-import { Wordmark } from "@/components/ui/Wordmark";
-
 /**
- * Assinatura da marca — símbolo + "Fixly".
+ * A MARCA — símbolo + "Fixly", com o pingo do i em âmbar.
  *
- * ⚠️ A proporção é definida pelo dono e vale aqui igual vale no produto: o
- * SÍMBOLO é 30% mais alto que a fonte do nome, sobrando margem acima e abaixo
- * do texto em vez de os dois terminarem na mesma altura. `size` é a referência
- * do TEXTO, não do símbolo.
+ * ⚠️ O PINGO É O ELEMENTO DE MARCA, e ele é desenhado, não digitado: o "i" da
+ * fonte entra sem pingo e um <span> redondo âmbar é posicionado por cima. Foi
+ * assim no design e é assim no logotipo oficial.
+ *
+ * Isto já deu problema antes: quando a landing e o app se separaram, cada lado
+ * ganhou uma cópia da marca e a da landing pintou o amarelo de `#7a5600`
+ * (marrom, a variante legível para TEXTO). O dono viu na hora — "o amarelo do X
+ * está diferente". Regra de contraste de texto não se aplica a um pingo, que é
+ * elemento gráfico: aqui o âmbar é o `#ffc107` puro, sempre.
+ *
+ * As medidas do pingo saem proporcionais ao tamanho do texto para a marca não
+ * desmontar entre o cabeçalho (29px) e o rodapé (19px).
  */
-const SYMBOL_RATIO = 1.3;
-
 export function Marca({
-  size = 26,
-  /**
-   * `true` só no cabeçalho, que está acima da dobra. No rodapé isto tem que ser
-   * `false`: marcar como prioritário uma imagem que ninguém vê no primeiro
-   * quadro disputa banda com o que realmente decide o LCP.
-   */
-  prioridade = false,
+  tamanhoTexto,
+  alturaSimbolo,
+  cor,
 }: {
-  size?: number;
-  prioridade?: boolean;
+  /** px do wordmark — o pingo é dimensionado a partir daqui. */
+  tamanhoTexto: number;
+  /** px de altura do símbolo à esquerda. */
+  alturaSimbolo: number;
+  cor: string;
 }) {
-  const fontSize = size * 0.92;
-  const symbolHeight = Math.round(fontSize * SYMBOL_RATIO);
+  const pingo = tamanhoTexto * 0.176;
+  const topo = tamanhoTexto * 0.048;
 
   return (
-    <span className="inline-flex items-center gap-2 leading-none select-none">
-      <Image
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         src="/fixly-symbol.png"
         alt=""
-        aria-hidden="true"
-        width={symbolHeight}
-        height={symbolHeight}
-        priority={prioridade}
-        loading={prioridade ? undefined : "lazy"}
-        className="block shrink-0 w-auto"
-        style={{ height: symbolHeight }}
+        style={{ height: alturaSimbolo, width: "auto", display: "block" }}
       />
-      {/* Mesmo componente do produto. Antes eram dois desenhos diferentes e o
-          X daqui saía em `#7a5600` (marrom), não em amarelo. */}
-      <Wordmark fontSize={fontSize} className="font-sans" />
-    </span>
+      <span
+        style={{
+          fontSize: tamanhoTexto,
+          fontWeight: 800,
+          letterSpacing: "-0.02em",
+          lineHeight: 1,
+          color: cor,
+          position: "relative",
+        }}
+      >
+        F
+        <span style={{ position: "relative", display: "inline-block" }}>
+          i
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: topo,
+              width: pingo,
+              height: pingo,
+              transform: "translateX(-50%)",
+              borderRadius: "50%",
+              background: "#ffc107",
+            }}
+          />
+        </span>
+        xly
+      </span>
+    </>
   );
 }

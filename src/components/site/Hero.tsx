@@ -1,146 +1,315 @@
-import { BadgeCheck, Camera, Landmark, MapPinOff, ShieldCheck } from "lucide-react";
-import { Cta } from "./Cta";
+import Link from "next/link";
+import { Header } from "@/components/site/Header";
+import { links, CTA_LABEL } from "@/lib/site";
 
 /**
- * HERO — a tese da página.
+ * HERO — o fundo escuro é um retângulo INCLINADO, não um gradiente com curva.
  *
- * ⚠️ REGRA DE LCP: o `<h1>` é texto de servidor, sem animação de entrada e sem
- * espera por dado nenhum. O elemento que o navegador vai medir como LCP pinta
- * no primeiro quadro. A ilustração ao lado anima, mas ela não é o LCP e a
- * animação é CSS puro — nenhum JS entra no caminho crítico.
+ * `skewY(4deg)` num bloco que sangra 90px para fora dos dois lados: é isso que
+ * dá a diagonal reta na base. Por isso ele tem `left/right: -90px` — sem a
+ * sangria, o canto girado deixaria triângulos de fundo claro aparecendo.
  *
- * A ilustração mostra O DISPARO: um pedido só sai e alcança todos os
- * profissionais que atendem aquela categoria naquela região. É o movimento mais
- * característico do produto e não precisa de número nenhum para ser verdadeiro.
+ * A segunda camada por cima é o esfumado: dissolve os últimos 30px do escuro no
+ * `#fafafa` da página, para a diagonal não terminar num corte seco.
  */
 
-const SELOS = [
-  { Icone: BadgeCheck, texto: "Documento conferido" },
-  { Icone: Landmark, texto: "Dinheiro retido até você aprovar" },
-  { Icone: MapPinOff, texto: "Endereço só depois do aceite" },
-];
+/* ────────────────────────── órbitas ──────────────────────────
+ * Dois anéis pontilhados em volta dos celulares. Cada anel é dividido ao meio:
+ * a metade de cima fica ATRÁS dos aparelhos e a de baixo NA FRENTE — é esse
+ * corte que dá a sensação de os celulares estarem dentro da órbita, e não
+ * colados sobre um desenho.
+ *
+ * As contas ficam aqui, em código, em vez de coordenadas digitadas à mão: o
+ * ponto de cada bolinha depende do seno e do cosseno do ângulo NA ELIPSE já
+ * rotacionada. Number colado seria impossível de conferir e de ajustar.
+ */
+type Orbita = { cx: number; cy: number; rx: number; ry: number; rot: number };
 
-export function Hero() {
+const ORB1: Orbita = { cx: 280, cy: 370, rx: 400, ry: 170, rot: -18 };
+const ORB2: Orbita = { cx: 300, cy: 420, rx: 340, ry: 120, rot: -8 };
+
+/** Meio arco da elipse: "atras" é a metade de cima, "frente" a de baixo. */
+function arco(o: Orbita, metade: "atras" | "frente") {
+  return metade === "atras"
+    ? `M ${o.cx - o.rx} ${o.cy} A ${o.rx} ${o.ry} 0 0 1 ${o.cx + o.rx} ${o.cy}`
+    : `M ${o.cx + o.rx} ${o.cy} A ${o.rx} ${o.ry} 0 0 1 ${o.cx - o.rx} ${o.cy}`;
+}
+
+/** Ponto sobre a elipse no ângulo dado, já levando em conta a rotação dela. */
+function ponto(o: Orbita, angulo: number) {
+  const t = (angulo * Math.PI) / 180;
+  const ro = (o.rot * Math.PI) / 180;
+  const x = o.rx * Math.cos(t);
+  const y = o.ry * Math.sin(t);
+  return {
+    cx: o.cx + x * Math.cos(ro) - y * Math.sin(ro),
+    cy: o.cy + x * Math.sin(ro) + y * Math.cos(ro),
+  };
+}
+
+function Orbitas({ camada }: { camada: "atras" | "frente" }) {
+  const p1 = ponto(ORB1, camada === "atras" ? 250 : 100);
+  const p2 = ponto(ORB2, 60);
   return (
-    <section id="topo" className="relative overflow-hidden border-b border-zinco">
-      {/* Faixa de risco: o amarelo da marca ancorado no mundo da obra. */}
-      <div
-        aria-hidden="true"
-        className="h-1.5 w-full bg-[repeating-linear-gradient(135deg,#ffc107_0_14px,#1f2329_14px_28px)] opacity-90"
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 560 720"
+      preserveAspectRatio="none"
+      fill="none"
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        overflow: "visible",
+        pointerEvents: "none",
+        zIndex: camada === "atras" ? 0 : 2,
+      }}
+    >
+      <path
+        d={arco(ORB1, camada)}
+        transform={`rotate(${ORB1.rot} ${ORB1.cx} ${ORB1.cy})`}
+        stroke={camada === "atras" ? "rgba(255,193,7,0.45)" : "rgba(255,193,7,0.7)"}
+        strokeWidth={2.6}
+        strokeDasharray="7 9"
+        strokeLinecap="round"
+        style={{ animation: "fx-dash 3.2s linear infinite" }}
       />
-
-      {/*
-        ⚠️ ALTURA DO HERO É REGRA DE CONVERSÃO, NÃO GOSTO.
-        O botão TEM que caber acima da dobra num monitor de 1440×900 e num
-        celular. A primeira versão usava `clamp(2.4rem,7vw,4.25rem)` e a
-        headline quebrava em cinco linhas, empurrando o CTA para fora da tela —
-        medido no Chrome, não estimado. Antes de aumentar qualquer tamanho aqui,
-        tire um screenshot e confira onde o botão parou.
-      */}
-      <div className="mx-auto grid max-w-6xl gap-12 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1.12fr_0.88fr] lg:items-center lg:gap-14 lg:py-20">
-        {/* ── coluna do argumento ── */}
-        <div>
-          <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-amarelo-borda bg-amarelo-fundo px-3.5 py-1.5 font-mono text-[11.5px] font-medium tracking-[0.12em] text-amarelo-tinta uppercase">
-            <ShieldCheck className="size-3.5" strokeWidth={2.5} aria-hidden="true" />
-            Serviços para casa e comércio
-          </p>
-
-          <h1 className="max-w-[15ch] text-[clamp(2.1rem,4.6vw,3.4rem)] font-extrabold text-tinta">
-            Contrate para sua casa sem apostar em quem vai aparecer.
-          </h1>
-
-          <p className="mt-5 max-w-xl text-[17px] leading-relaxed text-grafite">
-            Eletricista, encanador, pintor e mais. Todo profissional aqui teve{" "}
-            <strong className="font-semibold text-tinta">
-              sete documentos conferidos por uma pessoa
-            </strong>
-            . O seu dinheiro fica retido até você aprovar o serviço.
-          </p>
-
-          <div className="mt-8">
-            <Cta />
-          </div>
-
-          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-3">
-            {SELOS.map(({ Icone, texto }) => (
-              <li key={texto} className="flex items-center gap-2 text-[13.5px] font-medium text-grafite">
-                <Icone className="size-4 shrink-0 text-amarelo-tinta" strokeWidth={2.25} aria-hidden="true" />
-                {texto}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* ── coluna da ilustração: o disparo ── */}
-        <DisparoDoPedido />
-      </div>
-    </section>
+      <path
+        d={arco(ORB2, camada)}
+        transform={`rotate(${ORB2.rot} ${ORB2.cx} ${ORB2.cy})`}
+        stroke={camada === "atras" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.35)"}
+        strokeWidth={2.6}
+        strokeDasharray="5 9"
+        strokeLinecap="round"
+        style={{ animation: "fx-dash 4.1s linear infinite" }}
+      />
+      <circle cx={p1.cx} cy={p1.cy} r={camada === "atras" ? 4 : 4.5} fill="#ffc107" />
+      {camada === "frente" && <circle cx={p2.cx} cy={p2.cy} r={3.5} fill="rgba(255,255,255,0.8)" />}
+    </svg>
   );
 }
 
-function DisparoDoPedido() {
+export function Hero() {
   return (
-    <figure className="m-0">
-      <div className="rounded-2xl border border-zinco bg-white p-5 shadow-placa sm:p-7">
-        {/* o pedido */}
-        <div className="rounded-xl border border-zinco bg-zinco-claro p-4">
-          <p className="font-mono text-[10.5px] font-medium tracking-[0.14em] text-grafite-claro uppercase">
-            Seu pedido
+    <section style={{ position: "relative", zIndex: 2, color: "#fff" }}>
+      {/* fundo escuro inclinado */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: -90,
+          right: -90,
+          top: -160,
+          bottom: 46,
+          transform: "skewY(4deg)",
+          background:
+            "radial-gradient(110% 85% at 78% 12%, #6b5410 0%, #3d3520 34%, #23262b 66%, #1a1d21 100%)",
+          pointerEvents: "none",
+        }}
+      />
+      {/* esfumado da base + brilho âmbar no canto inferior esquerdo */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: -90,
+          right: -90,
+          top: -160,
+          bottom: 46,
+          transform: "skewY(4deg)",
+          background:
+            "linear-gradient(to bottom,rgba(250,250,250,0) calc(100% - 30px),rgba(250,250,250,0.18) calc(100% - 19px),rgba(250,250,250,0.66) calc(100% - 8px),#fafafa 100%),radial-gradient(55% 42% at 12% 88%, rgba(255,193,7,0.16), transparent 70%)",
+          pointerEvents: "none",
+        }}
+      />
+
+      <Header />
+
+      <div
+        id="topo"
+        data-hero-grid="1"
+        style={{
+          position: "relative",
+          zIndex: 1,
+          maxWidth: 1200,
+          margin: "0 auto",
+          padding: "clamp(24px,4vw,40px) clamp(16px,4vw,32px) 0",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,270px),1fr))",
+          gap: "clamp(16px,3vw,24px)",
+          alignItems: "start",
+        }}
+      >
+        <div style={{ paddingTop: "clamp(8px,4vw,56px)" }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: "clamp(34px,5.4vw,58px)",
+              lineHeight: 1.08,
+              fontWeight: 600,
+              letterSpacing: "-0.025em",
+              maxWidth: "14ch",
+              textWrap: "balance",
+              color: "#fff",
+            }}
+          >
+            Conserte sua casa sem{" "}
+            <span
+              style={{
+                fontFamily: "var(--font-caveat), cursive",
+                fontWeight: 700,
+                fontSize: "1.28em",
+                lineHeight: 0.8,
+                color: "#ffc107",
+                letterSpacing: 0,
+                display: "inline-block",
+                transform: "rotate(-3deg)",
+                padding: "0 4px",
+              }}
+            >
+              apostar
+            </span>{" "}
+            em quem vai aparecer.
+          </h1>
+
+          <p
+            data-hero-sub="1"
+            style={{
+              margin: "clamp(16px,2.4vw,26px) 0 0",
+              maxWidth: 520,
+              fontSize: "clamp(14px,1.5vw,16px)",
+              lineHeight: 1.65,
+              fontWeight: 400,
+              color: "rgba(255,255,255,0.72)",
+            }}
+          >
+            Eletricista, encanador, pintor e mais. Cada profissional passou por conferência de
+            documentos, e o seu dinheiro só é liberado depois que você aprovar o serviço.
           </p>
-          <p className="mt-2 font-display text-[19px] font-bold tracking-tight text-tinta">
-            Eletricista
-          </p>
-          <p className="mt-1 text-[14.5px] leading-snug text-grafite">
-            “A tomada da cozinha parou depois da chuva.”
-          </p>
-          <p className="mt-3 flex items-center gap-1.5 text-[12.5px] text-grafite-claro">
-            <Camera className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
-            2 fotos
-          </p>
+
+          <div
+            style={{
+              marginTop: "clamp(22px,3vw,38px)",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <Link
+              href={links.cadastroContratante}
+              className="fx-btn-amarelo"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "14px 26px",
+                borderRadius: 999,
+                background: "#ffc107",
+                color: "#1f2329",
+                fontSize: 15,
+                fontWeight: 700,
+              }}
+            >
+              {CTA_LABEL}
+            </Link>
+            <Link
+              href={links.cadastroContratante}
+              aria-label="Começar"
+              className="fx-btn-fantasma"
+              style={{
+                display: "grid",
+                placeItems: "center",
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                border: "1px solid rgba(255,255,255,0.5)",
+                color: "#fff",
+              }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M7 17 17 7" />
+                <path d="M8 7h9v9" />
+              </svg>
+            </Link>
+          </div>
         </div>
 
-        {/* o leque — um pedido, vários profissionais */}
-        <svg
-          viewBox="0 0 300 46"
-          preserveAspectRatio="none"
-          className="h-11 w-full"
-          aria-hidden="true"
-          focusable="false"
+        <div
+          data-hero-fones="1"
+          style={{
+            position: "relative",
+            aspectRatio: "560/720",
+            minWidth: 0,
+            zIndex: 3,
+            marginBottom: "-6vw",
+          }}
         >
-          <g stroke="#c9cec9" strokeWidth="1.5" fill="none" strokeLinecap="round">
-            <path className="linha-disparo" style={{ animationDelay: "0ms" }} d="M150 0 V14 Q150 22 140 22 H45 Q35 22 35 30 V46" />
-            <path className="linha-disparo" style={{ animationDelay: "180ms" }} d="M150 0 V14 Q150 22 143 22 H108 Q98 22 98 30 V46" />
-            <path className="linha-disparo" style={{ animationDelay: "360ms" }} d="M150 0 V14 Q150 22 157 22 H192 Q202 22 202 30 V46" />
-            <path className="linha-disparo" style={{ animationDelay: "540ms" }} d="M150 0 V14 Q150 22 160 22 H255 Q265 22 265 30 V46" />
-          </g>
-        </svg>
+          <Orbitas camada="atras" />
 
-        {/* os profissionais */}
-        <ul className="grid grid-cols-4 gap-2">
-          {[0, 1, 2, 3].map((i) => (
-            <li
-              key={i}
-              className="chip-prestador flex flex-col items-center gap-1.5 rounded-lg border border-zinco bg-canvas px-1 py-3"
-              style={{ animationDelay: `${300 + i * 130}ms` }}
-            >
-              <span
-                aria-hidden="true"
-                className="grid size-7 place-items-center rounded-full bg-tinta text-white"
-              >
-                <BadgeCheck className="size-4" strokeWidth={2.25} />
-              </span>
-              <span className="font-mono text-[9.5px] tracking-[0.08em] text-grafite-claro uppercase">
-                conferido
-              </span>
-            </li>
-          ))}
-        </ul>
+          <p
+            data-anota="1"
+            style={{
+              position: "absolute",
+              right: "6%",
+              top: "5%",
+              margin: 0,
+              width: "30%",
+              maxWidth: 180,
+              fontSize: "clamp(11px,1.15vw,12.5px)",
+              lineHeight: 1.5,
+              color: "rgba(255,255,255,0.75)",
+              textAlign: "left",
+            }}
+          >
+            Cadastre-se e receba propostas de profissionais conferidos na sua região.
+          </p>
+
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/phone-categorias-1200.webp"
+            alt="Tela de categorias do app Fixly"
+            fetchPriority="high"
+            style={{
+              position: "absolute",
+              zIndex: 1,
+              left: "-12%",
+              top: 0,
+              width: "94%",
+              height: "auto",
+              willChange: "transform",
+              animation: "fx-float 7s ease-in-out infinite",
+            }}
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/phone-home-1200.webp"
+            alt="Tela inicial do app Fixly"
+            fetchPriority="high"
+            style={{
+              position: "absolute",
+              zIndex: 1,
+              right: "-14%",
+              top: "30%",
+              width: "94%",
+              height: "auto",
+              willChange: "transform",
+              animation: "fx-float 7s ease-in-out 1.6s infinite",
+            }}
+          />
+
+          <Orbitas camada="frente" />
+        </div>
       </div>
-
-      <figcaption className="mt-3.5 text-center text-[13px] leading-relaxed text-grafite-claro">
-        Um pedido só, disparado para todos os profissionais que atendem essa
-        categoria na sua região.
-      </figcaption>
-    </figure>
+    </section>
   );
 }

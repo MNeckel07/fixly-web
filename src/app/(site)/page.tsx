@@ -1,29 +1,35 @@
 import { Categorias } from "@/components/site/Categorias";
 import { ComoFunciona } from "@/components/site/ComoFunciona";
-import { Documentos } from "@/components/site/Documentos";
-import { Escrow } from "@/components/site/Escrow";
 import { Faq } from "@/components/site/Faq";
-import { Fecho } from "@/components/site/Fecho";
 import { Footer } from "@/components/site/Footer";
-import { Header } from "@/components/site/Header";
 import { Hero } from "@/components/site/Hero";
+import { Missao } from "@/components/site/Missao";
 import { Perfis } from "@/components/site/Perfis";
-import { Privacidade } from "@/components/site/Privacidade";
-import { QuantoCusta } from "@/components/site/QuantoCusta";
-import { ParaProfissionais } from "@/components/site/ParaProfissionais";
+import { Propostas } from "@/components/site/Propostas";
 import { PERGUNTAS } from "@/lib/faq";
 import { CATEGORIAS, SITE_ORIGIN, links } from "@/lib/site";
 
 /**
- * A landing.
+ * A landing (design aprovado no Claude Design, 08/09/2026).
  *
- * Página estática por inteiro: nenhum `await` de dado, nenhuma sessão, nenhuma
- * chamada de rede. Ela é gerada no build e servida como HTML pronto — que é o
- * que faz o LCP caber no orçamento em 4G.
+ * Estática por inteiro: nenhum `await` de dado, nenhuma sessão, nenhuma chamada
+ * de rede. É gerada no build e servida como HTML pronto — o que faz o LCP caber
+ * no orçamento em 4G.
  *
- * ⚠️ Esta página NÃO conhece o sistema. Não importa nada de `sistema-web`, não
- * fala com o Supabase e não sabe se existe sessão. Os únicos pontos de contato
- * são os links de `lib/site.ts`.
+ * ⚠️ Esta página NÃO conhece o sistema. Não fala com o Supabase e não sabe se
+ * existe sessão. Os únicos pontos de contato são os links de `lib/site.ts`.
+ *
+ * O `Header` não aparece aqui: ele vive DENTRO do `Hero`, sobre o fundo escuro
+ * inclinado. Renderizá-lo por fora o jogaria para cima do recorte.
+ *
+ * ORDEM DAS SEÇÕES — cada uma derruba uma pergunta, nesta ordem:
+ *   Hero          "o que é isso?"
+ *   Categorias    "atende o meu caso?"
+ *   Como funciona "vou ter que pechinchar com cada um?"
+ *   Propostas     "e se eu achar caro?"
+ *   Perfis        "isso é pra mim ou pra quem presta serviço?"
+ *   Missão        o fecho emocional, antes das últimas dúvidas
+ *   FAQ           o resto
  */
 
 /**
@@ -89,27 +95,21 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(dadosEstruturados()) }}
       />
 
-      <a
-        href="#conteudo"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:rounded-lg focus:bg-tinta focus:px-4 focus:py-2.5 focus:text-[15px] focus:font-medium focus:text-white"
-      >
+      {/* Pular para o conteúdo: invisível até receber foco pelo teclado.
+          A classe é CSS puro (globals-site.css) — a versão anterior usava
+          utilitárias do Tailwind, que saiu junto com a landing antiga. */}
+      <a href="#conteudo" className="fx-pular">
         Pular para o conteúdo
       </a>
 
-      <Header />
-
-      <main id="conteudo" className="flex-1">
+      <main id="conteudo">
         <Hero />
         <Categorias />
         <ComoFunciona />
-        <Escrow />
-        <Documentos />
-        <Privacidade />
-        <QuantoCusta />
-        <ParaProfissionais />
+        <Propostas />
         <Perfis />
+        <Missao />
         <Faq />
-        <Fecho />
       </main>
 
       <Footer />
