@@ -53,6 +53,21 @@ services:
         sync: false
       - key: MP_WEBHOOK_SECRET
         sync: false
+      # ── Carteiras (Apple Pay / Google Pay) ──────────────────
+      # Rodam no STRIPE, não no Mercado Pago — o MP não oferece esses meios no
+      # Brasil (ver `lib/stripe.ts`). Sem estas três, `walletPaymentsEnabled()`
+      # devolve falso e o botão "Carteira" simplesmente não aparece: nada
+      # quebra, a opção só não existe.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      # Conteúdo do arquivo que a Apple exige em
+      # /.well-known/apple-developer-merchantid-domain-association — o Stripe
+      # entrega esse texto ao registrar o domínio. SÓ o Apple Pay depende dele;
+      # o Google Pay funciona sem. Ver a rota de mesmo nome em `src/app`.
+      - key: APPLE_PAY_DOMAIN_ASSOCIATION
+        sync: false
 
   # ── Painel da equipe ──────────────────────────────────────
   # Repare no que NÃO está aqui: nenhuma credencial do Mercado Pago. O painel

@@ -13,6 +13,7 @@ type Provider = {
   bio: string | null;
   city: string | null;
   avatar_path: string | null;
+  seal_active?: boolean | null;
   category: { name: string; slug: string } | null;
 };
 type Post = { id: string; image_path: string; caption: string | null; created_at: string; provider: { full_name: string; handle: string | null } | null };
@@ -23,6 +24,7 @@ export function ProfilerTabs({
   followingIds,
   feed,
   publicUrlBase,
+  miniaturas = {},
   showRequestButton = true,
 }: {
   providers: Provider[];
@@ -30,6 +32,8 @@ export function ProfilerTabs({
   followingIds: string[];
   feed: Post[];
   publicUrlBase: string;
+  /** id do profissional -> até 4 caminhos de foto do portfólio (Fixly 13.2). */
+  miniaturas?: Record<string, string[]>;
   showRequestButton?: boolean;
 }) {
   const [tab, setTab] = useState<"explorar" | "seguindo">("explorar");
@@ -51,7 +55,7 @@ export function ProfilerTabs({
       </div>
 
       {tab === "explorar" ? (
-        <ProfilerDirectory providers={providers} currentUserId={currentUserId} followingIds={followingIds} showRequestButton={showRequestButton} />
+        <ProfilerDirectory providers={providers} currentUserId={currentUserId} followingIds={followingIds} showRequestButton={showRequestButton} miniaturas={miniaturas} portfolioBase={publicUrlBase} />
       ) : (
         <Feed posts={feed} publicUrlBase={publicUrlBase} />
       )}

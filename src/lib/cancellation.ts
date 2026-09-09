@@ -235,16 +235,40 @@ export function contaDoCancelamento(
       };
 
     case "no_show_cliente": {
-      const retido = Math.min(frete, total);
+      /**
+       * ⚠️ EFEITO COLATERAL DO FIM DO DESLOCAMENTO (0039, Fixly 13).
+       *
+       * O item 5.1 da política manda pagar ao profissional "a taxa de
+       * deslocamento" quando o cliente não aparece. Com a taxa removida,
+       * `frete` é sempre 0 — e a conta passaria a devolver **tudo** ao cliente
+       * ausente: o profissional perderia a viagem inteira e receberia zero,
+       * exatamente na hipótese que a cláusula existe para cobrir.
+       *
+       * O substituto é a mesma ideia lida na régua nova: agora que o preço
+       * INCLUI o deslocamento (é a instrução que o profissional recebe antes de
+       * digitar o valor), a parcela equivalente à viagem é uma FRAÇÃO do preço.
+       * Usamos os mesmos 30% da cláusula 3.2 — o patamar que o dono já aceitou
+       * para "reservou a agenda e não vou mais" — porque o no-show é isso mais
+       * uma ida perdida, nunca menos.
+       *
+       * Serviços ANTIGOS, com frete gravado, continuam pela regra antiga
+       * quando ela for mais favorável: `Math.max` dos dois.
+       */
+      const equivalenteDeslocamento = round2(valorServico * RETENCAO_APOS_ACEITE);
+      const retido = Math.min(Math.max(frete, equivalenteDeslocamento), total);
+      const veioDoFrete = frete >= equivalenteDeslocamento && frete > 0;
       return {
         ...base,
         retido,
-        retidoServico: 0,
-        retidoFrete: retido, // é a taxa de deslocamento, e ela não paga comissão
+        // frete (herança) não paga comissão; a fração do serviço paga
+        retidoServico: veioDoFrete ? 0 : retido,
+        retidoFrete: veioDoFrete ? retido : 0,
         reembolso: round2(total - retido),
-        percentual: 0,
+        percentual: veioDoFrete ? 0 : RETENCAO_APOS_ACEITE,
         apuracao: false,
-        resumo: `Cliente ausente após ${TOLERANCIA_NO_SHOW_MIN} minutos de tolerância e tentativa de contato: é devida ao profissional a taxa de deslocamento; o restante volta para o cliente.`,
+        resumo: veioDoFrete
+          ? `Cliente ausente após ${TOLERANCIA_NO_SHOW_MIN} minutos de tolerância e tentativa de contato: é devida ao profissional a taxa de deslocamento; o restante volta para o cliente.`
+          : `Cliente ausente após ${TOLERANCIA_NO_SHOW_MIN} minutos de tolerância e tentativa de contato: o profissional se deslocou até o local, então fica retido 30% do valor do serviço. O restante volta para o cliente.`,
         clausula: "5.1 — não comparecimento do cliente",
       };
     }

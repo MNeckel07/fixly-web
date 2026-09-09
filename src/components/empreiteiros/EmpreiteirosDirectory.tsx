@@ -20,7 +20,16 @@ type Emp = {
 
 const onlyDigits = (s: string) => s.replace(/\D/g, "");
 
-export function EmpreiteirosDirectory({ empreiteiros }: { empreiteiros: Emp[] }) {
+export function EmpreiteirosDirectory({
+  empreiteiros,
+  miniaturas = {},
+  portfolioBase = "",
+}: {
+  empreiteiros: Emp[];
+  /** id do empreiteiro -> até 4 caminhos de foto da galeria (Fixly 13.2). */
+  miniaturas?: Record<string, string[]>;
+  portfolioBase?: string;
+}) {
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
   const list = query
@@ -83,11 +92,29 @@ export function EmpreiteirosDirectory({ empreiteiros }: { empreiteiros: Emp[] })
                   {e.description && <p className="text-sm text-gray mt-1">{e.description}</p>}
                 </div>
               </div>
+              {/* Miniaturas do trabalho: quem procura empreiteiro compara
+                  OBRA, e antes era preciso abrir cada perfil para ver uma.
+                  Levam ao perfil da empresa, não ao arquivo da imagem. */}
+                {(miniaturas[e.id] ?? []).length > 0 && e.handle && (
+                <Link href={`/e/${e.handle}`} className="mt-3 grid grid-cols-4 gap-1.5 group block">
+                  {(miniaturas[e.id] ?? []).slice(0, 4).map((path) => (
+                    <span key={path} className="aspect-square overflow-hidden rounded-lg bg-canvas border border-black/5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={portfolioBase + path}
+                        alt=""
+                        loading="lazy"
+                        className="h-full w-full object-cover transition group-hover:brightness-95"
+                      />
+                    </span>
+                  ))}
+                </Link>
+              )}
+
               <div className="flex flex-wrap gap-2 mt-3">
                 {e.handle && (
                   <Link
                     href={`/e/${e.handle}`}
-                    target="_blank"
                     className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border border-black/10 text-ink font-semibold text-sm hover:bg-black/[0.03]"
                   >
                     Ver perfil <ExternalLink className="h-3.5 w-3.5" />
@@ -96,8 +123,12 @@ export function EmpreiteirosDirectory({ empreiteiros }: { empreiteiros: Emp[] })
                 {e.whatsapp && (
                   <a
                     href={`https://wa.me/55${onlyDigits(e.whatsapp)}`}
+                    /* aba nova de propósito: este é o único link da tela que
+                       sai do Fixly para OUTRO serviço. A queixa do Fixly 13.2
+                       era sobre foto de perfil e Profiler — navegação interna,
+                       que ficou toda na mesma aba. */
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noreferrer noopener"
                     className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-success text-white font-semibold text-sm hover:opacity-90"
                   >
                     <MessageCircle className="h-4 w-4" /> WhatsApp

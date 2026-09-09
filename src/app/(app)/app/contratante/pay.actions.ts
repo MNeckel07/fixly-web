@@ -70,12 +70,22 @@ export async function processPayment(
 
   const admin = createAdminClient();
 
-  // não cobra duas vezes o mesmo pedido
-  const { data: existing } = await admin
+  /**
+   * Não cobra duas vezes o mesmo pedido.
+   *
+   * ⚠️ `limit(1)` em vez de `maybeSingle()`: o `maybeSingle` devolve ERRO
+   * quando encontra mais de uma linha, e o erro aqui era descartado — duas
+   * tentativas de pagamento no mesmo pedido faziam a trava sumir justamente
+   * no caso em que ela mais importa. Ordenado por `created_at desc` porque
+   * quem manda é a tentativa mais recente.
+   */
+  const { data: existentes } = await admin
     .from("payments")
     .select("id, status, gateway_status")
     .eq("request_id", requestId)
-    .maybeSingle();
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const existing = existentes?.[0];
   if (existing && existing.status !== "reembolsado" && existing.gateway_status !== "recusado") {
     return { ok: false, error: "Este serviço já tem um pagamento em andamento." };
   }
@@ -229,6 +239,27 @@ export async function processPayment(
     return {
       ok: false,
       error: "Não foi possível registrar a cobrança. Não pague ainda — tente de novo em instantes.",
+      /**
+       * O MOTIVO VAI JUNTO — MAS SÓ FORA DE PRODUÇÃO (Fixly 13, pág. 4).
+       *
+       * Esta mensagem ficou meses na tela do dono sem ninguém saber por quê —
+       * e a causa era prosaica: `payment_status` não tinha o valor
+       * `'pendente'`, então TODO Pix falhava aqui (ver migração 0038). O
+       * Postgres dizia exatamente isso ("invalid input value for enum"), mas a
+       * frase morria no `console.error` de um servidor que ninguém abre.
+       *
+       * ⚠️ EM PRODUÇÃO O TEXTO DO BANCO NÃO SAI DAQUI. Mensagem de erro do
+       * Postgres carrega nome de coluna, de tipo e de constraint; devolvida ao
+       * navegador, ela entrega a planta da tabela `payments` a qualquer
+       * contratante que insista em pagar e vá anotando as respostas. O
+       * diagnóstico continua inteiro no `console.error` acima, que é onde ele
+       * deve morar — o erro do Fixly 13 foi ninguém LER o log, não o log ser
+       * insuficiente.
+       */
+      detail:
+        process.env.NODE_ENV === "production"
+          ? "Se continuar, avise o suporte — o motivo ficou registrado no nosso log."
+          : erroInsert.message,
     };
   }
 
@@ -391,11 +422,16 @@ export async function checkPaymentStatus(
   if (!user) return { status: "desconhecido" };
 
   const admin = createAdminClient();
-  const { data: pay } = await admin
+  // `limit(1)` e não `maybeSingle()`: com duas linhas de pagamento no mesmo
+  // pedido o `maybeSingle` devolve erro e `pay` vem nulo — a função cairia na
+  // recuperação por `external_reference` como se não houvesse pagamento nenhum.
+  const { data: pagamentos } = await admin
     .from("payments")
-    .select("id, gateway_id, status, request_id, service_requests!inner(client_id)")
+    .select("id, gateway_id, status, request_id, created_at, service_requests!inner(client_id)")
     .eq("request_id", requestId)
-    .maybeSingle();
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const pay = pagamentos?.[0];
 
   /**
    * SEM LINHA EM `payments`, PERGUNTE AO GATEWAY MESMO ASSIM (Fixly 12).

@@ -82,7 +82,20 @@ export function SolicitarFlow({
   const [step, setStep] = useState<Step>(catInicial ? "detalhes" : "categoria");
   const [category, setCategory] = useState<ServiceCategory | null>(catInicial);
   const [description, setDescription] = useState(initialDescription);
-  const [urgent, setUrgent] = useState(initialUrgent);
+  /**
+   * NO EXPRESS A URGÊNCIA É FIXA (Fixly 13, pág. 1): *"vamos deixar aqui no
+   * express apenas a opção de ser urgente, sem poder tirar a urgência"*.
+   *
+   * Faz sentido além do pedido: Express É a modalidade de "preciso agora" — a
+   * outra porta ("Solicitar serviço") existe justamente para quem pode
+   * esperar. Um Express com a urgência desligada era um pedido que se
+   * anunciava como emergência para o profissional e não era: ele saía na hora
+   * para um serviço que podia ficar para o fim de semana.
+   */
+  const urgenciaFixa = mode === "express";
+  // não é mais estado: no Express vale sempre `true`, e fora dele o valor já
+  // vem decidido de quem criou o pedido — não há controle na tela que o mude
+  const urgent = urgenciaFixa ? true : initialUrgent;
   const [address, setAddress] = useState("");
   const [houseNumber, setHouseNumber] = useState("");
   const [complement, setComplement] = useState("");
@@ -233,21 +246,21 @@ export function SolicitarFlow({
               <Label>Fotos do serviço</Label>
               <PhotoPicker files={photos} onChange={setPhotos} />
             </div>
-            {mode === "express" && (
-              <button
-                onClick={() => setUrgent((v) => !v)}
-                className={`flex w-full items-center justify-between rounded-xl border p-4 transition ${
-                  urgent ? "border-danger bg-danger/5" : "border-black/10 bg-white"
-                }`}
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-ink">
-                  <AlertTriangle className={`h-4 w-4 ${urgent ? "text-danger" : "text-gray-light"}`} />
-                  É urgente? <span className="text-gray-light font-normal">(prioridade)</span>
+            {/* Não é mais um interruptor: no Express a urgência é o que a
+                modalidade É. Vira um aviso, para o cliente saber o que está
+                contratando — e para quem quer marcar depois ter para onde ir. */}
+            {urgenciaFixa && (
+              <div className="rounded-xl border border-danger bg-danger/5 p-4">
+                <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <AlertTriangle className="h-4 w-4 text-danger" />
+                  Pedido urgente <span className="text-gray-light font-normal">(prioridade máxima)</span>
                 </span>
-                <span className={`h-6 w-11 rounded-full p-0.5 transition ${urgent ? "bg-danger" : "bg-black/15"}`}>
-                  <span className={`block h-5 w-5 rounded-full bg-white transition ${urgent ? "translate-x-5" : ""}`} />
-                </span>
-              </button>
+                <p className="mt-1 text-xs text-gray-light">
+                  O Express é sempre urgente: o profissional sai para o seu endereço assim
+                  que você aceitar a proposta. Se o serviço pode esperar, volte e use{" "}
+                  <b className="text-ink">Solicitar serviço</b>.
+                </p>
+              </div>
             )}
             <div>
               <div className="flex items-center justify-between">

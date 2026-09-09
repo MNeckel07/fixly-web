@@ -6,6 +6,7 @@ import { getProfile } from "@/lib/auth";
 import { Badge } from "@/components/ui/Badge";
 import { CategoryIcon } from "@/components/ui/icons";
 import { brl } from "@/lib/pricing";
+import { UnreadBadge } from "@/components/chat/UnreadBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,34 @@ export default async function HistoricoPage() {
    *
    * Uma consulta só para a lista inteira (`in`), não uma por linha.
    */
+  /**
+   * NOTIFICAÇÃO NO SERVIÇO, NÃO SÓ NO MENU (Fixly 13, pág. 5):
+   * *"colocar a notificação no serviço também"*.
+   *
+   * O menu já mostrava "Meus Serviços ③" — o cliente sabia que havia três
+   * mensagens novas e não sabia de QUAIS serviços. Com vários pedidos abertos,
+   * descobrir isso significava abrir um por um. Agora cada linha da lista
+   * carrega o próprio contador, do mesmo jeito que a lista do profissional já
+   * fazia.
+   *
+   * As conversas vêm em UMA consulta para a lista inteira; o contador em si é
+   * o `UnreadBadge`, que já escuta o Realtime e se atualiza sozinho.
+   */
+  const conversaDoPedido = new Map<string, string>();
+  if (reqs.length > 0) {
+    // ⚠️ o `if` não é zelo à toa: `.in("request_id", [])` vira `in.()` no
+    // PostgREST, que é sintaxe inválida — a lista vazia derrubaria a tela de
+    // quem ainda não pediu nenhum serviço, justamente o primeiro acesso.
+    const { data: convs } = await supabase
+      .from("conversations")
+      .select("id, request_id")
+      .eq("type", "servico")
+      .in("request_id", reqs.map((r) => r.id).slice(0, 200));
+    for (const c of (convs ?? []) as any[]) {
+      conversaDoPedido.set(c.request_id as string, c.id as string);
+    }
+  }
+
   const abertos = reqs.filter((r) => !["concluido", "cancelado"].includes(r.status)).map((r) => r.id);
   const porPedido = new Map<string, { menor: number; qtd: number }>();
   if (abertos.length > 0) {
@@ -91,7 +120,12 @@ export default async function HistoricoPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <Badge status={r.status} count={props?.qtd} />
+                  <span className="inline-flex items-center gap-1.5">
+                    {conversaDoPedido.get(r.id) && (
+                      <UnreadBadge conversationId={conversaDoPedido.get(r.id)!} currentUserId={userId!} />
+                    )}
+                    <Badge status={r.status} count={props?.qtd} />
+                  </span>
                   {fechado != null ? (
                     <p className="text-sm font-semibold text-ink mt-1">{brl(fechado)}</p>
                   ) : props ? (

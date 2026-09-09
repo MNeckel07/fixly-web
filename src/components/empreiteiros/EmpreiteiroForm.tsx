@@ -248,7 +248,7 @@ export function EmpreiteiroForm({
         <div className="flex items-center gap-3">
           <Button onClick={save} loading={saving}>{saved ? <><Check className="h-4 w-4" /> Salvo</> : "Salvar anúncio"}</Button>
           {f.handle && f.id && (
-            <Link href={`/e/${f.handle}`} target="_blank" className="inline-flex items-center gap-1 text-sm text-primary-dark font-medium">
+            <Link href={`/e/${f.handle}`} className="inline-flex items-center gap-1 text-sm text-primary-dark font-medium">
               Ver meu perfil público <ExternalLink className="h-3.5 w-3.5" />
             </Link>
           )}

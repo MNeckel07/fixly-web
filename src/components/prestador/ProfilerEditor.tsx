@@ -215,7 +215,7 @@ export function ProfilerEditor({
           {/* O link só abre quando o perfil está SALVO: antes, /p/<handle> não
               existe ainda e abria uma página de erro. */}
           {savedHandle && !dirty ? (
-            <Link href={`/p/${savedHandle}`} target="_blank" className="inline-flex items-center gap-1 text-sm text-primary-dark font-medium">
+            <Link href={`/p/${savedHandle}`} className="inline-flex items-center gap-1 text-sm text-primary-dark font-medium">
               Ver meu perfil público <ExternalLink className="h-3.5 w-3.5" />
             </Link>
           ) : (

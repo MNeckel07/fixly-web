@@ -139,7 +139,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
 
           {elite ? (
             <div className="mt-3 flex items-center gap-2 rounded-xl bg-success/5 text-success px-4 py-2.5 text-sm">
-              <ShieldCheck className="h-4 w-4 shrink-0" /> Serviços com <b>garantia Fixly</b> (profissional avaliado 4,5★ ou mais).
+              <ShieldCheck className="h-4 w-4 shrink-0" /> Serviços com <b>garantia Fixly</b> (10+ serviços concluídos e avaliação acima de 4,5★).
             </div>
           ) : (
             <div className="mt-3 rounded-xl bg-black/[0.03] text-gray-light px-4 py-2.5 text-xs">
@@ -185,7 +185,7 @@ export default async function ProfilerPublicPage({ params }: { params: Promise<{
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {(items ?? []).map((it: any) => (
-                <a key={it.id} href={publicUrlBase + it.image_path} target="_blank" rel="noreferrer" className="aspect-square rounded-xl overflow-hidden bg-white block">
+                <a key={it.id} href={publicUrlBase + it.image_path} rel="noreferrer" className="aspect-square rounded-xl overflow-hidden bg-white block">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={publicUrlBase + it.image_path} alt={it.caption ?? ""} className="h-full w-full object-cover hover:scale-105 transition" />
                 </a>

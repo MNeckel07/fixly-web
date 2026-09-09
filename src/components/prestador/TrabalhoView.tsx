@@ -62,6 +62,23 @@ export function TrabalhoView({
   const awaitingPayment = status === "aceito" && !needsQuote;
   const photos = job?.photos ?? [];
 
+  /**
+   * RASTREIO É COISA DE EXPRESS (Fixly 13, págs. 4 e 5).
+   *
+   * *"após o pagamento, acho que o mapa e onde está escrito a caminho, dá para
+   * deixar apenas para o express."*
+   *
+   * O mapa e o "a caminho" prometem uma coisa só: **estou indo agora**. Num
+   * serviço combinado para o sábado, essa promessa é mentira desde o instante
+   * em que o cliente paga — ele vê o boneco no mapa numa terça e fica
+   * esperando alguém que nunca disse que ia hoje. Pior: a barra de progresso
+   * ali é uma ANIMAÇÃO, não um GPS, então ela "chega" sozinha em 8 segundos.
+   *
+   * Fora do Express o serviço vai direto de pago para em execução, sem etapa
+   * de deslocamento — que é exatamente o que acontece na vida real.
+   */
+  const express = !!job?.urgent;
+
   async function sendQuote() {
     const v = Number(quoteValue);
     if (!v || v <= 0) return setQuoteErr("Informe um valor válido.");
@@ -79,7 +96,8 @@ export function TrabalhoView({
   const price = job?.final_price ?? job?.estimated_price ?? 0;
 
   useEffect(() => {
-    if (status !== "a_caminho") return;
+    // fora do Express não há trajeto para animar — o serviço começa na hora
+    if (!express || status !== "a_caminho") return;
     timer.current = setInterval(() => {
       setProgress((v) => {
         if (v >= 1) {
@@ -92,7 +110,7 @@ export function TrabalhoView({
     return () => {
       if (timer.current) clearInterval(timer.current);
     };
-  }, [status]);
+  }, [status, express]);
 
   if (!job) {
     return (
@@ -107,13 +125,45 @@ export function TrabalhoView({
     );
   }
 
+  /**
+   * 🔴 "EU FALEI QUE CHEGUEI, MAS PARA O CLIENTE NÃO APARECEU" (Fixly 13, pág. 7).
+   *
+   * Esta função tinha DOIS furos que produzem exatamente esse relato:
+   *
+   *  1. o `error` do update era jogado fora. Se a escrita não passasse (RLS,
+   *     guard, rede), `setStatus` mentia de qualquer jeito: a tela DELE
+   *     mudava, o banco não. Do outro lado não havia o que aparecer — e nada
+   *     na tela dizia que falhou. É a "atualização que casa zero linhas",
+   *     silenciosa por natureza no Supabase;
+   *  2. não havia `router.refresh()`. O estado passava a viver só na memória
+   *     desta aba: bastava um F5 para voltar tudo, e nada revalidava o que o
+   *     servidor tinha em cache.
+   *
+   * Agora o `select()` devolve a linha gravada, e é ela — não o nosso palpite
+   * — que vira o estado da tela. Zero linhas de volta significa que a escrita
+   * foi recusada, e isso passa a ser um erro visível.
+   */
   async function update(newStatus: string, extra?: () => Promise<void>) {
     setBusy(true);
+    setDeclineErr("");
     const supabase = createClient();
-    await supabase.from("service_requests").update({ status: newStatus }).eq("id", job!.id);
+    const { data, error } = await supabase
+      .from("service_requests")
+      .update({ status: newStatus })
+      .eq("id", job!.id)
+      .select("status");
+    if (error || !data || data.length === 0) {
+      setBusy(false);
+      return setDeclineErr(
+        error?.message ?? "Não foi possível atualizar o serviço. Recarregue a página e tente de novo.",
+      );
+    }
     if (extra) await extra();
     setBusy(false);
-    setStatus(newStatus as Job["status"]);
+    setStatus(data[0].status as Job["status"]);
+    // sem isto o cliente só via a mudança no AutoRefresh dele, e o cache do
+    // servidor continuava servindo o status velho para esta aba
+    router.refresh();
   }
 
   // prefetch da conversa (para o badge de não lidas)
@@ -135,13 +185,20 @@ export function TrabalhoView({
   async function conclude() {
     setBusy(true);
     const supabase = createClient();
-    const { error } = await supabase
+    // `select()` pelo mesmo motivo do `update()` acima: sem a linha de volta,
+    // uma escrita recusada pela RLS passaria como sucesso e o cliente nunca
+    // saberia que o serviço acabou ("nem que o serviço tinha sido concluído")
+    const { data, error } = await supabase
       .from("service_requests")
       .update({ provider_done_at: new Date().toISOString() })
-      .eq("id", job!.id);
+      .eq("id", job!.id)
+      .select("provider_done_at");
     setBusy(false);
     if (error) return setQuoteErr(error.message);
-    setDoneAt(new Date().toISOString());
+    if (!data || data.length === 0) {
+      return setQuoteErr("Não foi possível concluir o serviço. Recarregue a página e tente de novo.");
+    }
+    setDoneAt(data[0].provider_done_at as string);
     router.refresh();
   }
 
@@ -198,7 +255,7 @@ export function TrabalhoView({
         {photos.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-3">
             {photos.map((ph) => (
-              <a key={ph} href={ph} target="_blank" rel="noreferrer" className="h-16 w-16 rounded-lg overflow-hidden bg-canvas border border-black/5">
+              <a key={ph} href={ph} rel="noreferrer" className="h-16 w-16 rounded-lg overflow-hidden bg-canvas border border-black/5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={ph} alt="Foto do serviço" className="h-full w-full object-cover" />
               </a>
@@ -207,7 +264,7 @@ export function TrabalhoView({
         )}
       </div>
 
-      {["a_caminho", "em_andamento"].includes(status) && (
+      {express && ["a_caminho", "em_andamento"].includes(status) && (
         <RouteMap
           target={dest}
           targetKind="home"
@@ -265,30 +322,17 @@ export function TrabalhoView({
             {job.mode === "orcamento" ? "Orçamento enviado" : "Proposta aceita"} — aguardando o pagamento do cliente para iniciar.
           </div>
         )}
-        {/* Desistir vale enquanto o serviço não terminou — não só no "aceito".
-            Era a reclamação: depois de aceitar, não havia como sair. */}
-        {["aceito", "a_caminho", "em_andamento"].includes(status) && !doneAt && (
-          <div className="mt-3">
-            <button onClick={decline} disabled={busy} className="w-full text-center text-sm text-gray hover:text-danger transition">
-              {status === "aceito" ? "Recusar este pedido" : "Cancelar este trabalho"}
-            </button>
-            <p className="text-[11px] text-gray-light text-center mt-1">
-              Sem pagamento, o pedido volta para a fila. Já pago, o cliente é estornado.
-            </p>
-            {declineErr && <p className="text-xs text-danger text-center mt-1">{declineErr}</p>}
-            {job.client && (
-              <div className="flex justify-center mt-3">
-                <ReportButton
-                  targetId={job.client.id}
-                  targetName={job.client.full_name}
-                  requestId={job.id}
-                  label="Denunciar este cliente"
-                />
-              </div>
-            )}
-          </div>
-        )}
-        {status === "a_caminho" && !arrived && (
+        {/*
+          A AÇÃO PRINCIPAL VEM PRIMEIRO (Fixly 13, pág. 5: *"nesta parte acho
+          que dá para deixar mais espaçado e mais bonito"*).
+
+          Na versão anterior o "Cancelar este trabalho" ficava ACIMA do botão
+          de concluir e colado nele — o texto de saída disputava espaço com a
+          ação que o profissional realmente veio fazer, e os dois se tocavam.
+          Agora: ação principal em cima, respiro, e a saída embaixo, separada
+          por uma linha, no tom de perigo que o dono pediu.
+        */}
+        {express && status === "a_caminho" && !arrived && (
           <div className="text-center">
             <p className="text-gray text-sm mb-3">A caminho do cliente...</p>
             <div className="h-1.5 rounded-full bg-black/10 overflow-hidden mb-4">
@@ -299,9 +343,9 @@ export function TrabalhoView({
             </Button>
           </div>
         )}
-        {status === "a_caminho" && arrived && (
+        {status === "a_caminho" && (!express || arrived) && (
           <Button fullWidth size="lg" loading={busy} onClick={() => update("em_andamento")}>
-            <MapPin className="h-5 w-5" /> Cheguei — iniciar serviço
+            <MapPin className="h-5 w-5" /> {express ? "Cheguei — iniciar serviço" : "Iniciar serviço"}
           </Button>
         )}
         {status === "em_andamento" && !doneAt && (
@@ -309,11 +353,39 @@ export function TrabalhoView({
             <Button fullWidth size="lg" loading={busy} onClick={conclude}>
               <Check className="h-5 w-5" /> Concluir serviço
             </Button>
-            <p className="text-xs text-gray-light text-center mt-2">
+            <p className="text-xs text-gray-light text-center mt-2.5 leading-relaxed">
               Ao concluir, o cliente é avisado para aprovar. O pagamento entra nos seus
               Ganhos assim que ele aprovar.
             </p>
           </>
+        )}
+
+        {/* Desistir vale enquanto o serviço não terminou — não só no "aceito".
+            Era a reclamação: depois de aceitar, não havia como sair. */}
+        {["aceito", "a_caminho", "em_andamento"].includes(status) && !doneAt && (
+          <div className="mt-6 pt-5 border-t border-black/5">
+            <button
+              onClick={decline}
+              disabled={busy}
+              className="w-full h-11 rounded-xl border border-danger/25 text-sm font-semibold text-danger hover:bg-danger/5 transition disabled:opacity-50"
+            >
+              {status === "aceito" ? "Recusar este pedido" : "Cancelar este trabalho"}
+            </button>
+            <p className="text-[11px] text-gray-light text-center mt-2 leading-relaxed">
+              Sem pagamento, o pedido volta para a fila. Já pago, o cliente é estornado.
+            </p>
+            {declineErr && <p className="text-xs text-danger text-center mt-2">{declineErr}</p>}
+            {job.client && (
+              <div className="flex justify-center mt-4">
+                <ReportButton
+                  targetId={job.client.id}
+                  targetName={job.client.full_name}
+                  requestId={job.id}
+                  label="Denunciar este cliente"
+                />
+              </div>
+            )}
+          </div>
         )}
         {doneAt && (
           <div className="text-center">

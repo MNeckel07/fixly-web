@@ -320,7 +320,7 @@ function MessageBubble({
         }`}
       >
         {m.attachment_type === "image" && url && (
-          <a href={url} target="_blank" rel="noreferrer">
+          <a href={url} target="_blank" rel="noreferrer noopener">
             <img src={url} alt={m.attachment_name ?? ""} className="rounded-lg max-h-56 mb-1" />
           </a>
         )}

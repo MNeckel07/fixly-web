@@ -43,6 +43,27 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  /**
+   * APPLE PAY — o caminho que a Apple visita.
+   *
+   * A verificação de domínio do Apple Pay na web exige o arquivo servido
+   * exatamente em `/.well-known/apple-developer-merchantid-domain-association`,
+   * sem redirecionamento (302 não serve — tem que ser 200 com o conteúdo).
+   *
+   * ⚠️ O App Router IGNORA pastas que começam com ponto: uma
+   * `src/app/.well-known/…/route.ts` compila sem erro e não vira rota nenhuma
+   * (some da lista de rotas do build). Por isso o handler mora em
+   * `/apple-pay-dominio` e o caminho real é criado aqui — `rewrite`, não
+   * `redirect`, justamente porque a Apple não segue redirecionamento.
+   */
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/apple-developer-merchantid-domain-association",
+        destination: "/apple-pay-dominio",
+      },
+    ];
+  },
 };
 
 export default nextConfig;

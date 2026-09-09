@@ -80,7 +80,6 @@ export default async function EmpreiteiroPublicPage({ params }: { params: Promis
             {emp.whatsapp && (
               <a
                 href={`https://wa.me/55${onlyDigits(emp.whatsapp)}`}
-                target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 h-11 px-4 rounded-xl bg-success text-white font-semibold text-sm hover:opacity-90"
               >
@@ -112,7 +111,7 @@ export default async function EmpreiteiroPublicPage({ params }: { params: Promis
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {(items ?? []).map((it: any) => (
-                <a key={it.id} href={publicUrlBase + it.image_path} target="_blank" rel="noreferrer" className="aspect-square rounded-xl overflow-hidden bg-white block">
+                <a key={it.id} href={publicUrlBase + it.image_path} rel="noreferrer" className="aspect-square rounded-xl overflow-hidden bg-white block">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={publicUrlBase + it.image_path} alt="" className="h-full w-full object-cover hover:scale-105 transition" />
                 </a>

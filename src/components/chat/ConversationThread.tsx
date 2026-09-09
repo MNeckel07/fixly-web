@@ -171,10 +171,10 @@ function Bubble({ m, mine, supabase }: { m: Message; mine: boolean; supabase: Re
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[78%] rounded-2xl px-3 py-2 ${mine ? "bg-primary text-ink rounded-br-sm" : "bg-white border border-black/5 rounded-bl-sm"}`}>
         {m.attachment_type === "image" && url && (
-          <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={m.attachment_name ?? ""} className="rounded-lg max-h-56 mb-1" /></a>
+          <a href={url} target="_blank" rel="noreferrer noopener"><img src={url} alt={m.attachment_name ?? ""} className="rounded-lg max-h-56 mb-1" /></a>
         )}
         {m.attachment_type === "file" && (
-          <a href={url ?? "#"} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm underline mb-1">
+          <a href={url ?? "#"} target="_blank" rel="noreferrer noopener" className="flex items-center gap-2 text-sm underline mb-1">
             <FileText className="h-4 w-4" /> {m.attachment_name ?? "arquivo"}
           </a>
         )}

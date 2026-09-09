@@ -1,0 +1,37 @@
+-- ============================================================
+--  0038 — O PIX NUNCA FUNCIONOU: falta 'pendente' no enum
+--
+--  Relato do dono (Fixly 13, pág. 4): *"o pagamento ainda n ta dando certo.
+--  mas se pago pelo codigo do email ele foi para frente"* — e na tela, em
+--  vermelho: "Não foi possível registrar a cobrança. Não pague ainda".
+--
+--  A causa não estava no gateway, estava aqui.
+--
+--    0001_init.sql:13
+--      create type public.payment_status as enum ('retido','liberado','reembolsado');
+--
+--    pay.actions.ts (processPayment), ao gravar a linha da cobrança:
+--      status: charge.status === "retido" ? "retido" : "pendente"
+--
+--  'pendente' NÃO EXISTE no tipo. O Postgres devolve
+--  «invalid input value for enum payment_status: "pendente"», o insert falha,
+--  e o código — que desde o Fixly 12 se recusa (com razão) a mostrar o QR de
+--  uma cobrança que não conseguiu gravar — devolve exatamente aquela frase.
+--
+--  Consequência, e ela é limpa demais para ser coincidência:
+--    • CARTÃO aprovado volta 'retido'  → grava → funciona;
+--    • PIX volta sempre 'pendente'     → falha SEMPRE, para todo mundo,
+--      desde o primeiro dia em que o Pix passou a nascer pendente.
+--
+--  Por isso "pelo código do e-mail foi para frente": aquele caminho é o
+--  webhook/reconciliação, que faz UPDATE de uma linha já existente ou insere
+--  já com 'retido' (`recuperarPagamentoPerdido`) — nenhum dos dois escreve
+--  'pendente', então nenhum dos dois esbarrava no enum.
+--
+--  ⚠️ ESTA MIGRAÇÃO VEM SOZINHA NO ARQUIVO DE PROPÓSITO.
+--  `alter type ... add value` só pode ser usado por outra instrução depois que
+--  a transação que o criou fechar. Juntar isto com qualquer coisa que grave
+--  'pendente' faria a própria migração falhar.
+-- ============================================================
+
+alter type public.payment_status add value if not exists 'pendente';

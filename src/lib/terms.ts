@@ -1,6 +1,18 @@
 import type { Role } from "./brand";
 
-export const TERMS_VERSION = "1.1";
+/**
+ * ⚠️ SUBIU PARA 1.2 PORQUE A CLÁUSULA 9 MUDOU (Fixly 13).
+ *
+ * O Selo deixou de ser "4,5★ com histórico" e passou a exigir 10 serviços e
+ * nota MAIOR que 4,5. Alterar o texto sem subir a versão deixaria todo mundo
+ * com `profiles.terms_version = '1.1'` no cadastro, apontando para um texto
+ * que não é mais o que eles leram — o registro do aceite viraria ficção.
+ *
+ * Nada no sistema compara versões nem força re-aceite hoje; quem já tem conta
+ * segue com 1.1 gravado, que é exatamente o correto: foi essa versão que ele
+ * aceitou. Cadastros novos gravam 1.2.
+ */
+export const TERMS_VERSION = "1.2";
 
 /**
  * Encarregado pelo Tratamento de Dados (DPO) — exigência do art. 41 da LGPD.
@@ -83,7 +95,7 @@ export const TERMS: Record<Exclude<Role, "admin">, Terms> = {
       },
       {
         h: "9. Selo Fixly — concessão e perda",
-        p: "O Selo Fixly é um reconhecimento de qualidade concedido automaticamente ao profissional que mantém avaliação média de 4,5 estrelas ou mais, com histórico de serviços concluídos. Ele NÃO é permanente: cai sozinho quando a média deixa de atender ao critério, e o profissional é avisado nos dois sentidos (ao ganhar e ao perder).",
+        p: "O Selo Fixly é um reconhecimento de qualidade concedido automaticamente ao profissional que cumpre DOIS critérios ao mesmo tempo: pelo menos 10 serviços concluídos na plataforma e avaliação média MAIOR que 4,5 estrelas. Ele NÃO é permanente: cai sozinho quando qualquer um dos dois critérios deixa de ser atendido, e o profissional é avisado nos dois sentidos (ao ganhar e ao perder). A Fixly também pode revogá-lo em caso de fraude, manipulação de avaliações ou dano grave.",
       },
       {
         h: "9.1. Revogação imediata do Selo",

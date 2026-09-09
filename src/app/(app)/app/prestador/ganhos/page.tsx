@@ -7,6 +7,7 @@ import { GanhoItem } from "@/components/prestador/GanhoItem";
 import { Carteira, type Pending, type Withdrawal } from "@/components/prestador/Carteira";
 import { getBalance } from "./actions";
 import { brl, providerNet } from "@/lib/pricing";
+import { diaBR, diaDaSemanaBR, semanaAtualBR } from "@/lib/fuso";
 
 export const dynamic = "force-dynamic";
 
@@ -91,10 +92,77 @@ export default async function GanhosPage({
   const grossNet = jobs.reduce((s, j) => s + Number(j.net), 0);
   const gross = jobs.reduce((s, j) => s + Number(j.val), 0);
 
+  /**
+   * 🔴 "VAI RECEBER 3,40 MAS SÓ TEM UM SERVIÇO DE 1 REAL NA CONTA" (Fixly 13, pág. 5).
+   *
+   * O dono estava certo, e o dinheiro estava certo — quem estava errada era a
+   * PÁGINA. Repare no que ela mostrava:
+   *
+   *   • a carteira, em cima, soma "ainda vai cair" = disponível + a liberar +
+   *     **em serviço** + saque em processamento. "Em serviço" é dinheiro que o
+   *     cliente JÁ PAGOU e está retido até ele aprovar a conclusão;
+   *   • a lista, embaixo, se chama "Serviços concluídos" e filtra
+   *     `status = 'concluido'`.
+   *
+   * Ou seja: todo serviço pago e ainda não aprovado entrava no TOTAL e não
+   * entrava em NENHUMA lista. Quatro serviços de R$ 1 retidos somam
+   * 4 × R$ 0,85 = **R$ 3,40** — o número exato do relato — enquanto a lista
+   * mostrava só o que já tinha sido aprovado. Não havia como conferir a conta,
+   * porque as parcelas dela não estavam em lugar nenhum da tela.
+   *
+   * A correção é dar nome a esse dinheiro: listar os serviços retidos, com
+   * valor, para que a soma de cima seja verificável linha a linha.
+   */
+  const { data: retidos } = await supabase
+    .from("service_requests")
+    .select("id, final_price, estimated_price, created_at, category:service_categories(name, slug), payment:payments!inner(provider_net, status, method)")
+    .eq("provider_id", profile!.id)
+    .in("status", ["aceito", "a_caminho", "em_andamento"])
+    .eq("payment.status", "retido");
+
+  const emServico = (retidos ?? []).map((j: any) => {
+    const cat = Array.isArray(j.category) ? j.category[0] : j.category;
+    const pay = Array.isArray(j.payment) ? j.payment[0] : j.payment;
+    return {
+      id: j.id as string,
+      catName: cat?.name ?? "Serviço",
+      catSlug: cat?.slug as string | undefined,
+      net: Number(pay?.provider_net ?? 0),
+    };
+  });
+  const totalEmServico = emServico.reduce((s, j) => s + j.net, 0);
+
+  /**
+   * GANHOS DA SEMANA — duas correções de uma vez (Fixly 13, págs. 7 e 8).
+   *
+   * 1) O DIA ERRADO. Era `new Date(j.created_at).getDay()`, que responde no
+   *    fuso do SERVIDOR (UTC no Render). Serviço feito às 21h em Curitiba já é
+   *    o dia seguinte em UTC — daí *"só fiz serviços hoje e deu que fiz hoje e
+   *    amanhã, dia 02 e 03"*. Agora quem responde é `diaDaSemanaBR`.
+   *
+   * 2) A SEMANA ERRADA. O gráfico somava o HISTÓRICO INTEIRO por dia da
+   *    semana: uma quarta de julho entrava na barra da quarta de hoje. Com o
+   *    total da semana ao lado do título (pedido do dono), isso passaria de
+   *    feio a mentiroso — o número não bateria com nada. Agora só entram os
+   *    sete dias da semana corrente.
+   *
+   * 3) A DATA CERTA É A DA LIBERAÇÃO, não a da criação do pedido. "Ganhos" é
+   *    quando o dinheiro virou dele; um pedido aberto na segunda e aprovado na
+   *    quinta é ganho de quinta. É a mesma régua que o painel de "Ganhos no
+   *    mês" já usava (`payments.released_at`).
+   */
   const week = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const diasDaSemana = semanaAtualBR();
   const byDay = new Array(7).fill(0);
-  jobs.forEach((j) => (byDay[new Date(j.created_at).getDay()] += Number(j.net)));
+  for (const j of jobs) {
+    const quando = j.pay?.released_at ?? j.created_at;
+    if (!quando) continue;
+    const dia = diaBR(quando);
+    if (!diasDaSemana.includes(dia)) continue;
+    byDay[diaDaSemanaBR(quando)] += Number(j.net);
+  }
   const max = Math.max(...byDay, 1);
+  const totalSemana = byDay.reduce((s, v) => s + v, 0);
 
   const msg = gateway ? GATEWAY_MSG[gateway] : null;
 
@@ -121,16 +189,32 @@ export default async function GanhosPage({
         </div>
       </div>
 
+      {/*
+        O VALOR SAI DO TOOLTIP E VAI PARA A TELA (Fixly 13, pág. 7):
+        *"colocar o valor feito no dia em cima do gráfico, ou em baixo de
+        quarta ali. E o total ao lado de ganhos na semana"*.
+
+        Antes o valor de cada dia só existia no `title=` da barra — invisível
+        no celular, que é onde o profissional abre isto. O gráfico dizia qual
+        dia foi o melhor e nunca quanto foi.
+      */}
       <div className="bg-white rounded-2xl border border-black/5 p-6">
-        <h2 className="font-semibold text-ink mb-4">Ganhos na semana</h2>
-        <div className="flex items-end justify-between gap-2 h-40">
+        <div className="flex items-baseline justify-between gap-3 mb-4">
+          <h2 className="font-semibold text-ink">Ganhos na semana</h2>
+          <span className="text-lg font-bold text-ink">{brl(totalSemana)}</span>
+        </div>
+        <div className="flex items-end justify-between gap-2 h-44">
           {byDay.map((v, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-2">
-              <div className="w-full flex items-end justify-center h-32">
+            <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+              {/* o valor fica ACIMA da barra; espaço reservado mesmo quando é
+                  zero, senão as barras dançam de altura entre os dias */}
+              <span className={`text-[10px] font-semibold h-4 ${v > 0 ? "text-ink" : "text-transparent"}`}>
+                {v > 0 ? brl(v) : "–"}
+              </span>
+              <div className="w-full flex items-end justify-center h-28">
                 <div
                   className="w-full max-w-8 rounded-t-lg bg-primary/80 transition-all"
                   style={{ height: `${(v / max) * 100}%`, minHeight: v > 0 ? 6 : 2 }}
-                  title={brl(v)}
                 />
               </div>
               <span className="text-[11px] text-gray-light">{week[i]}</span>
@@ -138,6 +222,36 @@ export default async function GanhosPage({
           ))}
         </div>
       </div>
+
+      {/* O dinheiro que a carteira conta em "Em serviço", agora com nome e
+          valor — sem esta lista o total de cima não fechava com nada. */}
+      {emServico.length > 0 && (
+        <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
+          <div className="px-6 py-4 border-b border-black/5 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-ink">Em serviço (pago, aguardando aprovação)</h2>
+              <p className="text-xs text-gray-light mt-0.5">
+                O cliente já pagou. O valor fica retido até ele aprovar a conclusão — depois
+                disso entra na sua carteira.
+              </p>
+            </div>
+            <span className="font-bold text-ink shrink-0">{brl(totalEmServico)}</span>
+          </div>
+          <ul className="divide-y divide-black/5">
+            {emServico.map((j) => (
+              <li key={j.id} className="flex items-center justify-between px-6 py-3.5">
+                <span className="flex items-center gap-3 min-w-0">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-canvas text-ink">
+                    <CategoryIcon slug={j.catSlug} className="h-5 w-5" />
+                  </span>
+                  <span className="font-medium text-ink text-sm truncate">{j.catName}</span>
+                </span>
+                <span className="font-semibold text-gray shrink-0">{brl(j.net)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-black/5 overflow-hidden">
         <div className="px-6 py-4 border-b border-black/5">

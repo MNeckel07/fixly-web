@@ -66,10 +66,33 @@ export default async function PrestadorHome() {
     }
   }
 
+  /**
+   * ⚠️ SÓ PROPOSTA VIVA (`status = 'enviada'`) CONTA COMO "JÁ RESPONDI".
+   *
+   * Sem o filtro, uma proposta RECUSADA continuaria marcando o pedido como
+   * respondido — e, com a divisão nova de abas (Fixly 13), o pedido sumiria das
+   * DUAS: aqui ele cairia fora por ter `myProposal`, e na aba Trabalho não
+   * apareceria, porque lá a consulta só busca propostas 'enviada'.
+   *
+   * O caso é real e não é raro: quando o cliente aceita alguém, o
+   * `accept_proposal` marca TODAS as outras propostas como 'recusada'. Se
+   * depois esse profissional desistir sem pagamento, o pedido volta para
+   * `buscando` — e os concorrentes, cuja proposta ficou 'recusada', nunca mais
+   * veriam aquele pedido em lugar nenhum.
+   *
+   * Com o filtro, o pedido devolvido à fila reaparece aqui como oportunidade
+   * nova, que é o que ele é. Propor de novo funciona: o `submit_proposal` tem
+   * `on conflict (request_id, provider_id) do update ... status = 'enviada'`,
+   * então a linha antiga é revivida em vez de duplicar.
+   *
+   * A regra vale para as duas abas e é uma só: proposta viva → Trabalho;
+   * qualquer outra coisa → é pedido em aberto.
+   */
   const { data: myProps } = await supabase
     .from("proposals")
     .select("id, request_id, price, eta_minutes, advance_pct, travel_fee, counter_price, counter_status, counter_by, counter_rounds")
-    .eq("provider_id", profile.id);
+    .eq("provider_id", profile.id)
+    .eq("status", "enviada");
 
   const propMap: Record<string, {
     id: string; price: number; eta: number | null; advance_pct: number; travel_fee: number;
@@ -90,51 +113,31 @@ export default async function PrestadorHome() {
     };
   });
 
-  // Prestador ocupado = tem serviço em execução AINDA não sinalizado como pronto.
-  // Depois de concluir, ele volta a receber pedidos mesmo que a aprovação do
-  // contratante (que libera o pagamento) ainda não tenha saído.
+  /**
+   * OCUPADO É SÓ NO EXPRESS (Fixly 13, pág. 5).
+   *
+   * Palavras do dono: *"o ocupado, acho que dá para deixar apenas para quando
+   * ele está em um serviço express. porque às vezes ele pega um serviço que só
+   * consegue ir no final de semana, e trabalha na semana com outros serviços"*.
+   *
+   * A regra antiga confundia "tenho um serviço em aberto" com "estou com as
+   * mãos ocupadas AGORA". Um orçamento aceito para sábado bloqueava a semana
+   * inteira: o profissional parava de receber pedidos por causa de um trabalho
+   * que ele nem começou. Só o Express prende de verdade — ele saiu para o
+   * endereço do cliente e não pode aceitar outro no meio do caminho.
+   *
+   * `provider_done_at is null` continua valendo: depois de sinalizar o fim, ele
+   * volta à fila mesmo antes de o cliente aprovar (a aprovação libera dinheiro,
+   * não a agenda dele).
+   */
   const { count: activeCount } = await supabase
     .from("service_requests")
     .select("*", { count: "exact", head: true })
     .eq("provider_id", profile.id)
+    .eq("urgent", true)
     .in("status", ["a_caminho", "em_andamento"])
     .is("provider_done_at", null);
   const busy = (activeCount ?? 0) > 0;
-
-  /**
-   * O QUE AINDA É "PEDIDO" PARA O PROFISSIONAL (regra do dono, Fixly 12).
-   *
-   * *"Quando o pedido for aprovado, pago e etc., apenas faltar a ida do
-   * prestador pra ir ao local e executar, deixe apenas em Trabalho; quando o
-   * mesmo estiver pendente, em negociação, proposta e etc., deixe em Pedidos."*
-   *
-   * Repare que o corte NÃO é o aceite, é o PAGAMENTO. `aceito` quer dizer "o
-   * cliente escolheu você e ainda não pagou" — ninguém vai a lugar nenhum
-   * ainda, então isso é pendência e fica aqui. Assim que o dinheiro entra o
-   * status vira `a_caminho`, e daí em diante o serviço é da aba Trabalho e
-   * some daqui.
-   *
-   * Efeito colateral bem-vindo: o contador "X em aberto" volta a significar
-   * uma coisa só — quantos serviços esperam algo DELE —, em vez de somar
-   * trabalho em andamento com pendência.
-   */
-  const { data: mine } = await supabase
-    .from("service_requests")
-    .select("id, description, status, address, mode, final_price, created_at, category:service_categories(name, slug), client:profiles!service_requests_client_id_fkey(full_name, city), location:service_request_locations(address)")
-    .eq("provider_id", profile.id)
-    .eq("status", "aceito")
-    .order("created_at", { ascending: false });
-  const myJobs = (mine ?? []).map((j: any) => ({
-    id: j.id,
-    description: j.description,
-    status: j.status,
-    // serviço já fechado: aqui o endereço completo pode (e deve) aparecer
-    address: (Array.isArray(j.location) ? j.location[0] : j.location)?.address ?? j.address,
-    mode: j.mode,
-    final_price: j.final_price,
-    category: Array.isArray(j.category) ? j.category[0] : j.category,
-    client: Array.isArray(j.client) ? j.client[0] : j.client,
-  }));
 
   /**
    * Ganho do mês = o que foi LIBERADO neste mês, não o que foi pedido neste mês.
@@ -218,17 +221,33 @@ export default async function PrestadorHome() {
       };
     });
 
+  /**
+   * PEDIDOS = O QUE AINDA ESPERA A PRIMEIRA RESPOSTA DELE (Fixly 13, pág. 3).
+   *
+   * *"Deixar os pedidos que foram enviadas propostas, que já foram aceitos e os
+   * que já foram pagos e iniciados na aba trabalho."*
+   *
+   * Isto REVÊ a divisão do Fixly 12, que mandava proposta e negociação ficarem
+   * em Pedidos. A régua nova é mais simples de explicar e é a que o dono pediu:
+   * **Pedidos é a caixa de entrada** — só o que ainda não recebeu resposta
+   * minha; assim que eu mando uma proposta, aquilo vira trabalho meu e muda de
+   * aba, com a negociação junto.
+   *
+   * Efeito colateral bem-vindo: "X na sua região" volta a significar
+   * "X esperando você", em vez de somar o que já está comigo.
+   */
+  const pendentes = requests.filter((r) => !r.myProposal);
+
   // assina as fotos (bucket privado) só para quem tem direito de ver
-  const signedMap = await signRequestPhotoMap(supabase, requests.flatMap((r) => r.photos));
-  for (const r of requests) r.photos = r.photos.map((p: string) => signedMap[p]).filter(Boolean);
+  const signedMap = await signRequestPhotoMap(supabase, pendentes.flatMap((r) => r.photos));
+  for (const r of pendentes) r.photos = r.photos.map((p: string) => signedMap[p]).filter(Boolean);
 
   return (
     <>
       {/* pedidos novos e contra-propostas aparecem sem precisar dar F5 */}
       <AutoRefresh seconds={15} />
       <PedidosBoard
-      requests={requests}
-      myJobs={myJobs as any}
+      requests={pendentes}
       providerId={profile!.id}
       providerName={profile!.full_name}
       rating={profile!.rating ?? 0}

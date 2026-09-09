@@ -27,7 +27,7 @@ export function Feed({ posts, publicUrlBase }: { posts: Post[]; publicUrlBase: s
       {posts.map((post) => (
         <article key={post.id} className="bg-white rounded-2xl border border-black/5 overflow-hidden">
           <header className="flex items-center justify-between px-4 py-3">
-            <Link href={post.provider?.handle ? `/p/${post.provider.handle}` : "#"} target="_blank" className="font-semibold text-ink">
+            <Link href={post.provider?.handle ? `/p/${post.provider.handle}` : "#"} className="font-semibold text-ink">
               {post.provider?.full_name ?? "Profissional"}
             </Link>
             <span className="text-xs text-gray-light">{new Date(post.created_at).toLocaleDateString("pt-BR")}</span>

@@ -16,6 +16,7 @@ type Provider = {
   bio: string | null;
   city: string | null;
   avatar_path: string | null;
+  seal_active?: boolean | null;
   category: { name: string; slug: string } | null;
 };
 
@@ -26,11 +27,16 @@ export function ProfilerDirectory({
   currentUserId = null,
   followingIds = [],
   showRequestButton = true,
+  miniaturas = {},
+  portfolioBase = "",
 }: {
   providers: Provider[];
   currentUserId?: string | null;
   followingIds?: string[];
   showRequestButton?: boolean;
+  /** id do profissional -> até 4 caminhos de foto do portfólio (Fixly 13.2). */
+  miniaturas?: Record<string, string[]>;
+  portfolioBase?: string;
 }) {
   const followingSet = new Set(followingIds);
   const [q, setQ] = useState("");
@@ -61,8 +67,13 @@ export function ProfilerDirectory({
       ) : (
         <div className="space-y-3">
           {list.map((p) => {
-            const rep = providerReputation(p.rating, p.jobs_done);
+            // `seal_active` MANDA quando vem do banco: é ele que carrega a
+            // revogação feita pela equipe. Sem ele, a lista continuava dando o
+            // selo pela conta automática e discordava do perfil do mesmo
+            // profissional, que já lia a coluna.
+            const rep = providerReputation(p.rating, p.jobs_done, p.seal_active);
             const elite = rep.elite;
+            const fotos = (miniaturas[p.id] ?? []).slice(0, 4);
             return (
               <div key={p.id} className="bg-white rounded-2xl border border-black/5 p-5">
                 <div className="flex items-start gap-3">
@@ -95,11 +106,36 @@ export function ProfilerDirectory({
                     </div>
                   </div>
                 </div>
+                {/*
+                  MINIATURAS DO TRABALHO (Fixly 13.2) — *"vamos deixar uma
+                  miniatura com umas 3 fotos ou 4 embaixo deles"*.
+
+                  Elas são LINKS para o perfil, não para o arquivo da imagem:
+                  quem clica numa foto do portfólio quer ver o profissional,
+                  não o JPEG solto. Era, aliás, o segundo lado da queixa do
+                  13.2 — a foto abria uma guia com a URL do Supabase e não
+                  havia como voltar.
+                */}
+                {fotos.length > 0 && p.handle && (
+                  <Link href={`/p/${p.handle}`} className="mt-3 grid grid-cols-4 gap-1.5 group">
+                    {fotos.map((path) => (
+                      <span key={path} className="aspect-square overflow-hidden rounded-lg bg-canvas border border-black/5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={portfolioBase + path}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover transition group-hover:brightness-95"
+                        />
+                      </span>
+                    ))}
+                  </Link>
+                )}
+
                 <div className="mt-3 flex gap-2 items-stretch">
                   {p.handle && (
                     <Link
                       href={`/p/${p.handle}`}
-                      target="_blank"
                       className="flex-1 inline-flex items-center justify-center h-10 rounded-xl border border-black/10 text-ink font-semibold text-sm hover:bg-black/[0.03] transition"
                     >
                       Ver portfólio

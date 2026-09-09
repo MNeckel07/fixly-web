@@ -212,11 +212,28 @@ export function ServiceDetail({
   }
 
   /**
-   * EXPRESS = urgente (v13). Modalidade de orçamento fica de fora: reforma com
-   * pressa continua sendo reforma, o que muda é a prioridade, não o fato de
-   * precisar de visita técnica.
+   * EXPRESS = urgente. Ponto.
+   *
+   * 🔴 Aqui estava a tarja que sumia (Fixly 13, pág. 2): *"em editar, na
+   * alteração para express, ele não fica aparecendo express ao lado de
+   * eletricista"*.
+   *
+   * A regra tinha um `&& service.mode !== "orcamento"` a mais. O cliente
+   * abria o lápis, ligava "É urgente? (vira EXPRESS)", salvava — e nada
+   * aparecia, porque o pedido tinha nascido pela modalidade "Solicitar
+   * serviço" (`mode = 'orcamento'`). O `urgent` gravava certo; quem escondia
+   * a tarja era esta linha.
+   *
+   * E ela estava sozinha nessa leitura: o lado do PROFISSIONAL sempre marcou
+   * EXPRESS só por `urgent` (`PedidosBoard`, tanto no card do pedido quanto
+   * no aviso "o cliente precisa de atendimento agora"). Ou seja, os dois
+   * lados do mesmo pedido discordavam — ele via EXPRESS, o cliente não.
+   *
+   * A visita técnica não se perde: quem decide se ainda falta orçamento é
+   * `awaitingQuote`, logo abaixo, que continua olhando `mode`. Uma reforma
+   * urgente mostra as duas coisas — a tarja EXPRESS e o aviso do orçamento.
    */
-  const express = !!service.urgent && service.mode !== "orcamento";
+  const express = !!service.urgent;
   /** Editar só faz sentido enquanto ninguém aceitou o pedido. */
   const podeEditar = !service.provider_id && !["concluido", "cancelado"].includes(service.status);
   const canCancel = !["concluido", "cancelado"].includes(service.status);
@@ -370,7 +387,7 @@ export function ServiceDetail({
         {(service.photos ?? []).length > 0 && (
           <div className="flex flex-wrap gap-2 mt-3">
             {(service.photos ?? []).map((ph) => (
-              <a key={ph} href={ph} target="_blank" rel="noreferrer" className="h-20 w-20 rounded-xl overflow-hidden bg-canvas border border-black/5">
+              <a key={ph} href={ph} rel="noreferrer" className="h-20 w-20 rounded-xl overflow-hidden bg-canvas border border-black/5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={ph} alt="Foto do serviço" className="h-full w-full object-cover hover:scale-105 transition" />
               </a>
@@ -555,9 +572,10 @@ export function ServiceDetail({
                       <div className="text-right shrink-0">
                         <p className="text-lg font-bold text-ink">{brl(totalProposta)}</p>
                         {frete > 0 && (
-                          /* frete separado não é detalhe: é o piso do que fica
-                             retido se o serviço for cancelado depois que ele
-                             sair para o local (política, item 3.3) */
+                          /* Só propostas ANTIGAS ainda têm frete (0039 acabou
+                             com a cobrança separada). Continua visível aqui
+                             porque o valor foi combinado assim e some sozinho
+                             conforme essas propostas se fecham. */
                           <p className="text-[11px] text-gray-light">
                             {brl(p.price)} + {brl(frete)} de deslocamento
                           </p>
@@ -630,7 +648,7 @@ export function ServiceDetail({
 
                     <div className="flex gap-2 mt-3">
                       {p.provider?.handle && (
-                        <Link href={`/p/${p.provider.handle}`} target="_blank" className="flex-1 inline-flex items-center justify-center gap-1 h-10 rounded-xl border border-black/10 text-ink text-sm font-medium hover:bg-black/[0.03]">
+                        <Link href={`/p/${p.provider.handle}`} className="flex-1 inline-flex items-center justify-center gap-1 h-10 rounded-xl border border-black/10 text-ink text-sm font-medium hover:bg-black/[0.03]">
                           Ver perfil <ExternalLink className="h-3.5 w-3.5" />
                         </Link>
                       )}
@@ -785,8 +803,17 @@ export function ServiceDetail({
         </div>
       )}
 
-      {/* Mapa */}
-      {inProgress && service.status !== "aceito" && (
+      {/*
+        MAPA: só no EXPRESS (Fixly 13, pág. 4) — *"após o pagamento, acho que o
+        mapa e onde está escrito a caminho, dá para deixar apenas para o
+        express"*.
+
+        Num serviço marcado para o fim de semana, o mapa mostrando o
+        profissional "a caminho" na terça-feira não é um detalhe cosmético: é
+        uma informação errada, e o cliente fica esperando alguém que não
+        combinou de ir hoje. Rastreio existe para quem contratou "agora".
+      */}
+      {express && inProgress && service.status !== "aceito" && (
         <RouteMap target={dest} targetKind="home" origin={origin} moverKind="wrench" requestGps showRoute={!!origin} height={260} />
       )}
 
@@ -914,7 +941,20 @@ export function ServiceDetail({
         que abre um pedido NOVO já direcionado a ele: preço próprio, aceite
         próprio, pagamento próprio. O serviço concluído continua concluído.
       */}
-      {(done || inProgress) && service.provider_id && service.provider && (
+      {/*
+        SÓ DEPOIS DO PAGAMENTO (Fixly 13, pág. 3): *"deixar o precisa de mais
+        alguma coisa, apenas na parte após o pagamento"*.
+
+        Antes ele aparecia em `inProgress`, que inclui `aceito` — ou seja,
+        LOGO ABAIXO do botão "Pagar com Pix", na tela em que o cliente ainda
+        não pagou o primeiro serviço. Convidar para um segundo pedido ali
+        disputa com a única ação que importa naquele momento e ainda sugere
+        que o serviço já está resolvido.
+
+        `isPaid` (a_caminho/em_andamento) e `done` são exatamente "o dinheiro
+        já entrou" — que é onde o convite faz sentido.
+      */}
+      {(done || isPaid) && service.provider_id && service.provider && (
         <div className="rounded-2xl border border-black/5 bg-white p-5">
           <h3 className="font-semibold text-ink">Precisa de mais alguma coisa?</h3>
           <p className="text-sm text-gray mt-0.5">
