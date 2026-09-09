@@ -1,9 +1,14 @@
 /**
  * PASSO A PASSO — quatro cartões sobre as manchas âmbar.
  *
- * As três manchas de fundo (âmbar, creme e cinza) são `border-radius` de oito
- * valores girado: é o jeito de fazer uma forma orgânica sem SVG e sem imagem.
- * A cinza tem `data-blob-cinza` porque some abaixo de 900px — empilhado, ela
+ * ⚠️ UMA mancha só, a cinza atrás do texto. O `.dc.html` que veio no zip tinha
+ * mais duas — uma âmbar grande e uma creme, ambas à esquerda, atrás dos
+ * cartões. Elas NÃO existem no design atual: conferido nas capturas do dono e,
+ * de forma independente, no `Design.pdf`. O zip estava desatualizado, e o âmbar
+ * dominava metade da seção.
+ *
+ * A cinza é `border-radius` de oito valores girado — forma orgânica sem SVG e
+ * sem imagem. Tem `data-blob-cinza` porque some abaixo de 900px: empilhada, ela
  * cairia atrás do texto e sujaria a leitura.
  *
  * Os cartões alternam `translateY(0)` e `translateY(28px)` para o bloco não
@@ -71,33 +76,6 @@ export function ComoFunciona() {
         padding: "clamp(24px,3vw,34px) clamp(16px,4vw,32px) clamp(70px,9vw,120px)",
       }}
     >
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          left: -120,
-          top: 96,
-          width: 760,
-          height: 520,
-          borderRadius: "44% 56% 52% 48% / 52% 44% 56% 48%",
-          background: "linear-gradient(140deg,#ffd24d 0%,#ffc107 45%,#f0b400 100%)",
-          opacity: 0.92,
-          transform: "rotate(-8deg)",
-        }}
-      />
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 150,
-          width: 620,
-          height: 430,
-          borderRadius: "52% 48% 44% 56% / 48% 52% 48% 52%",
-          background: "rgba(255,246,221,0.6)",
-          transform: "rotate(12deg)",
-        }}
-      />
       <div
         aria-hidden="true"
         data-blob-cinza="1"
@@ -226,7 +204,12 @@ export function ComoFunciona() {
                     fontSize: 12,
                     fontWeight: 700,
                     letterSpacing: "0.08em",
-                    color: "#868d95",
+                    /* #6b727a, e não o #868d95 do design: sobre o branco do
+                       cartão aquele dava 3,35:1 e reprovava no contraste.
+                       12px em negrito NÃO conta como "texto grande" no WCAG,
+                       então a régua é 4,5:1 — este dá 4,87:1. Mesma cor já
+                       usada no copyright do rodapé, pelo mesmo motivo. */
+                    color: "#6b727a",
                   }}
                 >
                   {p.num}

@@ -136,8 +136,10 @@ function Cartao({ lado }: { lado: Lado }) {
             height: "calc(var(--card-h) + 44px)",
             width: "auto",
             maxWidth: "none",
-            opacity: 0,
-            transform: "translate(-50%,10px)",
+            /* ⚠️ `opacity` e `transform` de repouso NAO ficam aqui — vivem em
+               globals-site.css. Estilo inline vence regra de classe sem
+               `!important`, entao com eles aqui o `.fx-lado:hover` nunca
+               conseguia REVELAR o trio: o cartao esvaziava no hover. */
             filter: "drop-shadow(0 26px 40px rgba(0,0,0,0.45))",
             transition: "opacity 380ms ease,transform 480ms cubic-bezier(0.2,0.8,0.2,1)",
           }}
@@ -230,8 +232,7 @@ function Cartao({ lado }: { lado: Lado }) {
           fontWeight: 700,
           whiteSpace: "nowrap",
           boxShadow: "0 18px 34px -14px rgba(0,0,0,0.7)",
-          opacity: 0,
-          transform: "translateY(12px)",
+          /* idem: o repouso mora no CSS, senao o hover nao mostra o botao */
           transition: "opacity 320ms ease,transform 420ms cubic-bezier(0.2,0.8,0.2,1)",
           pointerEvents: "none",
         }}

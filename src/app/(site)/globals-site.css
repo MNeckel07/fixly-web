@@ -112,6 +112,26 @@ img {
   transform: translateY(-2px);
 }
 
+/* ── cartões "escolha o seu lado": estado de REPOUSO ────────
+   ⚠️ ISTO PRECISA MORAR NO CSS, NÃO INLINE NO JSX.
+   Estilo inline vence regra de classe sem `!important`. Enquanto o
+   `opacity: 0` do trio e do botão ficaram no `style={{}}` do componente, o
+   `.fx-lado:hover` conseguia ESCONDER (a cópia e a pessoa sozinha, que não
+   tinham opacidade inline) e não conseguia REVELAR nada — o cartão ficava
+   vazio no hover, que foi o defeito relatado.
+
+   Especificidade: estas regras são (0,2,0) e as de hover, (0,3,0). O hover
+   vence; o override do mobile mais abaixo usa `!important` e vence os dois. */
+[data-lado] [data-foto="tres"] {
+  opacity: 0;
+  transform: translate(-50%, 10px);
+}
+
+[data-lado] [data-hovercta] {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
 /* ── cartões "escolha o seu lado" ───────────────────────────
    A troca de foto (uma pessoa → o trio) era JavaScript no design. Aqui é
    :hover puro: funciona antes da hidratação, não gasta um componente de
