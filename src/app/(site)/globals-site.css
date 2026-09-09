@@ -38,6 +38,28 @@ body {
   color-scheme: light;
 }
 
+/*
+ * ⚠️ SEM ISTO A PAGINA ROLA DE LADO NO CELULAR.
+ *
+ * O hero e a Missao sangram de proposito: os celulares saem em `left:-12%` /
+ * `right:-14%`, o fundo escuro inclinado se estende 90px para fora dos dois
+ * lados, e as cenas ficam em `left:-11%`. No design isso era contido por um
+ * `overflow-x: clip` na div raiz, que se perdeu quando a pagina virou `<main>`.
+ * Medido antes da correcao: 575px de conteudo numa tela de 485px — e a rolagem
+ * lateral empurrava o enquadramento inteiro para fora do lugar.
+ *
+ * `clip` e nao `hidden`: `hidden` transformaria o body em contêiner de rolagem
+ * e mataria o `scrollIntoView` das ancoras do menu.
+ */
+html,
+body {
+  /* ⚠️ NO `html` TAMBEM, nao so no body: `overflow-x` do body so e propagado
+     para a viewport quando o valor e `hidden`/`scroll`/`auto`. Com `clip` ele
+     NAO propaga — so no body a barra lateral continuava aparecendo (medido:
+     575px de conteudo em 485px de tela, antes e depois). */
+  overflow-x: clip;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -225,9 +247,13 @@ nav[data-nav]::-webkit-scrollbar {
   [data-hero-sub] {
     max-width: 34ch;
   }
-  [data-hero-fones] img {
-    width: 78% !important;
-  }
+  /*
+   * Os celulares ficam no MESMO tamanho do desktop (os 94% do estilo inline).
+   * O `78%` que estava aqui encolhia os dois e desfazia a sobreposicao — eles
+   * viravam duas telinhas soltas lado a lado em vez da composicao do design.
+   * Agora que o `overflow-x: clip` contem a sangria, eles podem voltar a
+   * transbordar pela direita como no enquadramento maior.
+   */
 
   [data-passos-grid] {
     grid-template-columns: 1fr !important;
@@ -276,6 +302,13 @@ nav[data-nav]::-webkit-scrollbar {
     mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
   }
 
+  /*
+   * O topo da secao e uma DIAGONAL: o recorte vai de 76px na borda esquerda
+   * ate 0 na direita. Com `align-self: start` e sem margem, o titulo branco
+   * comecava em y=0 e a metade esquerda dele caia sobre o fundo CLARO — sumia.
+   * A margem tira o texto de cima da cunha branca. `24vw` acompanha a
+   * inclinacao (que e proporcional a largura) e o `clamp` segura os extremos.
+   */
   [data-texto="a"],
   [data-texto="b"] {
     align-self: start !important;
@@ -283,7 +316,7 @@ nav[data-nav]::-webkit-scrollbar {
     text-align: center !important;
     width: min(94%, 22ch) !important;
     max-width: none !important;
-    margin: 0 auto !important;
+    margin: clamp(96px, 24vw, 150px) auto 0 !important;
   }
   /* `max-width` e não `width`: ver o comentário em Missao.tsx — com `width`
      cravado e `max-height` cortando, a foto estica na horizontal. */
