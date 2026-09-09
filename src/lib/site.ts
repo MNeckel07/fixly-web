@@ -55,15 +55,6 @@ export const links = {
  */
 export const CTA_LABEL = "Quero receber propostas";
 
-/**
- * Microcópia de expectativa sob o botão.
- *
- * Não promete "peça agora": o cadastro real passa por conferência humana e a
- * pessoa é avisada por e-mail. Prometer velocidade aqui seria mentira que o
- * próprio produto desmente três telas depois.
- */
-export const CTA_MICRO = "Cadastro gratuito. Seu cadastro passa pela mesma conferência do profissional.";
-
 /** As oito categorias em destaque — espelham `service_categories.featured`. */
 export const CATEGORIAS = [
   { nome: "Eletricista", exemplo: "Tomada queimada, chuveiro, disjuntor caindo" },
@@ -74,22 +65,4 @@ export const CATEGORIAS = [
   { nome: "Pintor", exemplo: "Quarto, fachada, textura" },
   { nome: "Pisos e revestimentos", exemplo: "Porcelanato, rejunte, azulejo" },
   { nome: "Pequenos reparos", exemplo: "Aquele conserto que ninguém quer pegar" },
-] as const;
-
-/**
- * Os sete documentos obrigatórios do prestador.
- *
- * ⚠️ Conferido no banco vivo em 25/08/2026, não no seed: a CTPS foi REMOVIDA e
- * o certificado de qualificação é opcional (`required = false`). Os sete abaixo
- * são os que têm `required = true` de verdade. Não acrescentar item sem
- * conferir `document_types` de novo.
- */
-export const DOCUMENTOS = [
-  { nome: "RG ou CNH", detalhe: "frente e verso" },
-  { nome: "CPF", detalhe: null },
-  { nome: "Comprovante de residência", detalhe: null },
-  { nome: "Foto 3x4", detalhe: null },
-  { nome: "Selfie segurando o documento", detalhe: "prova que o documento é dele, não de outra pessoa" },
-  { nome: "Certidão de antecedentes criminais", detalhe: null },
-  { nome: "Comprovante de conta bancária", detalhe: null },
 ] as const;
