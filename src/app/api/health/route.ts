@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Endpoint de "estou vivo".
@@ -26,7 +26,30 @@ import { NextResponse } from "next/server";
  */
 export const dynamic = "force-dynamic";
 
-export function GET() {
+export function GET(request: NextRequest) {
+  /**
+   * PESSOA NO NAVEGADOR VAI PARA O SITE, MONITOR CONTINUA VENDO O JSON.
+   *
+   * O dono abriu o Fixly no celular e caiu neste JSON. A raiz está certa (foi
+   * conferida com UA de iPhone, com e sem www, http e https) — o endereço é que
+   * estava salvo no aparelho: histórico, tile de "mais visitados", aba
+   * restaurada ou atalho na tela de início. Nada disso o servidor desfaz, e
+   * `no-store` não ajuda: o problema não é cache, é a URL guardada.
+   *
+   * `Sec-Fetch-Mode: navigate` é a diferença exata entre "uma pessoa digitou ou
+   * tocou num link" e "um programa está consultando". Todo navegador moderno
+   * manda esse cabeçalho numa navegação de topo; curl, UptimeRobot,
+   * cron-job.org e o health check do Render **não mandam** — são clientes HTTP,
+   * não navegadores.
+   *
+   * ⚠️ Por isso o desvio é POR NAVEGAÇÃO e não por `Accept: text/html`: um
+   * monitor mal configurado poderia mandar `Accept` de HTML e passaria a ser
+   * redirecionado, e aí o Render acharia que o serviço não responde.
+   */
+  if (request.headers.get("sec-fetch-mode") === "navigate") {
+    return NextResponse.redirect(new URL("/", request.url), 307);
+  }
+
   const mem = process.memoryUsage();
   return NextResponse.json(
     {
